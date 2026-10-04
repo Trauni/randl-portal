@@ -1,0 +1,214 @@
+require('dotenv').config({ override: true });
+const express = require('express');
+const session = require('express-session');
+const MySQLStore = require('express-mysql-session')(session);
+const helmet = require('helmet');
+const morgan = require('morgan');
+const path = require('path');
+
+const authRoutes = require('./src/routes/auth');
+const requireArea = require('./src/middleware/requireArea');
+const { roleFromGroups, tagsFromGroups } = require('./src/utils/permissions');
+const vacationRoutes = require('./src/routes/api/vacation');
+const notesRoutes = require('./src/routes/api/notes');
+const profileRoutes = require('./src/routes/api/profile');
+const dashboardRoutes = require('./src/routes/api/dashboard');
+const itSystemRouter     = require('./src/routes/api/it/system');
+const itCloudflareRouter = require('./src/routes/api/it/cloudflare');
+const itSpamRouter       = require('./src/routes/api/it/spam');
+const itDockerRouter     = require('./src/routes/api/it/docker');
+const itShopwareRouter   = require('./src/routes/api/it/shopware');
+const itLogsRouter     = require('./src/routes/api/it/logs');
+const itCleanupRouter  = require('./src/routes/api/it/cleanup');
+const itMaintenanceRouter = require('./src/routes/api/it/maintenance');
+const financeOrdersRouter   = require('./src/routes/api/finance/orders');
+const zeltverleihRouter      = require('./src/routes/api/zeltverleih');
+const financeProductsRouter = require('./src/routes/api/finance/products');
+const financeCustomersRouter = require('./src/routes/api/finance/customers');
+const financeRhythmRouter = require('./src/routes/api/finance/delivery-rhythm');
+const financeWidmannRouter = require('./src/routes/api/finance/widmann-bestand');
+const contentCmsRouter    = require('./src/routes/api/content/cms');
+const contentBilderRouter  = require('./src/routes/api/content/bilder');
+const shopImagesRouter     = require('./src/routes/api/content/shop-images');
+const shopCmsRouter        = require('./src/routes/api/content/shop-cms');
+const shopProductsRouter   = require('./src/routes/api/content/shop-products');
+const hrEmployeesRouter    = require('./src/routes/api/hr/employees');
+const { auswertung: hrZeitRouter, eigen: zeitEigenRouter } = require('./src/routes/api/hr/zeiterfassung');
+const { router: hrRentmanRouter } = require('./src/routes/api/hr/rentman-sync');
+const app = express();
+const PORT = process.env.PORT || 3337;
+
+// ── Security & Logging ───────────────────────────────────────────────────────
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+    }
+  }
+}));
+app.use(morgan('combined'));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Trust proxy (Nginx sitzt davor)
+app.set('trust proxy', 1);
+
+// ── Session Store (MariaDB) ──────────────────────────────────────────────────
+const sessionStoreOptions = {
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT) || 3306,
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  clearExpired: true,
+  checkExpirationInterval: 900000,
+  expiration: 7776000000, // 90 Tage
+  createDatabaseTable: true,
+  schema: {
+    tableName: 'portal_sessions',
+    columnNames: {
+      session_id: 'session_id',
+      expires: 'expires',
+      data: 'data'
+    }
+  }
+};
+
+const sessionStore = new MySQLStore(sessionStoreOptions);
+
+app.use(session({
+  key: 'randlweb_portal_sid',
+  secret: process.env.SESSION_SECRET || 'dev-secret-change-me',
+  store: sessionStore,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 7776000000, // 90 Tage
+    sameSite: 'none'
+  }
+}));
+
+// ── Static Files (vor Routes!) ─────────────────────────────────────────────
+const distPath = path.join(__dirname, 'dist');
+app.use(express.static(distPath));
+// --- Mobile Bundle (PWA) ---------------------------------------------------
+const distMobilePath = path.join(__dirname, 'dist-mobile');
+app.use('/mobile', express.static(distMobilePath));
+app.get('/mobile/*', (req, res) => {
+  res.sendFile(path.join(distMobilePath, 'index.html'));
+});
+
+// ── Routes ───────────────────────────────────────────────────────────────────
+app.use('/auth', authRoutes);
+app.use('/api/vacation', requireArea('urlaub.eigen'), vacationRoutes);
+app.use('/api/notes', requireArea('notizen'), notesRoutes);
+app.use('/api/profile', requireArea('profil'), profileRoutes);
+app.use('/api/dashboard', requireArea('dashboard'), dashboardRoutes);
+app.use('/api/it/system',     requireArea('it'), itSystemRouter);
+app.use('/api/it/cloudflare', requireArea('it'), itCloudflareRouter);
+app.use('/api/it/spam',       requireArea('it'), itSpamRouter);
+app.use('/api/it/docker',     requireArea('it'), itDockerRouter);
+app.use('/api/it/shopware',   requireArea('it'), itShopwareRouter);
+app.use('/api/it/logs',     requireArea('it'), itLogsRouter);
+app.use('/api/it/cleanup',  requireArea('it'), itCleanupRouter);
+app.use('/api/it/maintenance', requireArea('it'), itMaintenanceRouter);
+app.use('/api/finance/orders',   requireArea('gashandel'), financeOrdersRouter);
+app.use('/api/finance/products', requireArea('gashandel'), financeProductsRouter);
+app.use('/api/finance/customers', requireArea('gashandel'), financeCustomersRouter);
+app.use('/api/finance/delivery-rhythm', requireArea('gashandel'), financeRhythmRouter);
+app.use('/api/finance/widmann-bestand', requireArea('gashandel'), financeWidmannRouter);
+app.use('/api/content/cms',    requireArea('content'), contentCmsRouter);
+app.use('/api/content/bilder', requireArea('content'), contentBilderRouter);
+app.use('/api/shop-images',    requireArea('content'), shopImagesRouter);
+app.use('/api/shop-cms',       requireArea('content'), shopCmsRouter);
+app.use('/api/shop-products',  requireArea('content'), shopProductsRouter);
+app.use('/api/hr/employees',   requireArea('hr.mitarbeiter'), hrEmployeesRouter);
+app.use('/api/hr/zeiterfassung', requireArea('hr.zeitauswertung'), hrZeitRouter);
+app.use('/api/zeit',            requireArea('zeit.eigen'), zeitEigenRouter);
+app.use('/api/hr/rentman',     requireArea('hr.mitarbeiter'), hrRentmanRouter);
+app.use('/api/zeltverleih',    requireArea('zeltplanung'), zeltverleihRouter);   // neu 14.08.2026 — Zeltplaner
+app.use('/api/metallarbeiten/lieferanten', require('./src/routes/api/metallarbeiten/lieferanten'));
+app.use('/api/metallarbeiten/lieferantenauftraege', require('./src/routes/api/metallarbeiten/lieferantenauftraege'));
+
+
+// Session-Info für Frontend (kein Auth required — gibt nur zurück was vorhanden)
+app.get('/api/me', (req, res) => {
+  if (!req.session.user) {
+    return res.json({ authenticated: false });
+  }
+  res.json({
+    authenticated: true,
+    user: {
+      id: req.session.user.id,
+      username: req.session.user.username,
+      fullName: req.session.user.fullName,
+      email: req.session.user.email,
+      groups: req.session.user.groups || [],
+      role: req.session.user.role || roleFromGroups(req.session.user.groups),
+      accessTags: req.session.user.accessTags || tagsFromGroups(req.session.user.groups),
+      avatarInitials: req.session.user.avatarInitials
+    }
+  });
+});
+
+
+// SPA Catch-all — alle unbekannten Routes → index.html
+app.get('*', (req, res, next) => {
+  // API-Routen nicht durch SPA fangen
+  if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
+    return next();
+  }
+  res.sendFile(path.join(distPath, 'index.html'));
+});
+
+// ── Error Handler ─────────────────────────────────────────────────────────────
+app.use((err, req, res, next) => {
+  console.error('[Error]', err.stack);
+  res.status(err.status || 500).json({
+    error: process.env.NODE_ENV === 'production' ? 'Interner Serverfehler' : err.message
+  });
+});
+
+// ── Start ─────────────────────────────────────────────────────────────────────
+app.listen(PORT, '127.0.0.1', () => {
+  console.log(`✓ Randl Portal läuft auf Port ${PORT}`);
+  console.log(`  Env: ${process.env.NODE_ENV}`);
+  console.log(`  OIDC Issuer: ${process.env.OIDC_ISSUER}`);
+});
+
+// ── F29 Schritt 3: Interner Listener fuer Service-zu-Service-Aufrufe ─────────
+// Komplett separate Express-Instanz, NUR die eine Route. Gebunden an die
+// gas-net-Docker-Bridge-IP (172.19.0.1) statt 0.0.0.0 - von aussen nicht
+// routbar, unabhaengig vom Haupt-Port 3336. Zusaetzlich Shared-Secret-Header,
+// gleiches Muster wie SER_CALLBACK_SECRET (admin-backend/routes/ser.js).
+const { pushCustomerToSer } = require('./src/services/ser-customer-push');
+const internalApp = express();
+internalApp.use(express.json());
+internalApp.post('/internal/customers/:id/push-ser', async (req, res) => {
+  const secret = req.headers['x-internal-ser-secret'];
+  if (!process.env.INTERNAL_SER_PUSH_SECRET || secret !== process.env.INTERNAL_SER_PUSH_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  try {
+    const result = await pushCustomerToSer(req.params.id, req.body);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('[Internal SER-Push] Fehler:', err.message);
+    if (err.statusCode === 404 || err.statusCode === 400) {
+      return res.status(err.statusCode).json({ error: err.message });
+    }
+    res.status(500).json({ error: 'SER Push fehlgeschlagen: ' + err.message });
+  }
+});
+const INTERNAL_PORT = process.env.INTERNAL_PORT || 3338;
+const INTERNAL_BIND_IP = process.env.INTERNAL_BIND_IP || '172.19.0.1';
+internalApp.listen(INTERNAL_PORT, INTERNAL_BIND_IP, () => {
+  console.log(`✓ Interner SER-Push-Listener läuft auf ${INTERNAL_BIND_IP}:${INTERNAL_PORT}`);
+});

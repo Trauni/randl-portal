@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Zeltplaner – Prototyp</title>
+<style>
+  :root{
+    --bg:#f4f2ee; --panel:#fff; --line:#d9d4cb; --ink:#2b2926; --muted:#7a746b;
+    --accent:#8a6a3b; --warn:#b3521f; --ok:#3d6b45;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+  header{padding:14px 20px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  header h1{font-size:17px;margin:0;font-weight:600}
+  header .sub{color:var(--muted);font-size:12px}
+  .wrap{display:flex;gap:16px;padding:16px;align-items:flex-start;flex-wrap:wrap}
+  .side{width:290px;flex-shrink:0;display:flex;flex-direction:column;gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px}
+  .card h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 10px}
+  label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
+  select,input[type=number],input[type=text]{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:5px;background:#fff;font:inherit}
+  input[type=range]{width:100%}
+  input[type=color]{width:100%;height:30px;padding:2px;border:1px solid var(--line);border-radius:5px;background:#fff}
+  .row{display:flex;gap:8px}
+  .row>div{flex:1}
+  .chk{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-top:8px}
+  .chk input{margin:0}
+  .pal{display:flex;flex-direction:column;gap:5px}
+  .pal button,.itm{display:flex;align-items:center;gap:9px;text-align:left;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;font:inherit;width:100%}
+  .pal button:hover,.itm:hover{border-color:var(--accent);background:#fdfbf7}
+  .sw{width:14px;height:14px;border-radius:3px;flex-shrink:0}
+  .pal .nm,.itm .nm{flex:1;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pal .dim,.itm .dim{font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums;flex-shrink:0}
+  /* muss die .pal-button-Regel (width:100%) ueberschreiben */
+  .pal .del,.del{width:24px;min-width:24px;flex:0 0 24px;height:24px;padding:0;
+    display:flex;align-items:center;justify-content:center;
+    border:1px solid var(--line);border-radius:5px;background:#fff;
+    color:var(--muted);cursor:pointer;font-size:14px;line-height:1}
+  .pal .del:hover,.del:hover{color:var(--warn);border-color:var(--warn);background:#fdf1ea}
+  .grp{display:flex;align-items:center;gap:4px}
+  .catlab{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:8px 0 2px}
+  .stage{flex:1;min-width:420px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px}
+  .scroller{overflow-x:auto}
+  canvas{display:block;cursor:grab;touch-action:none}
+  .bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .bar button{padding:6px 11px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;font:inherit;font-size:12.5px}
+  .bar button:hover{border-color:var(--accent)}
+  .bar .prim{border-color:var(--accent);background:#fdf8f0}
+  .selinfo{font-size:12px;color:var(--muted);margin-top:8px}
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin-top:4px}
+  .stat{border-bottom:1px dotted var(--line);padding-bottom:5px}
+  .stat .v{font-size:19px;font-variant-numeric:tabular-nums;font-weight:600}
+  .stat .k{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .msgs{margin-top:10px;display:flex;flex-direction:column;gap:5px}
+  .msg{font-size:12px;padding:6px 9px;border-radius:5px;border-left:3px solid}
+  .msg.w{background:#fdf1ea;border-color:var(--warn);color:#7d3a14}
+  .msg.o{background:#eef4ef;border-color:var(--ok);color:#2c4f33}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5}
+  table.lst{width:100%;border-collapse:collapse;font-size:12px}
+  table.lst td{padding:3px 0;border-bottom:1px dotted var(--line)}
+  table.lst td:last-child{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Zeltplaner</h1>
+  <span class="sub">Prototyp · Randl Gruppe Zeltverleih · Maße in Metern</span>
+</header>
+
+<div class="wrap">
+  <div class="side">
+    <div class="card">
+      <h2>Zelt</h2>
+      <label>Zelttyp</label>
+      <select id="tentType"></select>
+      <label>Länge <span id="lenLab"></span></label>
+      <input type="range" id="tentLen" min="3" max="42" step="3">
+      <div class="hint" id="tentHint"></div>
+    </div>
+
+    <div class="card">
+      <h2>Ausstattung hinzufügen</h2>
+      <div class="pal" id="pal"></div>
+      <div class="hint">
+        Klick = hinzufügen.<br>
+        <b>Ziehen</b> verschiebt · <b>Shift+Klick</b> zur Auswahl hinzufügen ·
+        <b>Rahmen ziehen</b> auf freier Fläche wählt mehrere · <b>Strg+A</b> alle ·
+        <b>R</b> drehen · <b>D</b> duplizieren · <b>Entf</b> löschen · <b>Shift</b> beim Ziehen = ohne Raster
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Eigenes Objekt anlegen</h2>
+      <label>Bezeichnung</label>
+      <input type="text" id="cuName" placeholder="z. B. Cocktailbar">
+      <div class="row">
+        <div><label>Länge (m)</label><input type="number" id="cuL" value="2.00" step="0.05" min="0.2"></div>
+        <div><label>Tiefe (m)</label><input type="number" id="cuT" value="1.00" step="0.05" min="0.2"></div>
+      </div>
+      <div class="row">
+        <div><label>Personen</label><input type="number" id="cuP" value="0" step="1" min="0"></div>
+        <div><label>Farbe</label><input type="color" id="cuC" value="#3f6f8f"></div>
+      </div>
+      <div class="chk"><input type="checkbox" id="cuSit"><label for="cuSit" style="margin:0">zählt als Sitzplätze</label></div>
+      <div class="chk"><input type="checkbox" id="cuRound"><label for="cuRound" style="margin:0">runde Darstellung</label></div>
+      <div class="bar"><button class="prim" onclick="addCustom()">Objekt anlegen</button></div>
+      <div class="hint">Eigene Objekte bleiben in diesem Browser gespeichert und erscheinen oben in der Palette.</div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="scroller"><canvas id="cv"></canvas></div>
+    <div class="bar">
+      <button onclick="rotateSel()">Drehen (R)</button>
+      <button onclick="dupSel()">Duplizieren (D)</button>
+      <button onclick="delSel()">Löschen (Entf)</button>
+      <button onclick="selectAll()">Alle wählen</button>
+      <button onclick="clearSel()">Auswahl aufheben</button>
+      <button onclick="clearAll()">Plan leeren</button>
+    </div>
+    <div class="bar">
+      <button onclick="exportPNG()">PNG exportieren</button>
+      <button onclick="saveJSON()">Als JSON-Datei speichern</button>
+      <button class="prim" onclick="saveRef()">Zu Referenzen hinzufügen</button>
+      <button onclick="document.getElementById('fi').click()">JSON laden</button>
+      <input type="file" id="fi" accept=".json" style="display:none">
+    </div>
+    <div class="selinfo" id="selinfo"></div>
+  </div>
+
+  <div class="side">
+    <div class="card">
+      <h2>Auswertung</h2>
+      <div class="stats">
+        <div class="stat"><div class="v" id="sPers">0</div><div class="k">Personen</div></div>
+        <div class="stat"><div class="v" id="sSitz">0</div><div class="k">davon sitzend</div></div>
+        <div class="stat"><div class="v" id="sArea">0</div><div class="k">Zeltfläche m²</div></div>
+        <div class="stat"><div class="v" id="sPP">–</div><div class="k">m² / Sitzplatz</div></div>
+        <div class="stat"><div class="v" id="sFill">0 %</div><div class="k">Belegung</div></div>
+        <div class="stat"><div class="v" id="sFree">0</div><div class="k">Freifläche m²</div></div>
+      </div>
+      <div class="msgs" id="msgs"></div>
+    </div>
+
+    <div class="card">
+      <h2>Referenz-Layouts</h2>
+      <div class="pal" id="refs"></div>
+      <div class="hint">Werkseitige Referenzen aus echten Angeboten plus eigene, die du über „Zu Referenzen hinzufügen“ ablegst.</div>
+    </div>
+
+    <div class="card">
+      <h2>Stückliste</h2>
+      <table class="lst" id="bom"><tbody></tbody></table>
+    </div>
+
+    <div class="card">
+      <h2>Richtwerte</h2>
+      <div class="hint">
+        Gang / Rettungsweg min. <b>1,20 m</b>.<br>
+        Tisch zu Tisch min. <b>1,50 m</b>.<br>
+        Weg vom Platz zum Gang max. <b>10 m</b>.<br>
+        Flächenbedarf: stehend 0,5 · Bierzeltgarnitur 0,8 · Bankett 1,2 · Rundtisch Gala ca. 2,0 m²/Person.<br>
+        <span style="color:var(--muted)">Planungsrichtwerte (MVStättV-Logik); Zelte dieser Größe sind Fliegende Bauten.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ============ Stammdaten ============ */
+const TENTS = {
+  gala:   {name:"Galazelt", w:6,  raster:3, min:3, recMax:21, techMax:30, hint:"Über 21 m technisch möglich, optisch aber ein langer Schlauch."},
+  wein:   {name:"Weinzelt", w:12, raster:3, min:6, recMax:36, techMax:42, hint:"Pagode kann angebaut werden."},
+  pagode: {name:"Pagode (Reihe)", w:6, raster:6, min:6, recMax:18, techMax:18, hint:"3 Einheiten vorhanden. L-Form noch nicht abgebildet."},
+  falt36: {name:"Faltzelt 3 × 6 m", w:3, raster:6, min:6, recMax:6, techMax:6, hint:"Für Bestuhlungsplanung kaum relevant."},
+  falt48: {name:"Faltzelt 4 × 8 m", w:4, raster:8, min:8, recMax:8, techMax:8, hint:"Für Bestuhlungsplanung kaum relevant."}
+};
+
+const BASE_CAT = [
+  {id:"bzg_normal", nm:"Biertischgarnitur normal", cat:"Bestuhlung", l:2.2, t:1.2, core:{l:2.2,t:0.5}, pers:8, sit:true,  col:"#c8963e"},
+  {id:"bzg_lehne",  nm:"Biertischgarnitur Lehne",  cat:"Bestuhlung", l:2.2, t:1.4, core:{l:2.2,t:0.8}, pers:8, sit:true,  col:"#a9752b"},
+  {id:"tafel_seg",  nm:"Tafeltisch-Segment",       cat:"Bestuhlung", l:1.2, t:2.0, core:{l:1.2,t:0.8}, pers:4, sit:true,  col:"#7a8b5a"},
+  {id:"rund_gala",  nm:"Rundtisch Gala Ø1,80",     cat:"Bestuhlung", l:2.2, t:2.2, core:{d:1.8},       pers:8, sit:true,  col:"#8a6ea8"},
+  {id:"stehtisch",  nm:"Stehtisch",                cat:"Bestuhlung", l:1.0, t:1.0, core:{d:0.8},       pers:4, sit:false, col:"#5b8ea8"},
+  {id:"buehne",     nm:"Bühne 6 × 3 m",            cat:"Technik",    l:6.0, t:3.0, pers:0, col:"#5a5a5a"},
+  {id:"treppe",     nm:"Bühnentreppe 1 × 1 m",     cat:"Technik",    l:1.0, t:1.0, pers:0, col:"#7a7a7a"},
+  {id:"fotobox",    nm:"Fotobox",                  cat:"Technik",    l:2.0, t:2.5, pers:0, col:"#c05a5a"},
+  {id:"buffet",     nm:"Buffet *",                 cat:"Technik",    l:4.0, t:1.5, pers:0, col:"#b08d57"},
+  {id:"tanz",       nm:"Tanzfläche *",             cat:"Technik",    l:5.0, t:5.0, pers:0, col:"#4a7a6a"}
+];
+
+const PRESETS = {
+  gala12:     {nm:"Galazelt 12 × 6 m",  sub:"10 Garn. + 3 Steht."},
+  hochzeit21: {nm:"Hochzeit 21 × 12 m", sub:"Rundt. + Tafel + U"}
+};
+
+/* ============ Zustand ============ */
+const STORE = "zeltplaner.v1";
+let customs = [];      // benutzerdefinierte Objekte
+let refs    = [];      // gespeicherte Referenz-Layouts
+let CAT     = BASE_CAT.slice();
+
+let tent = {type:"gala", len:12};
+let objs = [];         // {uid,id,x,y,rot}
+let selection = [];    // Array von Objekt-Referenzen
+let drag = null, band = null, uid = 1;
+const SNAP = 0.1;
+
+const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+let PX = 40; const PAD = 34; const DPR = window.devicePixelRatio || 1;
+
+const byId = id => CAT.find(c => c.id === id);
+const dims = o => { const c = byId(o.id); return o.rot ? {w:c.t, h:c.l} : {w:c.l, h:c.t}; };
+const isSel = o => selection.indexOf(o) !== -1;
+
+/* ============ Persistenz ============ */
+function save(){
+  try{ localStorage.setItem(STORE, JSON.stringify({customs, refs})); }
+  catch(e){ /* z. B. privater Modus – Tool bleibt nutzbar, nur ohne Speichern */ }
+}
+function load(){
+  try{
+    const d = JSON.parse(localStorage.getItem(STORE) || "{}");
+    customs = Array.isArray(d.customs) ? d.customs : [];
+    refs    = Array.isArray(d.refs)    ? d.refs    : [];
+  }catch(e){ customs = []; refs = []; }
+  rebuildCat();
+}
+function rebuildCat(){ CAT = BASE_CAT.concat(customs); }
+
+/* ============ Palette / UI ============ */
+const sel_t = document.getElementById("tentType");
+Object.entries(TENTS).forEach(([k,v]) => {
+  const o = document.createElement("option"); o.value = k; o.textContent = v.name; sel_t.appendChild(o);
+});
+sel_t.onchange = () => {
+  tent.type = sel_t.value;
+  const T = TENTS[tent.type];
+  tent.len = Math.min(Math.max(tent.len, T.min), T.recMax);
+  tent.len = Math.round(tent.len / T.raster) * T.raster || T.min;
+  syncLen(); draw();
+};
+
+const rng = document.getElementById("tentLen");
+rng.oninput = () => { tent.len = +rng.value; syncLen(); draw(); };
+
+function syncLen(){
+  const T = TENTS[tent.type];
+  sel_t.value = tent.type;
+  rng.min = T.min; rng.max = T.techMax; rng.step = T.raster; rng.value = tent.len;
+  document.getElementById("lenLab").textContent = tent.len + " m  ×  " + T.w + " m Breite";
+  document.getElementById("tentHint").textContent = T.hint;
+}
+
+function buildPal(){
+  const pal = document.getElementById("pal");
+  pal.innerHTML = "";
+  ["Bestuhlung","Technik","Eigene"].forEach(cat => {
+    const items = CAT.filter(c => c.cat === cat);
+    if(!items.length) return;
+    const lab = document.createElement("div"); lab.className = "catlab"; lab.textContent = cat; pal.appendChild(lab);
+    items.forEach(c => {
+      const g = document.createElement("div"); g.className = "grp";
+      const b = document.createElement("button");
+      b.innerHTML = '<span class="sw" style="background:'+c.col+'"></span>'
+                  + '<span class="nm">'+esc(c.nm)+'</span>'
+                  + '<span class="dim">'+c.l.toFixed(2)+'×'+c.t.toFixed(2)+'</span>';
+      b.onclick = () => add(c.id);
+      g.appendChild(b);
+      if(c.cat === "Eigene"){
+        const d = document.createElement("button");
+        d.className = "del"; d.textContent = "×"; d.title = "Objekt löschen";
+        d.onclick = () => delCustom(c.id);
+        g.appendChild(d);
+      }
+      pal.appendChild(g);
+    });
+  });
+}
+function esc(s){ return String(s).replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m])); }
+
+function buildRefs(){
+  const box = document.getElementById("refs");
+  box.innerHTML = "";
+  Object.entries(PRESETS).forEach(([k,v]) => {
+    const b = document.createElement("button");
+    b.innerHTML = '<span class="nm">'+v.nm+'</span><span class="dim">'+v.sub+'</span>';
+    b.onclick = () => loadPreset(k);
+    box.appendChild(b);
+  });
+  if(refs.length){
+    const lab = document.createElement("div"); lab.className = "catlab"; lab.textContent = "Eigene Referenzen";
+    box.appendChild(lab);
+    refs.forEach((r,i) => {
+      const g = document.createElement("div"); g.className = "grp";
+      const b = document.createElement("button");
+      b.innerHTML = '<span class="nm">'+esc(r.name)+'</span><span class="dim">'
+                  + r.tent.len+'×'+TENTS[r.tent.type].w+'</span>';
+      b.onclick = () => loadRef(i);
+      g.appendChild(b);
+      const d = document.createElement("button");
+      d.className = "del"; d.textContent = "×"; d.title = "Referenz löschen";
+      d.onclick = () => { if(confirm('Referenz "'+r.name+'" löschen?')){ refs.splice(i,1); save(); buildRefs(); } };
+      g.appendChild(d);
+      box.appendChild(g);
+    });
+  }
+}
+
+/* ============ Eigene Objekte ============ */
+function addCustom(){
+  const nm = document.getElementById("cuName").value.trim();
+  const l  = +document.getElementById("cuL").value;
+  const t  = +document.getElementById("cuT").value;
+  const p  = +document.getElementById("cuP").value || 0;
+  if(!nm){ alert("Bitte eine Bezeichnung eingeben."); return; }
+  if(!(l > 0) || !(t > 0)){ alert("Länge und Tiefe müssen größer als 0 sein."); return; }
+  const c = {
+    id: "cu_" + Date.now().toString(36),
+    nm: nm, cat: "Eigene", l: l, t: t, pers: p,
+    sit: document.getElementById("cuSit").checked,
+    col: document.getElementById("cuC").value,
+    custom: true
+  };
+  if(document.getElementById("cuRound").checked) c.core = {d: Math.min(l,t) * 0.8};
+  customs.push(c); rebuildCat(); save(); buildPal();
+  document.getElementById("cuName").value = "";
+  add(c.id);
+}
+function delCustom(id){
+  if(objs.some(o => o.id === id)){
+    if(!confirm("Dieses Objekt ist im Plan verwendet. Objekt und alle Vorkommen löschen?")) return;
+    objs = objs.filter(o => o.id !== id);
+    selection = selection.filter(o => o.id !== id);
+  }
+  customs = customs.filter(c => c.id !== id);
+  rebuildCat(); save(); buildPal(); draw();
+}
+
+/* ============ Objekte platzieren ============ */
+function add(id, x, y, rot){
+  const c = byId(id); if(!c) return null;
+  const T = TENTS[tent.type];
+  if(x === undefined){
+    x = 0.2; y = 0.2;
+    let placed = false;
+    outer:
+    for(let yy = 0.2; yy <= T.w - c.t; yy += 0.2){
+      for(let xx = 0.2; xx <= tent.len - c.l; xx += 0.2){
+        if(!objs.some(o => hit(o, {id:id, x:xx, y:yy, rot:0}))){ x = xx; y = yy; placed = true; break outer; }
+      }
+    }
+    if(!placed){ x = 0.2; y = 0.2; }
+  }
+  const o = {uid: uid++, id: id, x: x, y: y, rot: rot || 0};
+  objs.push(o); selection = [o]; draw();
+  return o;
+}
+function hit(a,b){
+  const A = dims(a), B = dims(b);
+  return a.x < b.x + B.w - 0.01 && a.x + A.w > b.x + 0.01 &&
+         a.y < b.y + B.h - 0.01 && a.y + A.h > b.y + 0.01;
+}
+
+/* ============ Zeichnen ============ */
+function draw(){
+  const T = TENTS[tent.type];
+  const availW = Math.max(320, document.querySelector(".scroller").clientWidth || 760);
+  PX = Math.max(6, Math.min((availW - 2*PAD) / tent.len, (640 - 2*PAD) / T.w, 60));
+  const w = Math.round(tent.len*PX + 2*PAD), h = Math.round(T.w*PX + 2*PAD);
+  cv.width = Math.round(w*DPR); cv.height = Math.round(h*DPR);
+  cv.style.width = w+"px"; cv.style.height = h+"px";
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.clearRect(0,0,w,h);
+
+  // 1-m-Raster
+  ctx.strokeStyle = "#eae6df"; ctx.lineWidth = 1;
+  for(let x=0; x<=tent.len; x++){ ctx.beginPath(); ctx.moveTo(PAD+x*PX,PAD); ctx.lineTo(PAD+x*PX,PAD+T.w*PX); ctx.stroke(); }
+  for(let y=0; y<=T.w;    y++){ ctx.beginPath(); ctx.moveTo(PAD,PAD+y*PX); ctx.lineTo(PAD+tent.len*PX,PAD+y*PX); ctx.stroke(); }
+  // Zeltabschnitte
+  ctx.strokeStyle = "#c9c2b6"; ctx.setLineDash([5,4]);
+  for(let x=T.raster; x<tent.len; x+=T.raster){ ctx.beginPath(); ctx.moveTo(PAD+x*PX,PAD); ctx.lineTo(PAD+x*PX,PAD+T.w*PX); ctx.stroke(); }
+  ctx.setLineDash([]);
+  // Hülle
+  ctx.strokeStyle = "#4a453d"; ctx.lineWidth = 2.5;
+  ctx.strokeRect(PAD,PAD,tent.len*PX,T.w*PX);
+
+  // Maße
+  ctx.fillStyle = "#7a746b"; ctx.font = "11px system-ui"; ctx.textAlign = "center";
+  ctx.fillText(tent.len.toFixed(0)+" m", PAD+tent.len*PX/2, PAD-12);
+  ctx.save(); ctx.translate(PAD-14, PAD+T.w*PX/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText(T.w.toFixed(0)+" m",0,0); ctx.restore();
+
+  // Maßstabsbalken 1 m
+  const by = PAD+T.w*PX+16;
+  ctx.strokeStyle = "#4a453d"; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(PAD,by); ctx.lineTo(PAD+PX,by);
+  ctx.moveTo(PAD,by-4); ctx.lineTo(PAD,by+4);
+  ctx.moveTo(PAD+PX,by-4); ctx.lineTo(PAD+PX,by+4);
+  ctx.stroke();
+  ctx.fillStyle = "#7a746b"; ctx.textAlign = "left"; ctx.fillText("1 m", PAD+PX+6, by+4);
+
+  // Objekte
+  objs.forEach(o => {
+    const c = byId(o.id); if(!c) return;
+    const d = dims(o);
+    const X = PAD+o.x*PX, Y = PAD+o.y*PX, W = d.w*PX, H = d.h*PX;
+    const out = o.x < -0.01 || o.y < -0.01 || o.x+d.w > tent.len+0.01 || o.y+d.h > T.w+0.01;
+    const ov  = objs.some(p => p !== o && hit(o,p));
+    ctx.fillStyle = c.col+"33"; ctx.fillRect(X,Y,W,H);
+    ctx.strokeStyle = (out||ov) ? "#b3521f" : c.col+"88";
+    ctx.lineWidth = (out||ov) ? 2 : 1;
+    ctx.setLineDash((out||ov) ? [] : [3,3]); ctx.strokeRect(X,Y,W,H); ctx.setLineDash([]);
+    ctx.fillStyle = c.col;
+    if(c.core && c.core.d){
+      ctx.beginPath(); ctx.arc(X+W/2, Y+H/2, c.core.d/2*PX, 0, Math.PI*2); ctx.fill();
+    } else if(c.core){
+      const cw = (o.rot?c.core.t:c.core.l)*PX, ch = (o.rot?c.core.l:c.core.t)*PX;
+      ctx.fillRect(X+(W-cw)/2, Y+(H-ch)/2, cw, ch);
+    } else {
+      ctx.fillRect(X+2, Y+2, Math.max(1,W-4), Math.max(1,H-4));
+    }
+    if(isSel(o)){
+      ctx.strokeStyle = "#2b2926"; ctx.lineWidth = 2; ctx.strokeRect(X-2,Y-2,W+4,H+4);
+    }
+    if(c.pers > 0 && PX > 18){
+      ctx.fillStyle = "#fff"; ctx.font = "bold 10px system-ui"; ctx.textAlign = "center";
+      ctx.fillText(c.pers, X+W/2, Y+H/2+3.5);
+    }
+  });
+
+  // Auswahlrahmen der Gruppe
+  if(selection.length > 1){
+    const b = bbox(selection);
+    ctx.strokeStyle = "#2b2926"; ctx.lineWidth = 1; ctx.setLineDash([6,4]);
+    ctx.strokeRect(PAD+b.x*PX-5, PAD+b.y*PX-5, b.w*PX+10, b.h*PX+10);
+    ctx.setLineDash([]);
+  }
+  // Gummiband
+  if(band){
+    const x = Math.min(band.x0,band.x1), y = Math.min(band.y0,band.y1);
+    ctx.strokeStyle = "#8a6a3b"; ctx.fillStyle = "#8a6a3b1a"; ctx.lineWidth = 1;
+    ctx.fillRect(PAD+x*PX, PAD+y*PX, Math.abs(band.x1-band.x0)*PX, Math.abs(band.y1-band.y0)*PX);
+    ctx.strokeRect(PAD+x*PX, PAD+y*PX, Math.abs(band.x1-band.x0)*PX, Math.abs(band.y1-band.y0)*PX);
+  }
+  stats();
+}
+
+function bbox(list){
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  list.forEach(o => { const d = dims(o);
+    x0=Math.min(x0,o.x); y0=Math.min(y0,o.y);
+    x1=Math.max(x1,o.x+d.w); y1=Math.max(y1,o.y+d.h); });
+  return {x:x0, y:y0, w:x1-x0, h:y1-y0};
+}
+
+/* ============ Auswertung ============ */
+function stats(){
+  const T = TENTS[tent.type], area = tent.len*T.w;
+  let pers=0, sit=0, used=0; const warn=[], bom={};
+  objs.forEach(o => {
+    const c = byId(o.id); if(!c) return;
+    const d = dims(o);
+    pers += c.pers; if(c.sit) sit += c.pers;
+    used += d.w*d.h;
+    bom[c.nm] = (bom[c.nm]||0) + 1;
+  });
+
+  document.getElementById("sPers").textContent = pers;
+  document.getElementById("sSitz").textContent = sit;
+  document.getElementById("sArea").textContent = area.toFixed(0);
+  document.getElementById("sPP").textContent   = sit ? (area/sit).toFixed(2) : "–";
+  document.getElementById("sFill").textContent = Math.round(used/area*100)+" %";
+  document.getElementById("sFree").textContent = (area-used).toFixed(1);
+
+  if(tent.len > T.recMax) warn.push(["w", tent.len+" m überschreitet die empfohlene Länge von "+T.recMax+" m."]);
+  const outCnt = objs.filter(o => { const d = dims(o);
+    return o.x<-0.01 || o.y<-0.01 || o.x+d.w>tent.len+0.01 || o.y+d.h>T.w+0.01; }).length;
+  if(outCnt) warn.push(["w", outCnt+" Objekt(e) ragen aus dem Zelt."]);
+  const ovCnt = objs.filter(o => objs.some(p => p!==o && hit(o,p))).length;
+  if(ovCnt) warn.push(["w", ovCnt+" Objekt(e) überlappen sich."]);
+  if(used/area > 0.55) warn.push(["w","Belegung über 55 % – Gänge und Servicewege werden knapp."]);
+  if(sit){
+    const pp = area/sit;
+    if(pp < 0.8) warn.push(["w", pp.toFixed(2)+" m²/Sitzplatz – unter dem Richtwert 0,8 für Bierzeltgarnituren."]);
+    else         warn.push(["o", pp.toFixed(2)+" m²/Sitzplatz – im plausiblen Bereich."]);
+  }
+  if(pers > sit) warn.push(["o", (pers-sit)+" zusätzliche Stehplätze (Stehtische)."]);
+  if(!warn.length) warn.push(["o","Keine Auffälligkeiten."]);
+
+  document.getElementById("msgs").innerHTML = warn.map(a => '<div class="msg '+a[0]+'">'+a[1]+'</div>').join("");
+  const rows = Object.entries(bom);
+  document.getElementById("bom").innerHTML = rows.length
+    ? rows.map(r => '<tr><td>'+esc(r[0])+'</td><td>'+r[1]+'×</td></tr>').join("")
+    : '<tr><td colspan="2" style="color:var(--muted)">noch leer</td></tr>';
+
+  document.getElementById("selinfo").textContent = selection.length
+    ? selection.length + (selection.length===1 ? " Objekt ausgewählt" : " Objekte ausgewählt – werden gemeinsam verschoben, gedreht, dupliziert und gelöscht")
+    : "Nichts ausgewählt.";
+}
+
+/* ============ Interaktion ============ */
+function pt(e){
+  const r = cv.getBoundingClientRect();
+  return {
+    x: ((e.clientX-r.left) * (cv.width/DPR/r.width)  - PAD) / PX,
+    y: ((e.clientY-r.top)  * (cv.height/DPR/r.height) - PAD) / PX
+  };
+}
+function at(p){
+  for(let i = objs.length-1; i >= 0; i--){
+    const o = objs[i], d = dims(o);
+    if(p.x >= o.x && p.x <= o.x+d.w && p.y >= o.y && p.y <= o.y+d.h) return o;
+  }
+  return null;
+}
+
+cv.addEventListener("pointerdown", e => {
+  const p = pt(e), found = at(p), addMode = e.shiftKey || e.ctrlKey || e.metaKey;
+  if(found){
+    if(addMode){
+      const i = selection.indexOf(found);
+      if(i === -1) selection.push(found); else selection.splice(i,1);
+    } else if(!isSel(found)){
+      selection = [found];
+    }
+    if(isSel(found)){
+      drag = {ox: p.x, oy: p.y, start: selection.map(o => ({o:o, x:o.x, y:o.y}))};
+      cv.setPointerCapture(e.pointerId); cv.style.cursor = "grabbing";
+    }
+  } else {
+    if(!addMode) selection = [];
+    band = {x0:p.x, y0:p.y, x1:p.x, y1:p.y, addMode: addMode};
+    cv.setPointerCapture(e.pointerId);
+  }
+  draw();
+});
+
+cv.addEventListener("pointermove", e => {
+  const p = pt(e);
+  if(band){ band.x1 = p.x; band.y1 = p.y; draw(); return; }
+  if(!drag) return;
+  const T = TENTS[tent.type];
+  let dx = p.x - drag.ox, dy = p.y - drag.oy;
+  if(!e.shiftKey){ dx = Math.round(dx/SNAP)*SNAP; dy = Math.round(dy/SNAP)*SNAP; }
+  // Gruppe gemeinsam begrenzen: Verschiebung so kappen, dass die Bounding-Box im erlaubten Bereich bleibt
+  const b = bboxStart(drag.start);
+  dx = Math.max(-1 - b.x, Math.min(dx, tent.len + 1 - (b.x + b.w)));
+  dy = Math.max(-1 - b.y, Math.min(dy, T.w    + 1 - (b.y + b.h)));
+  drag.start.forEach(s => { s.o.x = round2(s.x + dx); s.o.y = round2(s.y + dy); });
+  draw();
+});
+
+cv.addEventListener("pointerup", () => {
+  if(band){
+    const x0 = Math.min(band.x0,band.x1), x1 = Math.max(band.x0,band.x1);
+    const y0 = Math.min(band.y0,band.y1), y1 = Math.max(band.y0,band.y1);
+    if(Math.abs(x1-x0) > 0.15 || Math.abs(y1-y0) > 0.15){
+      const inside = objs.filter(o => { const d = dims(o);
+        return o.x < x1 && o.x+d.w > x0 && o.y < y1 && o.y+d.h > y0; });
+      selection = band.addMode
+        ? selection.concat(inside.filter(o => !isSel(o)))
+        : inside;
+    }
+    band = null;
+  }
+  drag = null; cv.style.cursor = "grab"; draw();
+});
+
+function bboxStart(start){
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  start.forEach(s => { const d = dims(s.o);
+    x0=Math.min(x0,s.x); y0=Math.min(y0,s.y);
+    x1=Math.max(x1,s.x+d.w); y1=Math.max(y1,s.y+d.h); });
+  return {x:x0, y:y0, w:x1-x0, h:y1-y0};
+}
+const round2 = v => Math.round(v*1000)/1000;
+
+document.addEventListener("keydown", e => {
+  const tag = (e.target.tagName||"").toLowerCase();
+  if(tag === "input" || tag === "select" || tag === "textarea") return;
+  const k = e.key.toLowerCase();
+  if((e.ctrlKey||e.metaKey) && k === "a"){ selectAll(); e.preventDefault(); return; }
+  if(!selection.length) return;
+  if(k === "r"){ rotateSel(); e.preventDefault(); }
+  if(e.key === "Delete" || e.key === "Backspace"){ delSel(); e.preventDefault(); }
+  if(k === "d"){ dupSel(); e.preventDefault(); }
+  if(e.key === "Escape"){ clearSel(); }
+});
+
+/* Drehen: jedes Objekt um seinen eigenen Mittelpunkt, damit die Gruppenanordnung erhalten bleibt */
+function rotateSel(){
+  if(!selection.length) return;
+  selection.forEach(o => {
+    const d = dims(o);
+    o.x = round2(o.x + (d.w - d.h)/2);
+    o.y = round2(o.y + (d.h - d.w)/2);
+    o.rot = o.rot ? 0 : 1;
+  });
+  draw();
+}
+function delSel(){
+  if(!selection.length) return;
+  objs = objs.filter(o => !isSel(o));
+  selection = []; draw();
+}
+function dupSel(){
+  if(!selection.length) return;
+  const b = bbox(selection), off = b.w + 0.1;
+  const copies = selection.map(o => ({uid: uid++, id:o.id, x: round2(o.x+off), y:o.y, rot:o.rot}));
+  objs = objs.concat(copies); selection = copies; draw();
+}
+function selectAll(){ selection = objs.slice(); draw(); }
+function clearSel(){ selection = []; draw(); }
+function clearAll(){ if(objs.length && !confirm("Alle Objekte aus dem Plan entfernen?")) return; objs=[]; selection=[]; draw(); }
+
+/* ============ Export / Import / Referenzen ============ */
+function exportPNG(){
+  const tmp = document.createElement("canvas");
+  tmp.width = cv.width; tmp.height = cv.height;
+  const c2 = tmp.getContext("2d");
+  c2.fillStyle = "#fff"; c2.fillRect(0,0,tmp.width,tmp.height); c2.drawImage(cv,0,0);
+  const a = document.createElement("a");
+  a.download = "zeltplan_"+TENTS[tent.type].name+"_"+tent.len+"x"+TENTS[tent.type].w+".png";
+  a.href = tmp.toDataURL("image/png"); a.click();
+}
+function payload(){
+  const usedIds = [...new Set(objs.map(o => o.id))];
+  return {
+    version: 2,
+    tent: {type: tent.type, len: tent.len},
+    objs: objs.map(o => ({id:o.id, x:o.x, y:o.y, rot:o.rot})),
+    defs: customs.filter(c => usedIds.indexOf(c.id) !== -1)   // eigene Objekte mitliefern
+  };
+}
+function saveJSON(){
+  const blob = new Blob([JSON.stringify(payload(),null,2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "zeltplan_"+tent.type+"_"+tent.len+"m.json"; a.click();
+}
+function saveRef(){
+  if(!objs.length){ alert("Der Plan ist leer – es gibt nichts zu speichern."); return; }
+  const def = TENTS[tent.type].name+" "+tent.len+" × "+TENTS[tent.type].w+" m";
+  const name = (prompt("Name der Referenz:", def) || "").trim();
+  if(!name) return;
+  const i = refs.findIndex(r => r.name === name);
+  const rec = Object.assign({name: name}, payload());
+  if(i !== -1){
+    if(!confirm('Eine Referenz "'+name+'" existiert bereits. Überschreiben?')) return;
+    refs[i] = rec;
+  } else refs.push(rec);
+  save(); buildRefs();
+}
+function applyPayload(d){
+  (d.defs || []).forEach(def => {
+    if(!customs.some(c => c.id === def.id)){ customs.push(def); }
+  });
+  rebuildCat(); save(); buildPal();
+  tent = {type: d.tent.type, len: d.tent.len};
+  const missing = d.objs.filter(o => !byId(o.id)).length;
+  objs = d.objs.filter(o => byId(o.id)).map(o => ({uid: uid++, id:o.id, x:o.x, y:o.y, rot:o.rot||0}));
+  selection = [];
+  syncLen(); draw();
+  if(missing) alert(missing+" Objekt(e) konnten nicht geladen werden – zugehörige Objektdefinition fehlt.");
+}
+function loadRef(i){ applyPayload(refs[i]); }
+
+document.getElementById("fi").onchange = e => {
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try{
+      const d = JSON.parse(r.result);
+      if(!d.tent || !Array.isArray(d.objs)) throw new Error("Format");
+      applyPayload(d);
+    }catch(err){ alert("Datei konnte nicht gelesen werden."); }
+  };
+  r.readAsText(f); e.target.value = "";
+};
+
+/* ============ Werks-Referenzen ============ */
+function loadPreset(k){
+  objs = []; selection = [];
+  if(k === "gala12"){
+    tent = {type:"gala", len:12};
+    for(let i=0;i<5;i++){
+      add("bzg_lehne", 0.6+i*1.5, 0.2, 1);
+      add("bzg_lehne", 0.6+i*1.5, 3.6, 1);
+    }
+    add("stehtisch", 8.9, 0.6); add("stehtisch", 10.4, 2.5); add("stehtisch", 8.9, 4.4);
+  }
+  if(k === "hochzeit21"){
+    tent = {type:"wein", len:21};
+    for(let i=0;i<4;i++) add("tafel_seg", 1.2, 3.2+i*1.2, 1);
+    for(let c=0;c<4;c++) for(let r=0;r<2;r++) add("rund_gala", 5.6+c*2.7, 3.0+r*3.4);
+    for(let i=0;i<3;i++){ add("bzg_lehne", 6.5+i*2.4, 0.3, 0); add("bzg_lehne", 6.5+i*2.4, 10.3, 0); }
+    add("buehne", 17.2, 3.0, 1); add("treppe", 16.0, 5.5);
+  }
+  selection = []; syncLen(); draw();
+}
+
+/* ============ Start ============ */
+load();
+buildPal();
+buildRefs();
+syncLen();
+loadPreset("gala12");
+requestAnimationFrame(draw);
+window.addEventListener("resize", draw);
+</script>
+</body>
+</html>

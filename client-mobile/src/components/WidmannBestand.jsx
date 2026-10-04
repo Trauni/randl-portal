@@ -1,0 +1,115 @@
+import { useEffect, useState } from 'react'
+import { ClipboardList, Save } from 'lucide-react'
+
+// F52 (09.09.2026): woechentliche (mittwochs) manuelle Bestandszaehlung fuer
+// den Kunden Widmann. Bewusst fest zugeschnitten, kein generisches Feature
+// (Nutzer-Entscheidung 09.09.2026). Liste + Mindestbestand wird am PC
+// gepflegt (Finance -> Widmann-Bestand), hier wird nur gezaehlt.
+// Bewusst KEIN automatischer Bestellmengen-Vorschlag (Mindestbestand minus
+// Gezaehlt) -- nur die reinen Zahlen (Nutzer-Entscheidung 09.09.2026).
+
+export default function WidmannBestand() {
+  const [items, setItems] = useState([])
+  const [counts, setCounts] = useState({})
+  const [note, setNote] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+  const [saved, setSaved] = useState(null)
+
+  useEffect(() => {
+    fetch('/api/finance/widmann-bestand/items', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d) => setItems(d.items || []))
+      .catch(() => setError('Artikelliste konnte nicht geladen werden.'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const submit = async () => {
+    const entries = items.map((it) => ({
+      itemId: it.id,
+      name: it.name,
+      mindestbestand: it.mindestbestand,
+      gezaehlt: parseInt(counts[it.id] || '0', 10) || 0,
+    }))
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/finance/widmann-bestand/checks', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entries, note: note.trim() || null }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Speichern fehlgeschlagen.')
+      } else {
+        setSaved(data)
+      }
+    } catch {
+      setError('Server nicht erreichbar.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const reset = () => {
+    setCounts({})
+    setNote('')
+    setSaved(null)
+    setError(null)
+  }
+
+  if (loading) return <section><p className="hint">Lädt…</p></section>
+
+  if (saved) {
+    return (
+      <section>
+        <h2 className="section-title"><ClipboardList size={17} />Zählung gespeichert</h2>
+        <p className="hint">
+          Die Liste steht jetzt am PC unter Finance → Widmann-Bestand bereit (als .md herunterladbar) zur Bestellung im Widmann-Portal.
+        </p>
+        <button type="button" className="link-btn" onClick={reset}>Neue Zählung erfassen</button>
+      </section>
+    )
+  }
+
+  return (
+    <section>
+      <h2 className="section-title"><ClipboardList size={17} />Widmann zählen</h2>
+      {error && <p className="error">{error}</p>}
+      <ul className="card-list">
+        {items.map((it) => (
+          <li key={it.id} className="card">
+            <span>{it.name}</span>
+            <span className="card-sub">Mindestbestand: {it.mindestbestand}</span>
+            <div className="qty-row">
+              <input
+                type="number"
+                min="0"
+                className="qty-input"
+                value={counts[it.id] ?? 0}
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => setCounts((prev) => ({ ...prev, [it.id]: e.target.value }))}
+              />
+            </div>
+          </li>
+        ))}
+        {items.length === 0 && <li className="card"><span>Keine Artikel hinterlegt — bitte am PC anlegen (Finance → Widmann-Bestand).</span></li>}
+      </ul>
+      {items.length > 0 && (
+        <>
+          <label className="note-label">
+            Hinweis (optional)
+            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="z. B. Lieferengpass Propan" />
+          </label>
+          <button type="button" onClick={submit} disabled={saving} className="submit-order-btn">
+            <Save size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+            {saving ? 'Speichert…' : 'Speichern'}
+          </button>
+        </>
+      )}
+    </section>
+  )
+}

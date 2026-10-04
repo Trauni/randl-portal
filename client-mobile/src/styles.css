@@ -1,0 +1,565 @@
+/* Neue Farbpalette fuer die Mobile App (11.08.2026, vom Nutzer als Coolors-Export
+   vorgegeben) -- ersetzt die alten CI-Farben aus Seite 152 NUR hier im Mobile-Bundle,
+   nicht im Desktop-Portal. Zuordnung:
+   E83049 -> --randl-red     (Primaerfarbe: Buttons, aktive Zustaende, Avatar)
+   1B1725 -> --randl-brown   (dunkler Ton: Topbar, frueher #2C2320)
+   EEE0CB -> --randl-cream   (Hintergrund, frueher #F7F4F0)
+   BAA898 -> --randl-muted   (gedaempfter Text/Labels)
+   280003 -> --randl-deep    (neu: Fehler/Warnhinweise, bewusst getrennt von der
+                               Aktionsfarbe Rot, damit nicht alles gleich "rot" wirkt) */
+:root {
+  --randl-red: #E83049;
+  --randl-brown: #1B1725;
+  --randl-cream: #EEE0CB;
+  --randl-line: #D9CBB9;
+  --randl-muted: #BAA898;
+  --randl-deep: #280003;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--randl-cream);
+  color: var(--randl-brown);
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  background: var(--randl-brown);
+  color: var(--randl-cream);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.topbar button.icon-btn {
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 6px;
+  display: flex;
+  border-radius: 8px;
+}
+
+.topbar button.icon-btn:active {
+  background: rgba(255, 255, 255, .1);
+}
+
+.topbar-title {
+  font-size: 14px;
+  font-weight: 500;
+  flex: 1;
+}
+
+.content {
+  flex: 1;
+  padding: 16px;
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  margin: 0 0 10px;
+  color: var(--randl-brown);
+}
+
+.section-title svg { color: var(--randl-red); flex-shrink: 0; }
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--randl-red);
+  color: var(--randl-cream);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+  letter-spacing: .5px;
+}
+
+.avatar.large { width: 42px; height: 42px; font-size: 14px; }
+
+/* Burger-Menü */
+
+.menu-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .45);
+  display: flex;
+  z-index: 10;
+}
+
+.menu-panel {
+  background: var(--randl-cream);
+  width: 80%;
+  max-width: 300px;
+  padding: 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.menu-user-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 4px 14px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--randl-line);
+}
+
+.menu-user-name {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.menu-user-role {
+  font-size: 11px;
+  color: var(--randl-muted);
+  text-transform: capitalize;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--randl-line);
+  border-radius: 12px;
+  padding: 11px 12px;
+  font-size: 14px;
+  color: var(--randl-brown);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.menu-item:active { background: #f1ece3; }
+
+.menu-item svg { color: var(--randl-red); flex-shrink: 0; }
+
+.menu-item.active {
+  border-color: var(--randl-red);
+  background: #fdf2f0;
+}
+
+.menu-item:disabled {
+  color: #b9b3a8;
+  cursor: default;
+}
+
+.menu-item:disabled svg { color: #cfc7ba; }
+
+.menu-item-label { flex: 1; }
+
+.menu-hint {
+  font-size: 10px;
+  color: var(--randl-muted);
+  background: #efe9df;
+  padding: 2px 7px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.menu-logout {
+  margin-top: 14px;
+  justify-content: center;
+  color: var(--randl-red);
+  border-style: dashed;
+}
+
+/* Kennzahlen-Grid */
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 0 0 24px;
+}
+
+.metric-card {
+  background: #fff;
+  border: 1px solid var(--randl-line);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.metric-card svg { color: var(--randl-red); }
+
+.metric-value {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.metric-label {
+  font-size: 12px;
+  color: var(--randl-muted);
+}
+
+/* Listen */
+
+.card-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid var(--randl-line);
+  border-radius: 12px;
+  padding: 11px 13px;
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  gap: 2px;
+}
+
+.card a { color: var(--randl-brown); font-weight: 500; text-decoration: none; }
+.card a:active { color: var(--randl-red); }
+
+.card-sub {
+  color: var(--randl-muted);
+  font-size: 12px;
+}
+
+.card-empty {
+  color: var(--randl-muted);
+  font-size: 13px;
+  border-style: dashed;
+}
+
+.profile-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 14px;
+  font-size: 14px;
+  margin-bottom: 14px;
+  background: #fff;
+  border: 1px solid var(--randl-line);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.profile-list dt { color: var(--randl-muted); }
+.profile-list dd { margin: 0; font-weight: 500; }
+
+.hint {
+  font-size: 12px;
+  color: var(--randl-muted);
+}
+
+.vacation-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+  background: #fff;
+  border: 1px solid var(--randl-line);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.vacation-form label {
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  color: var(--randl-muted);
+  gap: 4px;
+}
+
+.vacation-form input {
+  font-size: 14px;
+  padding: 9px 10px;
+  border: 1px solid var(--randl-line);
+  border-radius: 8px;
+}
+
+button[type="submit"] {
+  background: var(--randl-red);
+  color: var(--randl-cream);
+  border: none;
+  border-radius: 10px;
+  padding: 11px;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.link-btn {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--randl-red);
+  font-size: 12px;
+  padding: 4px 0 0;
+  cursor: pointer;
+}
+
+.center-msg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  font-size: 14px;
+  color: var(--randl-muted);
+}
+
+.error {
+  color: var(--randl-deep);
+  font-size: 13px;
+}
+
+/* Bestellung erfassen: Suche, Positionen */
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border: 1px solid var(--randl-line);
+  border-radius: 10px;
+  padding: 9px 11px;
+  margin-bottom: 10px;
+}
+
+.search-box svg { color: var(--randl-muted); flex-shrink: 0; }
+
+.search-box input {
+  border: none;
+  outline: none;
+  font-size: 14px;
+  flex: 1;
+  background: transparent;
+}
+
+.card-clickable { cursor: pointer; }
+.card-clickable:active { background: #f1ece3; }
+
+.selected-card {
+  border-color: var(--randl-red);
+  background: #fdf2f0;
+  margin-bottom: 14px;
+  align-items: flex-start;
+}
+
+.qty-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.qty-input {
+  width: 56px;
+  font-size: 14px;
+  padding: 7px 8px;
+  border: 1px solid var(--randl-line);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.add-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--randl-brown);
+  color: var(--randl-cream);
+  border: none;
+  border-radius: 8px;
+  padding: 7px 11px;
+  font-size: 12px;
+}
+
+.remove-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--randl-red);
+  padding: 4px;
+  display: flex;
+}
+
+.note-label {
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  color: var(--randl-muted);
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.note-label input {
+  font-size: 14px;
+  padding: 9px 10px;
+  border: 1px solid var(--randl-line);
+  border-radius: 8px;
+}
+
+.submit-order-btn {
+  width: 100%;
+  background: var(--randl-red);
+  color: var(--randl-cream);
+  border: none;
+  border-radius: 10px;
+  padding: 12px;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+/* QR-Code Erstanmeldung */
+
+.qr-card {
+  background: #fff;
+  border: 1px solid var(--randl-line);
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.qr-image {
+  width: 220px;
+  height: 220px;
+  border-radius: 8px;
+}
+
+.qr-customer {
+  font-weight: 500;
+  font-size: 15px;
+  margin: 6px 0 0;
+}
+
+/* Sync-Hinweis + Buttons oben im Dashboard */
+
+.sync-panel {
+  margin-bottom: 22px;
+}
+
+.notice-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #f6e6e2;
+  border: 1px solid var(--randl-deep);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--randl-brown);
+  margin-bottom: 10px;
+}
+
+.notice-banner svg { color: var(--randl-deep); flex-shrink: 0; margin-top: 1px; }
+
+.sync-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.sync-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--randl-brown);
+  color: var(--randl-cream);
+  border: none;
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.sync-btn:disabled { opacity: 0.6; }
+
+/* Notizen */
+
+.note-done-text {
+  text-decoration: line-through;
+  color: var(--randl-muted);
+}
+
+/* Zeiterfassung Live-Timer (F40, 20.08.2026) */
+.timer-card {
+  background: #fff;
+  border: 1px solid var(--randl-line);
+  border-radius: 12px;
+  padding: 24px 14px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.timer-display {
+  font-size: 36px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+  color: var(--randl-brown);
+}
+.timer-display.timer-paused {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--randl-muted);
+}
+.timer-buttons {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+.timer-buttons button,
+.timer-card > button {
+  flex: 1;
+  border: none;
+  border-radius: 10px;
+  padding: 13px;
+  font-weight: 500;
+  font-size: 15px;
+}
+.btn-primary {
+  background: var(--randl-red);
+  color: var(--randl-cream);
+}
+.btn-secondary {
+  background: var(--randl-cream);
+  color: var(--randl-brown);
+  border: 1px solid var(--randl-line) !important;
+}
+.error-text {
+  color: var(--randl-deep);
+  font-size: 13px;
+  margin: 0 0 10px;
+}

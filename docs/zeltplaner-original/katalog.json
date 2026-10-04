@@ -1,0 +1,172 @@
+{
+  "version": 1,
+  "stand": "2026-07-30",
+  "hinweis": "Alle Maße in Metern. 'footprint' = Stellfläche inkl. Sitz-/Aufstehzone, nicht die reine Tischplatte.",
+  "zelte": [
+    {
+      "id": "gala",
+      "name": "Galazelt",
+      "breite": 6,
+      "raster": 3,
+      "laenge_min": 3,
+      "laenge_empfohlen_max": 21,
+      "laenge_technisch_max": 30,
+      "hinweis": "Über 21 m optisch unschön (langer Schlauch)."
+    },
+    {
+      "id": "wein",
+      "name": "Weinzelt",
+      "breite": 12,
+      "raster": 3,
+      "laenge_min": 6,
+      "laenge_empfohlen_max": 36,
+      "laenge_technisch_max": 42,
+      "hinweis": "Pagode kann angebaut werden."
+    },
+    {
+      "id": "pagode",
+      "name": "Pagode",
+      "breite": 6,
+      "raster": 6,
+      "laenge_min": 6,
+      "laenge_empfohlen_max": 18,
+      "laenge_technisch_max": 18,
+      "einheiten_verfuegbar": 3,
+      "hinweis": "3 Stück vorhanden: Reihe (6/12/18 m) oder L-Form. L-Form im Prototyp noch nicht abgebildet."
+    },
+    {
+      "id": "falt36",
+      "name": "Faltzelt 3 x 6 m",
+      "breite": 3,
+      "raster": 6,
+      "laenge_min": 6,
+      "laenge_empfohlen_max": 6,
+      "laenge_technisch_max": 6,
+      "relevant": false
+    },
+    {
+      "id": "falt48",
+      "name": "Faltzelt 4 x 8 m",
+      "breite": 4,
+      "raster": 8,
+      "laenge_min": 8,
+      "laenge_empfohlen_max": 8,
+      "laenge_technisch_max": 8,
+      "relevant": false
+    }
+  ],
+  "objekte": [
+    {
+      "id": "bzg_normal",
+      "name": "Biertischgarnitur (normal)",
+      "kategorie": "Bestuhlung",
+      "footprint": { "l": 2.2, "t": 1.2 },
+      "kern": { "l": 2.2, "t": 0.5 },
+      "personen": 8,
+      "farbe": "#c8963e",
+      "hinweis": "Tisch 220 x 50 cm, Bänke 25 cm. Tiefe 1,20 m inkl. Sitzabstand."
+    },
+    {
+      "id": "bzg_lehne",
+      "name": "Biertischgarnitur (Rückenlehne)",
+      "kategorie": "Bestuhlung",
+      "footprint": { "l": 2.2, "t": 1.4 },
+      "kern": { "l": 2.2, "t": 0.8 },
+      "personen": 8,
+      "farbe": "#a9752b",
+      "hinweis": "Tisch 220 x 80 cm, Bänke 30 cm. Tiefe 1,40 m; Rückenlehnen liegen bei Reihung aneinander."
+    },
+    {
+      "id": "tafel_seg",
+      "name": "Tafeltisch-Segment",
+      "kategorie": "Bestuhlung",
+      "footprint": { "l": 1.2, "t": 2.0 },
+      "kern": { "l": 1.2, "t": 0.8 },
+      "personen": 4,
+      "farbe": "#7a8b5a",
+      "hinweis": "Tischplatte 1,20 x 0,80 m, beidseitig Stühle mit je 0,60 m Aufstehzone. Segmente werden zur Tafel gereiht."
+    },
+    {
+      "id": "rund_gala",
+      "name": "Rundtisch Gala",
+      "kategorie": "Bestuhlung",
+      "footprint": { "l": 2.2, "t": 2.2 },
+      "kern": { "d": 1.8 },
+      "form": "rund",
+      "personen": 8,
+      "farbe": "#8a6ea8",
+      "hinweis": "Ø 1,80 m, 8 Stühle, Stellfläche 2,20 x 2,20 m."
+    },
+    {
+      "id": "stehtisch",
+      "name": "Stehtisch",
+      "kategorie": "Bestuhlung",
+      "footprint": { "l": 1.0, "t": 1.0 },
+      "kern": { "d": 0.8 },
+      "form": "rund",
+      "personen": 4,
+      "personen_stehend": true,
+      "farbe": "#5b8ea8",
+      "hinweis": "Ca. 1 m Stellfläche, 4 Personen stehend."
+    },
+    {
+      "id": "buehne",
+      "name": "Bühne 6 x 3 m",
+      "kategorie": "Technik",
+      "footprint": { "l": 6.0, "t": 3.0 },
+      "personen": 0,
+      "farbe": "#5a5a5a",
+      "hinweis": "Zusätzlich Treppe 1 x 1 m separat platzieren."
+    },
+    {
+      "id": "treppe",
+      "name": "Bühnentreppe 1 x 1 m",
+      "kategorie": "Technik",
+      "footprint": { "l": 1.0, "t": 1.0 },
+      "personen": 0,
+      "farbe": "#7a7a7a"
+    },
+    {
+      "id": "fotobox",
+      "name": "Fotobox",
+      "kategorie": "Technik",
+      "footprint": { "l": 2.0, "t": 2.5 },
+      "personen": 0,
+      "farbe": "#c05a5a",
+      "hinweis": "Stellfläche inkl. Bedienbereich."
+    },
+    {
+      "id": "buffet",
+      "name": "Buffet (Platzhalter)",
+      "kategorie": "Technik",
+      "footprint": { "l": 4.0, "t": 1.5 },
+      "personen": 0,
+      "farbe": "#b08d57",
+      "hinweis": "Maße noch zu bestätigen."
+    },
+    {
+      "id": "tanzflaeche",
+      "name": "Tanzfläche (Platzhalter)",
+      "kategorie": "Technik",
+      "footprint": { "l": 5.0, "t": 5.0 },
+      "personen": 0,
+      "farbe": "#4a7a6a",
+      "hinweis": "Maße noch zu bestätigen."
+    }
+  ],
+  "planungsregeln": {
+    "gang_min_m": 1.2,
+    "gang_min_quelle": "MVStättV: 1,20 m = 2 x 0,60 m Durchgangsbreite",
+    "tisch_zu_tisch_min_m": 1.5,
+    "max_weg_zum_gang_m": 10,
+    "kennzahlen_m2_pro_person": {
+      "stehend": 0.5,
+      "stuhlreihen": 0.7,
+      "biertischgarnitur": 0.8,
+      "bankett_mit_tisch": 1.2,
+      "rundtisch_gala": 2.0,
+      "opulentes_dinner": 2.5
+    },
+    "hinweis_rechtlich": "Zelte dieser Größe sind i. d. R. Fliegende Bauten und fallen nicht unter die VStättVO. Die Werte dienen als Planungsrichtwerte, nicht als behördliche Vorgabe."
+  }
+}
