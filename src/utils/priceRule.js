@@ -75,4 +75,13 @@ function applyRule(articles, rule) {
   });
 }
 
-module.exports = { applyRule, validateRule, roundCents };
+// Kurztext fürs Protokoll, z. B. „+14 ct pro kg netto“ oder „festsetzen auf 2,10 € pro kg netto“
+function describeRule(rule) {
+  const per = rule.unit ? 'pro ' + rule.unit : 'je Artikel';
+  const eur = c => (c / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 3 }) + ' €';
+  if (TARGET_MODES.includes(rule.mode)) return `festsetzen auf ${eur(Number(rule.cents))} ${per} netto`;
+  const c = Number(rule.cents);
+  return `${c > 0 ? '+' : '−'}${Math.abs(c).toLocaleString('de-DE')} ct ${per} netto`;
+}
+
+module.exports = { applyRule, validateRule, roundCents, describeRule };

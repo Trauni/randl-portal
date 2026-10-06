@@ -35,13 +35,15 @@ const BASES = [
 ];
 
 // kind: 'plus' / 'minus' = ändern um x ct, 'target' = festsetzen auf x €
-export default function PricePreview({ articleIds, onClose }) {
+export default function PricePreview({ articleIds, onClose, onApplied }) {
+  const [ids, setIds] = useState(articleIds);   // bei „erneut versuchen“ nur die fehlgeschlagenen
   const [kind, setKind] = useState('plus');
   const [base, setBase] = useState('kg');
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
+  const [job, setJob] = useState(null);         // Übernahme läuft / ist fertig (#254)
 
   const num = parseFloat(String(amount).replace(',', '.'));
   // Ändern wird in ct eingegeben, Festsetzen in € – ans Backend geht immer ct
@@ -51,18 +53,62 @@ export default function PricePreview({ articleIds, onClose }) {
     : (base === 'item' ? { mode:'flat', cents } : { mode:'per_unit', unit: base, cents });
   const reset = () => setResult(null);
 
-  const preview = async () => {
-    setBusy(true); setError(''); setResult(null);
+  const preview = async (forIds = ids) => {
+    setBusy(true); setError(''); setResult(null); setJob(null);
     try {
       const r = await fetch('/api/finance/price-tool/preview', {
         method:'POST', headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({ articleIds, rule }),
+        body: JSON.stringify({ articleIds: forIds, rule }),
       });
       const d = await r.json();
       if (!r.ok || d.error) throw new Error(d.error || 'Fehler ' + r.status);
       setResult(d);
     } catch (e) { setError(e.message); }
     finally { setBusy(false); }
+  };
+
+  // #254: nach ausdrücklicher Bestätigung nach Lexware schreiben, dann Fortschritt abfragen
+  const apply = async () => {
+    const s = result.summary;
+    const text = `${s.changed} Preis${s.changed === 1 ? '' : 'e'} in Lexware ändern?\n\n` +
+      `Regel: ${ruleText}\nSumme der Änderungen netto: ${fmtDiff(s.diffNetTotal)}\n\n` +
+      `Das ändert die echten Preise in Lexware (und damit im Shop).`;
+    if (!window.confirm(text)) return;
+
+    setBusy(true); setError('');
+    try {
+      const r = await fetch('/api/finance/price-tool/apply', {
+        method:'POST', headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ articleIds: ids, rule: result.rule, confirm: true,
+          expected: { changed: s.changed, diffNetTotal: s.diffNetTotal } }),
+      });
+      const d = await r.json();
+      if (r.status === 409 && d.preview) {   // Daten haben sich geändert → neue Vorschau zeigen
+        setResult(d.preview);
+        throw new Error(d.error);
+      }
+      if (!r.ok || d.error) throw new Error(d.error || 'Fehler ' + r.status);
+      setJob({ jobId: d.jobId, status: 'running', total: d.total, processed: 0, results: [] });
+      poll(d.jobId);
+    } catch (e) { setError(e.message); setBusy(false); }
+  };
+
+  const poll = async (jobId) => {
+    try {
+      const r = await fetch('/api/finance/price-tool/apply/' + jobId);
+      const d = await r.json();
+      if (!r.ok || d.error) throw new Error(d.error || 'Fehler ' + r.status);
+      setJob({ jobId, ...d });
+      if (d.status === 'running') { setTimeout(() => poll(jobId), 1500); return; }
+      setBusy(false);
+      onApplied && onApplied();
+    } catch (e) { setError('Fortschritt nicht abrufbar: ' + e.message); setBusy(false); }
+  };
+
+  const retryFailed = () => {
+    const failed = job.results.filter(r => r.status === 'error').map(r => r.id);
+    setIds(failed);
+    preview(failed);
   };
 
   const ruleText = result && (() => {
@@ -77,7 +123,7 @@ export default function PricePreview({ articleIds, onClose }) {
       padding:'1rem', marginBottom:'1rem' }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'.8rem' }}>
         <h2 style={{ fontSize:'.95rem', fontWeight:600, color:'var(--text1)' }}>
-          Preise anpassen · {articleIds.length} Artikel ausgewählt
+          Preise anpassen · {ids.length} Artikel{ids.length !== articleIds.length ? ' (erneuter Versuch)' : ' ausgewählt'}
         </h2>
         <button onClick={onClose} style={{ ...btn, padding:'.2rem .6rem' }}>✕ Schließen</button>
       </div>
@@ -96,7 +142,7 @@ export default function PricePreview({ articleIds, onClose }) {
           {BASES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
         <span style={{ fontSize:'.75rem', color:'var(--text3)' }}>netto, gerundet auf ganze Cent</span>
-        <button onClick={preview} disabled={busy || !(num > 0)} style={btnPrimary}>
+        <button onClick={() => preview()} disabled={busy || !(num > 0)} style={btnPrimary}>
           {busy ? 'Rechne…' : 'Vorschau berechnen'}
         </button>
       </div>
@@ -147,12 +193,73 @@ export default function PricePreview({ articleIds, onClose }) {
             </table>
           </div>
           <div style={{ display:'flex', justifyContent:'flex-end', gap:'.5rem', alignItems:'center', marginTop:'.8rem' }}>
-            <span style={{ fontSize:'.75rem', color:'var(--text3)' }}>Nur Vorschau – in Lexware wird noch nichts geändert.</span>
-            <button disabled title="Folgt mit #254 (Push nach Lexware)" style={{ ...btnPrimary, opacity:.45, cursor:'not-allowed' }}>
-              Nach Lexware übernehmen
-            </button>
+            {!job && <>
+              <span style={{ fontSize:'.75rem', color:'var(--text3)' }}>Vorschau – geändert wird erst nach Bestätigung.</span>
+              <button onClick={apply} disabled={busy || result.summary.changed === 0}
+                style={{ ...btnPrimary, opacity: busy || result.summary.changed === 0 ? .45 : 1 }}>
+                {result.summary.changed} Preis{result.summary.changed === 1 ? '' : 'e'} nach Lexware übernehmen
+              </button>
+            </>}
           </div>
         </>
+      )}
+
+      {job && <JobProgress job={job} onRetry={retryFailed}/>}
+    </div>
+  );
+}
+
+// #254: Fortschritt und Ergebnis pro Artikel
+const STATUS_LABEL = {
+  ok:       ['✓ geändert', 'var(--green)'],
+  conflict: ['⚠ Konflikt – nicht geändert', 'var(--orange, #e0a040)'],
+  error:    ['✗ Fehler', 'var(--red2)'],
+};
+
+function JobProgress({ job, onRetry }) {
+  const pct = job.total ? Math.round(job.processed / job.total * 100) : 0;
+  const done = job.status !== 'running';
+  const failed = (job.results || []).filter(r => r.status === 'error').length;
+  return (
+    <div style={{ marginTop:'1rem', borderTop:'1px solid var(--border)', paddingTop:'.9rem' }}>
+      <div style={{ fontSize:'.82rem', color:'var(--text2)', marginBottom:'.4rem' }}>
+        {done
+          ? <>Fertig: <b style={{ color:'var(--green)' }}>{job.success} geändert</b>
+              {job.conflicts > 0 && <> · <b>{job.conflicts} Konflikt{job.conflicts === 1 ? '' : 'e'}</b></>}
+              {job.errors > 0 && <> · <b style={{ color:'var(--red2)' }}>{job.errors} Fehler</b></>}
+              {job.fatalError && <> · Abbruch: {job.fatalError}</>}</>
+          : <>Schreibe nach Lexware … {job.processed} / {job.total} (Lexware erlaubt nur 2 Anfragen pro Sekunde)</>}
+      </div>
+      <div style={{ height:6, background:'var(--bg2)', borderRadius:3, overflow:'hidden', marginBottom:'.7rem' }}>
+        <div style={{ width: pct + '%', height:'100%', background: done && job.errors ? 'var(--red2)' : 'var(--green)', transition:'width .3s' }}/>
+      </div>
+      {(job.results || []).length > 0 && (
+        <table style={{ width:'100%', borderCollapse:'collapse' }}>
+          <tbody>
+            {job.results.map(r => {
+              const [label, color] = STATUS_LABEL[r.status] || [r.status, 'var(--text3)'];
+              return (
+                <tr key={r.id} style={{ borderTop:'1px solid rgba(255,255,255,.04)' }}>
+                  <td style={{ ...td, ...mono, fontSize:'.72rem', color:'var(--text3)' }}>{r.articleNumber}</td>
+                  <td style={{ ...td, ...mono }}>{fmtEur(r.expectedNet)} → {fmtEur(r.newNet)}</td>
+                  <td style={{ ...td, color }}>{label}</td>
+                  <td style={{ ...td, fontSize:'.72rem', color:'var(--text3)' }}>{r.reason || r.warning || ''}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+      {done && failed > 0 && (
+        <div style={{ textAlign:'right', marginTop:'.7rem' }}>
+          <button onClick={onRetry} style={btn}>{failed} fehlgeschlagene erneut versuchen</button>
+        </div>
+      )}
+      {done && job.conflicts > 0 && (
+        <div style={{ fontSize:'.75rem', color:'var(--text3)', marginTop:'.5rem' }}>
+          Konflikt = Preis wurde seit der Vorschau in Lexware geändert und deshalb nicht überschrieben.
+          Liste neu laden und Vorschau neu berechnen.
+        </div>
       )}
     </div>
   );

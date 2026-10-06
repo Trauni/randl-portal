@@ -1,43 +1,132 @@
 const router = require('express').Router();
 // Rechtepruefung sitzt am Mount-Punkt in server.js: requireArea('gashandel.preise') (#250)
+const { getPool } = require('../../../db');
+const { shopFetch } = require('./shopClient');
 const { loadGasArticles } = require('../../../services/gasArticles');
-const { applyRule } = require('../../../utils/priceRule');
+const { applyRule, describeRule } = require('../../../utils/priceRule');
 
-// #253 (06.10.2026): Vorschau einer Preisregel für ausgewählte Gas-Artikel.
-// Schreibt nichts – Übernahme nach Lexware erst nach ausdrücklicher Bestätigung (#254).
+// #253/#254 (06.10.2026): Preisregel für ausgewählte Gas-Artikel – Vorschau und Übernahme.
 // Gerechnet wird immer auf frisch geladenen Daten, nicht auf Werten aus dem Browser.
+// Vorschau und Übernahme nutzen dieselbe Berechnung (calculate).
 
-// POST /api/finance/price-tool/preview   { articleIds: [...], rule: {...} }
+async function calculate(articleIds, rule) {
+  const { articles, cachedAt } = await loadGasArticles();
+  const wanted = new Set(articleIds);
+  const chosen = articles.filter(a => wanted.has(a.id));
+  const unknown = articleIds.filter(id => !chosen.some(a => a.id === id));
+
+  const rows = applyRule(chosen, rule).sort((x, y) => x.articleNumber.localeCompare(y.articleNumber));
+  const ok = rows.filter(r => r.status === 'ok');
+  const same = rows.filter(r => r.status === 'same').length;
+  return {
+    rule, cachedAt, rows, unknown,
+    summary: {
+      selected: articleIds.length,
+      changed: ok.length,
+      same,
+      skipped: rows.length - ok.length - same + unknown.length,
+      diffNetTotal: Math.round(ok.reduce((s, r) => s + (r.diff || 0), 0) * 100) / 100,
+    },
+  };
+}
+
+function checkIds(articleIds, res) {
+  if (!Array.isArray(articleIds) || articleIds.length === 0) {
+    res.status(400).json({ error: 'Keine Artikel ausgewählt' });
+    return false;
+  }
+  return true;
+}
+
+// POST /api/finance/price-tool/preview   { articleIds, rule }  – schreibt nichts
 router.post('/preview', async (req, res) => {
   const { articleIds, rule } = req.body || {};
-  if (!Array.isArray(articleIds) || articleIds.length === 0) {
-    return res.status(400).json({ error: 'Keine Artikel ausgewählt' });
-  }
+  if (!checkIds(articleIds, res)) return;
   try {
-    const { articles, cachedAt } = await loadGasArticles();
-    const wanted = new Set(articleIds);
-    const chosen = articles.filter(a => wanted.has(a.id));
-    const unknown = articleIds.filter(id => !chosen.some(a => a.id === id));
-
-    const rows = applyRule(chosen, rule).sort((x, y) => x.articleNumber.localeCompare(y.articleNumber));
-    const ok = rows.filter(r => r.status === 'ok');
-    const same = rows.filter(r => r.status === 'same').length;
-    res.json({
-      rule,
-      cachedAt,
-      rows,
-      unknown,
-      summary: {
-        selected: articleIds.length,
-        changed: ok.length,
-        same,
-        skipped: rows.length - ok.length - same + unknown.length,
-        diffNetTotal: Math.round(ok.reduce((s, r) => s + (r.diff || 0), 0) * 100) / 100,
-      },
-    });
+    res.json(await calculate(articleIds, rule));
   } catch (err) {
     console.error('[PriceTool] preview error:', err.message);
     res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+// POST /api/finance/price-tool/apply   { articleIds, rule, confirm: true, expected: { changed, diffNetTotal } }
+// Rechnet neu, vergleicht mit der gezeigten Vorschau und startet den Preis-Job im admin-backend.
+router.post('/apply', async (req, res) => {
+  const { articleIds, rule, confirm, expected } = req.body || {};
+  if (confirm !== true) return res.status(400).json({ error: 'Übernahme muss ausdrücklich bestätigt werden' });
+  if (!checkIds(articleIds, res)) return;
+  try {
+    const calc = await calculate(articleIds, rule);
+    const toWrite = calc.rows.filter(r => r.status === 'ok');
+    if (toWrite.length === 0) return res.status(400).json({ error: 'Keine Preise zu ändern' });
+
+    // Hat sich seit der Vorschau etwas geändert? Dann nichts schreiben, Vorschau neu berechnen lassen.
+    if (!expected || expected.changed !== calc.summary.changed || expected.diffNetTotal !== calc.summary.diffNetTotal) {
+      return res.status(409).json({ error: 'Daten haben sich seit der Vorschau geändert – bitte Vorschau neu berechnen', preview: calc });
+    }
+
+    const upstream = await shopFetch('/admin/products/prices', {
+      method: 'POST',
+      body: JSON.stringify({ updates: toWrite.map(r => ({ id: r.id, articleNumber: r.articleNumber, expectedNet: r.oldNet, newNet: r.newNet })) }),
+    });
+    const data = await upstream.json();
+    if (!upstream.ok || data.error) throw Object.assign(new Error(data.error || `Shop-API ${upstream.status}`), { status: 502 });
+
+    const user = req.session.user || {};
+    const ruleText = describeRule(rule);
+    for (const r of toWrite) {
+      await getPool().execute(
+        `INSERT INTO price_change_log
+           (job_id, lexware_article_id, article_number, article_name, rule_text, old_net, new_net, status, changed_by, changed_by_name)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+        [data.jobId, r.id, r.articleNumber, r.name, ruleText, r.oldNet, r.newNet, user.id || null, user.fullName || user.username || null]
+      );
+    }
+    console.log('[PriceTool] Übernahme gestartet:', data.jobId, toWrite.length, 'Artikel,', ruleText, 'von', user.username);
+    res.json({ jobId: data.jobId, total: toWrite.length });
+  } catch (err) {
+    console.error('[PriceTool] apply error:', err.message);
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+// GET /api/finance/price-tool/apply/:jobId – Fortschritt; Ergebnis wird ins Protokoll übernommen
+router.get('/apply/:jobId', async (req, res) => {
+  const { jobId } = req.params;
+  if (!/^[0-9a-f-]{36}$/i.test(jobId)) return res.status(400).json({ error: 'Ungültige Job-ID' });
+  try {
+    const upstream = await shopFetch('/admin/products/prices/' + jobId);
+    const job = await upstream.json();
+    if (!upstream.ok || job.error) return res.status(upstream.status === 404 ? 404 : 502).json({ error: job.error || 'Shop-API ' + upstream.status });
+
+    for (const r of job.results || []) {
+      await getPool().execute(
+        `UPDATE price_change_log SET status = ?, reason = ?
+          WHERE job_id = ? AND lexware_article_id = ? AND status = 'pending'`,
+        [r.status, r.reason || r.warning || null, jobId, r.id]
+      );
+    }
+    res.json(job);
+  } catch (err) {
+    console.error('[PriceTool] status error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/finance/price-tool/log?limit=50 – letzte Preisänderungen
+router.get('/log', async (req, res) => {
+  const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 500);
+  try {
+    const [rows] = await getPool().query(
+      `SELECT id, job_id, article_number, article_name, rule_text, old_net, new_net, status, reason,
+              changed_by_name, created_at
+         FROM price_change_log ORDER BY id DESC LIMIT ${limit}`
+    );
+    res.json({ entries: rows });
+  } catch (err) {
+    console.error('[PriceTool] log error:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

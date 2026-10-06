@@ -216,7 +216,8 @@ export default function Products() {
       )}
 
       {canEdit && showPrice && selected.size > 0 && (
-        <PricePreview key={[...selected].sort().join(',')} articleIds={[...selected]} onClose={() => setShowPrice(false)}/>
+        <PricePreview key={[...selected].sort().join(',')} articleIds={[...selected]} onClose={() => setShowPrice(false)}
+          onApplied={load}/>
       )}
 
       {loading ? (
