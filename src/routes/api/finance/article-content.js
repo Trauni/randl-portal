@@ -3,8 +3,8 @@ const router = require('express').Router();
 // Schreiben (Vorbefüllen, Pflegen): zusätzlich gashandel.preise (#250).
 const requireArea = require('../../../middleware/requireArea');
 const { getPool } = require('../../../db');
-const { shopFetch } = require('./shopClient');
-const { parseContentFromTitle, isPriceToolArticle } = require('../../../utils/gasContent');
+const { parseContentFromTitle } = require('../../../utils/gasContent');
+const { loadGasArticles: loadArticles } = require('../../../services/gasArticles');
 
 // #251 (06.10.2026): Inhalt (Wert + Einheit kg/L) pro Gas-Artikel für das
 // Preis-Tool (#249). Lexware bleibt führend für Titel und Preise; der Inhalt
@@ -12,36 +12,6 @@ const { parseContentFromTitle, isPriceToolArticle } = require('../../../utils/ga
 // vorbefüllt (source 'auto'), danach gilt das Feld, nicht mehr der Titel.
 
 const PREISE = requireArea('gashandel.preise');
-
-// Gas-Artikel (RG-/NRG-) aus dem admin-backend-Cache, zusammengeführt mit dem Inhalt
-async function loadArticles() {
-  const upstream = await shopFetch('/admin/products/all?prefix=RG-,NRG-');
-  const data = await upstream.json();
-  if (!upstream.ok || data.error) {
-    const err = new Error(data.error || `Shop-API ${upstream.status}`);
-    err.status = upstream.status >= 500 ? 502 : upstream.status;
-    throw err;
-  }
-  const articles = (data.products || []).filter(p => isPriceToolArticle(p.articleNumber));
-
-  const [rows] = await getPool().execute(
-    'SELECT lexware_article_id, content_value, content_unit, source, updated_at FROM gas_article_content'
-  );
-  const byId = new Map(rows.map(r => [r.lexware_article_id, r]));
-
-  return {
-    cachedAt: data.cachedAt || null,
-    articles: articles.map(a => {
-      const c = byId.get(a.id);
-      return {
-        ...a,
-        content: c && c.content_value != null
-          ? { value: Number(c.content_value), unit: c.content_unit, source: c.source, updatedAt: c.updated_at }
-          : null,
-      };
-    }),
-  };
-}
 
 // GET /api/finance/article-content
 router.get('/', async (req, res) => {

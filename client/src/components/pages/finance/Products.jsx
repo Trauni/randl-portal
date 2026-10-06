@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../../context/AuthContext';
+import PricePreview from './PricePreview';
 
 // #249 Preis-Tool: Produktliste aller Gasfüllungen (RG-/NRG-) mit Inhalt kg/L (#251),
 // Filtern und Mehrfachauswahl (#252). Inhalt pflegen nur mit gashandel.preise (#250).
@@ -88,6 +89,7 @@ export default function Products() {
   const [unitFilter, setUnitFilter] = useState('');   // '', 'kg', 'L', 'fehlt'
   const [selected, setSelected] = useState(() => new Set());
   const [prefilling, setPrefilling] = useState(false);
+  const [showPrice, setShowPrice] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
@@ -200,8 +202,17 @@ export default function Products() {
         <div style={{ display:'flex', gap:'.75rem', alignItems:'center', marginBottom:'.6rem',
           fontSize:'.8rem', color:'var(--text2)' }}>
           <span><b style={{ color:'var(--text1)' }}>{selected.size}</b> ausgewählt</span>
-          <button onClick={() => setSelected(new Set())} style={{ ...btn, padding:'.2rem .6rem' }}>Auswahl aufheben</button>
+          <button onClick={() => { setSelected(new Set()); setShowPrice(false); }} style={{ ...btn, padding:'.2rem .6rem' }}>Auswahl aufheben</button>
+          {canEdit && !showPrice && (
+            <button onClick={() => setShowPrice(true)} style={{ ...btnPrimary, padding:'.3rem .8rem' }}>
+              Preise anpassen ({selected.size})
+            </button>
+          )}
         </div>
+      )}
+
+      {canEdit && showPrice && selected.size > 0 && (
+        <PricePreview key={[...selected].sort().join(',')} articleIds={[...selected]} onClose={() => setShowPrice(false)}/>
       )}
 
       {loading ? (
