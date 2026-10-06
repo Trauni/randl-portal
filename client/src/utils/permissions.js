@@ -11,6 +11,7 @@ export const ALL_AREAS = ['metallarbeiten.lieferantenauftrag',
   'zeit.eigen',
   'notizen',
   'gashandel',
+  'gashandel.preise', // neu 06.10.2026 — Preis-Tool: Preise ändern + nach Lexware schreiben (#250)
   'hr.urlaubskalender',
   'hr.zeitauswertung',
   'hr.mitarbeiter',
@@ -27,7 +28,7 @@ export const ROLE_AREAS = {
 
 export const ACCESS_TAGS = {
   geschaeftsfuehrung: { label: 'Geschäftsführung', allow: ALL_AREAS },
-  backoffice:         { label: 'Backoffice',       allow: ['metallarbeiten.lieferantenauftrag', 'gashandel', 'it', 'content', 'hr.zeitauswertung'] },
+  backoffice:         { label: 'Backoffice',       allow: ['metallarbeiten.lieferantenauftrag', 'gashandel', 'gashandel.preise', 'it', 'content', 'hr.zeitauswertung'] },
   gashandel:          { label: 'Gashandel',        allow: ['gashandel'] },
   metallarbeiten:     { label: 'Metallarbeiten',   allow: ['metallarbeiten.lieferantenauftrag', ] },
   zeltverleih:        { label: 'Zeltverleih',      allow: ['zeltplanung'] },   // neu 14.08.2026 — Zeltplaner
