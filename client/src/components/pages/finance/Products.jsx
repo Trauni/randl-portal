@@ -105,6 +105,10 @@ export default function Products() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Fehlervermeidung (Wunsch 06.10.2026): neue Suche oder neuer Filter leert die Auswahl,
+  // damit keine unsichtbaren Artikel aus einer früheren Suche markiert bleiben.
+  useEffect(() => { setSelected(new Set()); setShowPrice(false); }, [q, tagFilter, unitFilter]);
+
   const allTags = useMemo(() => [...new Set(articles.flatMap(a => a.tags || []))].sort(), [articles]);
 
   const visible = useMemo(() => {
