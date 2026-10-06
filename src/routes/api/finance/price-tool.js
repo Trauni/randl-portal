@@ -21,6 +21,7 @@ router.post('/preview', async (req, res) => {
 
     const rows = applyRule(chosen, rule).sort((x, y) => x.articleNumber.localeCompare(y.articleNumber));
     const ok = rows.filter(r => r.status === 'ok');
+    const same = rows.filter(r => r.status === 'same').length;
     res.json({
       rule,
       cachedAt,
@@ -29,8 +30,9 @@ router.post('/preview', async (req, res) => {
       summary: {
         selected: articleIds.length,
         changed: ok.length,
-        skipped: rows.length - ok.length + unknown.length,
-        diffNetTotal: Math.round(ok.reduce((s, r) => s + r.diff, 0) * 100) / 100,
+        same,
+        skipped: rows.length - ok.length - same + unknown.length,
+        diffNetTotal: Math.round(ok.reduce((s, r) => s + (r.diff || 0), 0) * 100) / 100,
       },
     });
   } catch (err) {
