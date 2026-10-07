@@ -1,7 +1,7 @@
 // portal/client/src/components/pages/content/CMSShopseite.jsx
-// Phase 5: CMS Shopseite – Texte, CSS, Rebuild
+// CMS Shopseite – Texte und Zusatz-CSS, wirken sofort (gasshop #281)
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 const API = '/api';
 
@@ -21,13 +21,6 @@ const IconCode = () => (
     <polyline points="8 6 2 12 8 18"/>
   </svg>
 );
-const IconBuild = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <circle cx="12" cy="12" r="3"/>
-    <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
-    <path d="M4.93 4.93a10 10 0 0 0 0 14.14"/>
-  </svg>
-);
 const IconRefresh = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <polyline points="23 4 23 10 17 10"/>
@@ -39,27 +32,6 @@ const IconCheck = () => (
     <polyline points="20 6 9 17 4 12"/>
   </svg>
 );
-
-// ──────────────────────────────────────────────
-// Rebuild-Status Badge
-// ──────────────────────────────────────────────
-function BuildBadge({ status, running }) {
-  const map = {
-    idle:    { color: 'var(--text3)', bg: 'var(--bg3)', label: 'Bereit' },
-    running: { color: '#f5a623', bg: 'rgba(245,166,35,0.12)', label: '⟳ Läuft…' },
-    success: { color: 'var(--green)', bg: 'rgba(46,189,122,0.12)', label: '✓ Erfolgreich' },
-    error:   { color: 'var(--red2)', bg: 'rgba(224,80,80,0.12)', label: '✗ Fehler' }
-  };
-  const s = map[running ? 'running' : (status || 'idle')];
-  return (
-    <span style={{
-      fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 5,
-      color: s.color, background: s.bg
-    }}>
-      {s.label}
-    </span>
-  );
-}
 
 // ──────────────────────────────────────────────
 // Tab 1: Texte & Beschriftungen
@@ -282,14 +254,13 @@ function SimpleCodeEditor({ value, onChange }) {
 // ──────────────────────────────────────────────
 // Tab 2: CSS anpassen
 // ──────────────────────────────────────────────
-function TabCSS({ onBuildStart }) {
+function TabCSS() {
   const [css, setCss] = useState('');
   const [originalCss, setOriginalCss] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const loadCss = useCallback(async () => {
     setLoading(true);
@@ -319,7 +290,6 @@ function TabCSS({ onBuildStart }) {
   const save = async () => {
     setSaving(true);
     setError(null);
-    setConfirmOpen(false);
     try {
       const res = await fetch(`${API}/shop-cms/css`, {
         method: 'PUT',
@@ -329,8 +299,7 @@ function TabCSS({ onBuildStart }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Speichern fehlgeschlagen');
       setOriginalCss(css);
-      setSuccess('CSS gespeichert – Rebuild läuft…');
-      onBuildStart?.();
+      setSuccess('Gespeichert – sofort live auf shop.randl.group (Seite im Shop neu laden)');
     } catch (e) {
       setError(e.message);
     } finally {
@@ -345,18 +314,18 @@ function TabCSS({ onBuildStart }) {
 
   if (loading) return (
     <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text3)', fontSize: 13 }}>
-      Lade CSS aus App.jsx…
+      Lade Zusatz-CSS…
     </div>
   );
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-        <span style={{ fontSize: 11, color: 'var(--amber)' }}>
-          ⚠ CSS-Änderungen erfordern einen Rebuild (ca. 10–15 Sek.)
+        <span style={{ fontSize: 11, color: 'var(--green)' }}>
+          ✓ kein Rebuild nötig – Änderungen sind sofort live
         </span>
         <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text3)' }}>
-          App.jsx → const css = `...`
+          Ergänzt das Grund-CSS des Shops und überschreibt es bei Bedarf
         </span>
       </div>
 
@@ -383,7 +352,7 @@ function TabCSS({ onBuildStart }) {
       {/* Buttons */}
       <div style={{ display: 'flex', gap: 10 }}>
         <button
-          onClick={() => setConfirmOpen(true)}
+          onClick={save}
           disabled={saving || !dirty}
           style={{
             padding: '9px 18px', fontSize: 13, fontWeight: 600,
@@ -395,7 +364,7 @@ function TabCSS({ onBuildStart }) {
           }}
         >
           <IconSave />
-          {saving ? 'Speichere + Rebuild…' : 'Speichern + Rebuild'}
+          {saving ? 'Speichere…' : 'Speichern'}
         </button>
 
         {dirty && (
@@ -424,212 +393,6 @@ function TabCSS({ onBuildStart }) {
         </button>
       </div>
 
-      {/* Confirm-Dialog */}
-      {confirmOpen && (
-        <div style={{
-          position: 'fixed', inset: 0,
-          background: 'rgba(0,0,0,0.7)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            background: 'var(--bg1)', border: '1px solid var(--border)',
-            borderRadius: 12, padding: '24px 28px', width: 400, maxWidth: '90vw'
-          }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text1)', marginBottom: 10 }}>
-              CSS speichern & Rebuild starten?
-            </div>
-            <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 20, lineHeight: 1.6 }}>
-              Dies schreibt den neuen CSS-Block in App.jsx und triggert einen Docker-Rebuild.
-              Der Shop ist während des Rebuilds für ca. 10–15 Sekunden nicht erreichbar.
-              Ein Backup von App.jsx wird automatisch angelegt.
-            </div>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setConfirmOpen(false)}
-                style={{
-                  padding: '8px 16px', fontSize: 13,
-                  background: 'var(--bg3)', border: '1px solid var(--border)',
-                  borderRadius: 7, color: 'var(--text2)', cursor: 'pointer'
-                }}
-              >
-                Abbrechen
-              </button>
-              <button
-                onClick={save}
-                style={{
-                  padding: '8px 18px', fontSize: 13, fontWeight: 600,
-                  background: 'var(--r)', color: '#fff',
-                  border: 'none', borderRadius: 7, cursor: 'pointer'
-                }}
-              >
-                Ja, speichern + Rebuild
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────
-// Tab 3: Rebuild-Status
-// ──────────────────────────────────────────────
-function TabRebuild({ forceRefresh }) {
-  const [status, setStatus] = useState(null);
-  const [triggering, setTriggering] = useState(false);
-  const [triggerError, setTriggerError] = useState(null);
-  const intervalRef = useRef(null);
-
-  const poll = useCallback(async () => {
-    try {
-      const res = await fetch(`${API}/shop-cms/rebuild-status`, {
-        
-      });
-      if (res.ok) setStatus(await res.json());
-    } catch (e) {
-      // ignore polling errors
-    }
-  }, []);
-
-  useEffect(() => {
-    poll();
-    intervalRef.current = setInterval(poll, 2000);
-    return () => clearInterval(intervalRef.current);
-  }, [poll, forceRefresh]);
-
-  // Schnelleres Polling wenn Build läuft
-  useEffect(() => {
-    if (status?.running) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = setInterval(poll, 1000);
-    } else {
-      clearInterval(intervalRef.current);
-      intervalRef.current = setInterval(poll, 3000);
-    }
-    return () => clearInterval(intervalRef.current);
-  }, [status?.running, poll]);
-
-  const triggerRebuild = async () => {
-    setTriggering(true);
-    setTriggerError(null);
-    try {
-      const res = await fetch(`${API}/shop-cms/rebuild`, {
-        method: 'POST',
-        
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Rebuild-Start fehlgeschlagen');
-      poll();
-    } catch (e) {
-      setTriggerError(e.message);
-    } finally {
-      setTriggering(false);
-    }
-  };
-
-  const formatDuration = (start, end) => {
-    if (!start) return null;
-    const ms = (end ? new Date(end) : new Date()) - new Date(start);
-    return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
-  };
-
-  return (
-    <div>
-      {/* Status-Karte */}
-      <div style={{
-        background: 'var(--bg2)', border: '1px solid var(--border)',
-        borderRadius: 9, padding: '18px 20px', marginBottom: 16
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text1)' }}>Build-Status</span>
-          <BuildBadge status={status?.status} running={status?.running} />
-          {status?.running && (
-            <span style={{ fontSize: 12, color: 'var(--text2)' }}>
-              {formatDuration(status.startTime, null)} vergangen
-            </span>
-          )}
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 13 }}>
-          <div>
-            <span style={{ color: 'var(--text3)', fontSize: 12 }}>Letzter Build</span>
-            <div style={{ color: 'var(--text1)', marginTop: 2 }}>
-              {status?.lastTime
-                ? new Date(status.lastTime).toLocaleString('de-DE')
-                : '—'}
-            </div>
-          </div>
-          <div>
-            <span style={{ color: 'var(--text3)', fontSize: 12 }}>Dauer</span>
-            <div style={{ color: 'var(--text1)', marginTop: 2 }}>
-              {status?.lastTime && status?.startTime
-                ? formatDuration(status.startTime, status.lastTime)
-                : '—'}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Build-Output */}
-      {status?.lastOutput && (
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 6, fontWeight: 500 }}>
-            Build-Log (letzte 2000 Zeichen)
-          </div>
-          <pre style={{
-            background: '#0d1117', color: '#e6edf3',
-            padding: '12px 14px', borderRadius: 8,
-            fontSize: 11, lineHeight: 1.5, fontFamily: 'DM Mono, monospace',
-            overflow: 'auto', maxHeight: 300,
-            border: '1px solid var(--border)', margin: 0,
-            whiteSpace: 'pre-wrap', wordBreak: 'break-all'
-          }}>
-            {status.lastOutput}
-          </pre>
-        </div>
-      )}
-
-      {/* Rebuild-Button */}
-      {triggerError && (
-        <div style={{ background: 'rgba(224,80,80,0.1)', border: '1px solid var(--red2)', borderRadius: 7, padding: '8px 12px', marginBottom: 12, fontSize: 13, color: 'var(--red2)' }}>
-          {triggerError}
-        </div>
-      )}
-
-      <button
-        onClick={triggerRebuild}
-        disabled={triggering || status?.running}
-        style={{
-          padding: '9px 18px', fontSize: 13, fontWeight: 600,
-          background: (!triggering && !status?.running) ? 'var(--bg3)' : 'var(--bg3)',
-          color: (!triggering && !status?.running) ? 'var(--text1)' : 'var(--text3)',
-          border: `1px solid ${(!triggering && !status?.running) ? 'var(--border)' : 'var(--border)'}`,
-          borderRadius: 7,
-          cursor: (!triggering && !status?.running) ? 'pointer' : 'not-allowed',
-          display: 'flex', alignItems: 'center', gap: 8
-        }}
-      >
-        <IconBuild />
-        {status?.running ? 'Rebuild läuft…' : triggering ? 'Starte…' : 'Manueller Rebuild'}
-      </button>
-
-      {/* Rebuild-Info */}
-      <div style={{
-        marginTop: 20,
-        background: 'var(--bg2)', border: '1px solid var(--border)',
-        borderRadius: 8, padding: '12px 16px', fontSize: 12, color: 'var(--text2)', lineHeight: 1.7
-      }}>
-        <strong style={{ color: 'var(--text1)' }}>Rebuild-Befehl:</strong>
-        <pre style={{
-          margin: '6px 0 0', fontFamily: 'DM Mono, monospace', fontSize: 11,
-          color: 'var(--text2)', background: 'none', padding: 0,
-          whiteSpace: 'pre-wrap', wordBreak: 'break-all'
-        }}>
-          cd /srv/docker/gas-webshop && docker compose build --no-cache frontend && docker compose up -d frontend
-        </pre>
-      </div>
     </div>
   );
 }
@@ -639,18 +402,11 @@ function TabRebuild({ forceRefresh }) {
 // ──────────────────────────────────────────────
 export default function CMSShopseite() {
   const [activeTab, setActiveTab] = useState('texte');
-  const [buildPollKey, setBuildPollKey] = useState(0);
 
   const tabs = [
     { id: 'texte',   label: 'Texte & Labels',     icon: '✎', badge: null },
-    { id: 'css',     label: 'CSS anpassen',        icon: '{}', badge: 'Rebuild' },
-    { id: 'rebuild', label: 'Rebuild-Status',      icon: '⟳', badge: null }
+    { id: 'css',     label: 'Zusatz-CSS',          icon: '{}', badge: null }
   ];
-
-  const handleBuildStart = () => {
-    setActiveTab('rebuild');
-    setBuildPollKey(k => k + 1);
-  };
 
   return (
     <div style={{ padding: '0 0 40px' }}>
@@ -660,7 +416,7 @@ export default function CMSShopseite() {
           CMS Shopseite
         </h2>
         <p style={{ margin: 0, fontSize: 13, color: 'var(--text2)' }}>
-          Texte, CSS und Build-Status für shop.randl.group
+          Texte und Zusatz-CSS für shop.randl.group – Änderungen wirken sofort
         </p>
       </div>
 
@@ -698,8 +454,7 @@ export default function CMSShopseite() {
 
       {/* Tab-Content */}
       {activeTab === 'texte' && <TabTexte />}
-      {activeTab === 'css' && <TabCSS onBuildStart={handleBuildStart} />}
-      {activeTab === 'rebuild' && <TabRebuild forceRefresh={buildPollKey} />}
+      {activeTab === 'css' && <TabCSS />}
     </div>
   );
 }
