@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import PricePreview from './PricePreview';
+import SerImport from './SerImport';
 
 // #249 Preis-Tool: Produktliste aller Gasfüllungen (RG-/NRG-) mit Inhalt kg/L (#251),
 // Filtern und Mehrfachauswahl (#252). Inhalt pflegen nur mit gashandel.preise (#250).
@@ -171,6 +172,9 @@ export default function Products() {
           <button onClick={load} style={btn}>↻ Neu laden</button>
         </div>
       </div>
+
+      {/* SER-Produktstamm (#260) – nur mit gashandel.preise */}
+      {canEdit && <SerImport/>}
 
       {/* Filter */}
       <div style={{ display:'flex', gap:'.75rem', flexWrap:'wrap', alignItems:'center', marginBottom:'.8rem' }}>

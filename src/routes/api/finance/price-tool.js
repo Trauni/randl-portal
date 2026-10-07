@@ -1,9 +1,11 @@
 const router = require('express').Router();
+const multer = require('multer');
 // Rechtepruefung sitzt am Mount-Punkt in server.js: requireArea('gashandel.preise') (#250)
 const { getPool } = require('../../../db');
 const { shopFetch } = require('./shopClient');
 const { loadGasArticles } = require('../../../services/gasArticles');
 const { applyRule, describeRule } = require('../../../utils/priceRule');
+const { importSerExport, getSerImportStatus } = require('../../../services/serProductMaster');
 
 // #253/#254 (06.10.2026): Preisregel für ausgewählte Gas-Artikel – Vorschau und Übernahme.
 // Gerechnet wird immer auf frisch geladenen Daten, nicht auf Werten aus dem Browser.
@@ -128,6 +130,47 @@ router.get('/log', async (req, res) => {
     console.error('[PriceTool] log error:', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── SER-Produktstamm (#260) ───────────────────────────────────────────────
+
+const csvUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (/\.csv$/i.test(file.originalname)) cb(null, true);
+    else cb(Object.assign(new Error('Nur CSV-Dateien (SER-Export produkte_tab.csv)'), { status: 400 }), false);
+  },
+});
+
+// GET /api/finance/price-tool/ser-import – letzter Import + Abgleich mit Lexware
+router.get('/ser-import', async (req, res) => {
+  try {
+    res.json(await getSerImportStatus());
+  } catch (err) {
+    console.error('[PriceTool] ser-import status error:', err.message);
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+// POST /api/finance/price-tool/ser-import   multipart, Feld „file“ – ersetzt den gespeicherten Produktstamm
+router.post('/ser-import', (req, res) => {
+  csvUpload.single('file')(req, res, async (uploadErr) => {
+    if (uploadErr) {
+      const msg = uploadErr.code === 'LIMIT_FILE_SIZE' ? 'Datei zu groß (max. 5 MB)' : uploadErr.message;
+      return res.status(400).json({ error: msg });
+    }
+    if (!req.file) return res.status(400).json({ error: 'Keine Datei hochgeladen' });
+    try {
+      // multer liefert den Dateinamen als Latin-1 – Umlaute im Namen sonst kaputt
+      const fileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+      await importSerExport(req.file.buffer, fileName, req.session.user || {});
+      res.json(await getSerImportStatus());
+    } catch (err) {
+      console.error('[PriceTool] ser-import error:', err.message);
+      res.status(err.status || 500).json({ error: err.message });
+    }
+  });
 });
 
 module.exports = router;
