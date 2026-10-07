@@ -14,7 +14,7 @@ const btnPrimary = { ...btn, background:'var(--r)', border:'none', color:'#fff' 
 
 const fmtCt = v => v == null ? '—' : (v / 100).toLocaleString('de-DE', { minimumFractionDigits:2, maximumFractionDigits:2 }) + ' €';
 const STATUS = {
-  ok:    ['wird gesendet', 'var(--green)'],
+  ok:    ['zu senden', 'var(--green)'],
   same:  ['unverändert', 'var(--text3)'],
   skip:  ['übersprungen', 'var(--text3)'],
   error: ['Fehler', 'var(--red2)'],

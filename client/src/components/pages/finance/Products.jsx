@@ -218,8 +218,9 @@ export default function Products() {
               Preise anpassen ({selected.size})
             </button>
           )}
-          {canEdit && !showSerPush && (
-            <button onClick={() => { setShowSerPush(true); setShowPrice(false); }} style={{ ...btn, padding:'.3rem .8rem' }}
+          {canEdit && (
+            <button onClick={() => { setShowSerPush(v => !v); setShowPrice(false); }}
+              style={{ ...btn, padding:'.3rem .8rem', ...(showSerPush ? { borderColor:'var(--r)', color:'var(--text1)' } : {}) }}
               title="Lexware-Preise der ausgewählten RG-Artikel per STMUPD an SER senden">
               Push SER ({selected.size})
             </button>

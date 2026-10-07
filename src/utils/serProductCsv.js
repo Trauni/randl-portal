@@ -110,6 +110,11 @@ function parseCsv(text) {
   const nonEmpty = records.filter(r => !(r.length === 1 && r[0] === null));
   if (nonEmpty.length === 0) throw new Error('Datei ist leer');
   const header = nonEmpty[0].map(String);
+  // Excel packt beim Speichern gern jede Zeile in eine Zelle (alles in Anführungszeichen)
+  if (header.length < 2) {
+    throw Object.assign(new Error('Datei ist kein unveränderter SER-Export (nur eine Spalte erkannt) – vermutlich in Excel '
+      + 'bearbeitet und gespeichert. Bitte den Original-Export verwenden; Änderungen nur im Texteditor.'), { status: 400 });
+  }
   const rows = nonEmpty.slice(1).map((r, idx) => {
     if (r.length !== header.length) {
       throw new Error(`CSV: Zeile ${idx + 2} hat ${r.length} statt ${header.length} Spalten`);
