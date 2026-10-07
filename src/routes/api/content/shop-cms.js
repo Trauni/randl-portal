@@ -9,7 +9,10 @@ const requireAuth = require('../../../middleware/requireAuth');
 
 const CONFIG_PATH = '/srv/docker/gas-webshop/frontend/public/shop-config.json';
 const APP_JSX_PATH = '/srv/docker/gas-webshop/frontend/src/App.jsx';
-const REBUILD_CMD = 'cd /srv/docker/gas-webshop && docker compose build --no-cache frontend && docker compose up -d frontend';
+// Nur ueber deploy-frontend.sh: 'docker compose build' liefert wegen eines BuildKit-Bugs
+// manchmal stillschweigend alten Code aus (siehe Kommentar im Skript).
+const REBUILD_CMD = '/srv/docker/gas-webshop/deploy-frontend.sh webshop';
+const REBUILD_TIMEOUT_MS = 300000;
 
 // Build-State (In-Memory, überlebt pm2-Restart nicht – reicht für UI)
 let buildState = {
@@ -52,7 +55,7 @@ function triggerRebuild(callback) {
   buildState.lastOutput = '';
   console.log('[shop-cms] Rebuild gestartet:', REBUILD_CMD);
 
-  exec(REBUILD_CMD, { timeout: 120000 }, (err, stdout, stderr) => {
+  exec(REBUILD_CMD, { timeout: REBUILD_TIMEOUT_MS, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
     buildState.running = false;
     buildState.lastTime = new Date();
     buildState.lastOutput = (stdout || '') + (stderr ? '\nSTDERR:\n' + stderr : '');
