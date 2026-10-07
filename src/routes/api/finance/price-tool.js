@@ -6,6 +6,7 @@ const { shopFetch } = require('./shopClient');
 const { loadGasArticles } = require('../../../services/gasArticles');
 const { applyRule, describeRule } = require('../../../utils/priceRule');
 const { importSerExport, getSerImportStatus } = require('../../../services/serProductMaster');
+const { planSerPush, pushPricesToSer } = require('../../../services/serPricePush');
 
 // #253/#254 (06.10.2026): Preisregel für ausgewählte Gas-Artikel – Vorschau und Übernahme.
 // Gerechnet wird immer auf frisch geladenen Daten, nicht auf Werten aus dem Browser.
@@ -121,7 +122,7 @@ router.get('/log', async (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 500);
   try {
     const [rows] = await getPool().query(
-      `SELECT id, job_id, article_number, article_name, rule_text, old_net, new_net, status, reason,
+      `SELECT id, job_id, target, article_number, article_name, rule_text, old_net, new_net, status, reason,
               changed_by_name, created_at
          FROM price_change_log ORDER BY id DESC LIMIT ${limit}`
     );
@@ -171,6 +172,35 @@ router.post('/ser-import', (req, res) => {
       res.status(err.status || 500).json({ error: err.message });
     }
   });
+});
+
+// ── Preis-Push nach SER (#261) ────────────────────────────────────────────
+
+// POST /api/finance/price-tool/ser-push/preview   { articleIds } – schreibt nichts
+router.post('/ser-push/preview', async (req, res) => {
+  const { articleIds } = req.body || {};
+  if (!checkIds(articleIds, res)) return;
+  try {
+    const { _ok, ...plan } = await planSerPush(articleIds);
+    res.json(plan);
+  } catch (err) {
+    console.error('[PriceTool] ser-push preview error:', err.message);
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+// POST /api/finance/price-tool/ser-push   { articleIds, confirm: true, signature }
+// signature aus der Vorschau – weicht der neu berechnete Stand ab, wird nichts gesendet (409).
+router.post('/ser-push', async (req, res) => {
+  const { articleIds, confirm, signature } = req.body || {};
+  if (confirm !== true) return res.status(400).json({ error: 'Push nach SER muss ausdrücklich bestätigt werden' });
+  if (!checkIds(articleIds, res)) return;
+  try {
+    res.json(await pushPricesToSer(articleIds, signature, req.session.user || {}));
+  } catch (err) {
+    console.error('[PriceTool] ser-push error:', err.message);
+    res.status(err.status || 500).json({ error: err.message, ...(err.preview ? { preview: err.preview } : {}) });
+  }
 });
 
 module.exports = router;

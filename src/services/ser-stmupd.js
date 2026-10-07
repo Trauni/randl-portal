@@ -122,4 +122,4 @@ function generateStmupdXml(customer, opts = {}, deliveryAddresses = []) {
   return { xml: buffer, filename };
 }
 
-module.exports = { generateStmupdXml, sanitizeKdnr, escapeXml };
+module.exports = { generateStmupdXml, sanitizeKdnr, escapeXml, formatTimestamp };

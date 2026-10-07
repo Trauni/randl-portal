@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import PricePreview from './PricePreview';
 import SerImport from './SerImport';
+import SerPush from './SerPush';
 
 // #249 Preis-Tool: Produktliste aller Gasfüllungen (RG-/NRG-) mit Inhalt kg/L (#251),
 // Filtern und Mehrfachauswahl (#252). Inhalt pflegen nur mit gashandel.preise (#250).
@@ -91,6 +92,7 @@ export default function Products() {
   const [selected, setSelected] = useState(() => new Set());
   const [prefilling, setPrefilling] = useState(false);
   const [showPrice, setShowPrice] = useState(false);
+  const [showSerPush, setShowSerPush] = useState(false);   // #261
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
@@ -108,7 +110,7 @@ export default function Products() {
 
   // Fehlervermeidung (Wunsch 06.10.2026): neue Suche oder neuer Filter leert die Auswahl,
   // damit keine unsichtbaren Artikel aus einer früheren Suche markiert bleiben.
-  useEffect(() => { setSelected(new Set()); setShowPrice(false); }, [q, tagFilter, unitFilter]);
+  useEffect(() => { setSelected(new Set()); setShowPrice(false); setShowSerPush(false); }, [q, tagFilter, unitFilter]);
 
   const allTags = useMemo(() => [...new Set(articles.flatMap(a => a.tags || []))].sort(), [articles]);
 
@@ -210,10 +212,16 @@ export default function Products() {
         <div style={{ display:'flex', gap:'.75rem', alignItems:'center', marginBottom:'.6rem',
           fontSize:'.8rem', color:'var(--text2)' }}>
           <span><b style={{ color:'var(--text1)' }}>{selected.size}</b> ausgewählt</span>
-          <button onClick={() => { setSelected(new Set()); setShowPrice(false); }} style={{ ...btn, padding:'.2rem .6rem' }}>Auswahl aufheben</button>
+          <button onClick={() => { setSelected(new Set()); setShowPrice(false); setShowSerPush(false); }} style={{ ...btn, padding:'.2rem .6rem' }}>Auswahl aufheben</button>
           {canEdit && !showPrice && (
-            <button onClick={() => setShowPrice(true)} style={{ ...btnPrimary, padding:'.3rem .8rem' }}>
+            <button onClick={() => { setShowPrice(true); setShowSerPush(false); }} style={{ ...btnPrimary, padding:'.3rem .8rem' }}>
               Preise anpassen ({selected.size})
+            </button>
+          )}
+          {canEdit && !showSerPush && (
+            <button onClick={() => { setShowSerPush(true); setShowPrice(false); }} style={{ ...btn, padding:'.3rem .8rem' }}
+              title="Lexware-Preise der ausgewählten RG-Artikel per STMUPD an SER senden">
+              Push SER ({selected.size})
             </button>
           )}
         </div>
@@ -222,6 +230,10 @@ export default function Products() {
       {canEdit && showPrice && selected.size > 0 && (
         <PricePreview key={[...selected].sort().join(',')} articleIds={[...selected]} onClose={() => setShowPrice(false)}
           onApplied={load}/>
+      )}
+
+      {canEdit && showSerPush && selected.size > 0 && (
+        <SerPush key={[...selected].sort().join(',')} articleIds={[...selected]} onClose={() => setShowSerPush(false)}/>
       )}
 
       {loading ? (
