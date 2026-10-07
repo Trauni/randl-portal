@@ -16,7 +16,7 @@ const execAsync = (cmd, timeout = 15000) =>
 
 const BACKUP_DIRS = {
   shopware: { dir: '/srv/backups/auto', pattern: /^db-.*\.sql\.gz$/ },
-  gas_db:   { dir: '/root/gas-db-backups',   pattern: /^gas-db-.*\.sql\.gz$/ },
+  gas_db:   { dir: '/srv/backups/gas-auto',  pattern: /^gas-db-.*\.sql\.gz$/ },
 };
 
 const CERTS = [
