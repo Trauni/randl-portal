@@ -265,7 +265,7 @@ router.get('/:id/qr-code', async (req, res) => {
 router.post('/create', requireAuth, async (req, res) => {
   const {
     company_name, first_name, last_name, name2, name3, billing_street, billing_zip, billing_city,
-    billing_country, phone, email,
+    billing_country, phone, email, invoice_email,
     ser_kategorie, info_sped,
     pfjn, mwstkz, belegart,
   } = req.body;
@@ -275,6 +275,11 @@ router.post('/create', requireAuth, async (req, res) => {
 
   if (!name || !billing_street || !billing_zip || !billing_city) {
     return res.status(400).json({ error: 'Firma oder Vorname/Nachname sowie Straße, PLZ und Ort sind Pflichtfelder' });
+  }
+  // Rechnungsadresse: optional, geht nur nach Lexware (nicht SER)
+  const invoiceEmail = typeof invoice_email === 'string' ? (invoice_email.trim() || null) : null;
+  if (invoiceEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invoiceEmail)) {
+    return res.status(400).json({ error: 'E-Mail für Rechnungen ist ungültig' });
   }
 
   // Kundennummer atomar aus Portal-Sequenz vergeben
@@ -300,8 +305,8 @@ router.post('/create', requireAuth, async (req, res) => {
          (name, name2, name3, company_name, first_name, last_name,
           billing_street, billing_zip, billing_city, billing_country,
           phone, email, customer_number, ser_kategorie, info_sped,
-          source, in_ser_fvk, in_lexware, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'manual',false,false,$16)
+          source, in_ser_fvk, in_lexware, created_by, invoice_email)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'manual',false,false,$16,$17)
        RETURNING id, name, customer_number`,
       [
         name, name2 || null, name3 || null,
@@ -313,6 +318,7 @@ router.post('/create', requireAuth, async (req, res) => {
         ser_kategorie || 'F',
         info_sped || null,
         employeeId,
+        invoiceEmail,
       ]
     );
     const newCustomer = result.rows[0];

@@ -3,7 +3,7 @@ import { useState } from 'react'
 const EMPTY = {
   company_name: '', first_name: '', last_name: '',
   billing_street: '', billing_zip: '', billing_city: '', billing_country: 'DE',
-  phone: '', email: '',
+  phone: '', email: '', invoice_email: '',
 }
 
 // Verifiziert gegen den echten Handler (09.08.2026):
@@ -105,6 +105,10 @@ export default function NewCustomer() {
         <label>
           E-Mail
           <input type="email" value={form.email} onChange={set('email')} />
+        </label>
+        <label>
+          E-Mail für Rechnungen (optional)
+          <input type="email" value={form.invoice_email} onChange={set('invoice_email')} placeholder="rechnung@firma.de" />
         </label>
         {error && <p className="error">{error}</p>}
         <button type="submit" disabled={submitting}>
