@@ -52,6 +52,7 @@ function DupModal({ portalCustomer, matches = [], onLink, onOverwrite, onForce, 
     { label:'PLZ',          p: portalCustomer?.billing_zip,    l: lexBill.zip },
     { label:'Ort',          p: portalCustomer?.billing_city,   l: lexBill.city },
     { label:'E-Mail',       p: portalCustomer?.email,          l: lexEmail },
+    { label:'E-Mail Rechn.', p: portalCustomer?.invoice_email, l: lex.emailAddresses?.office?.[0] },
     { label:'Telefon',      p: portalCustomer?.phone,          l: lexPhone },
   ].map(r => ({ ...r, p: r.p || '—', l: r.l || '—' }));
   const btnBase = { flex:1, padding:'.6rem .5rem', borderRadius:7, cursor:'pointer', fontSize:'.78rem', fontWeight:500, display:'flex', flexDirection:'column', alignItems:'center', gap:'.18rem', lineHeight:1.3, minWidth:0 };
@@ -291,6 +292,7 @@ function CustomerDetail({ customer: init, onClose, onRefresh }) {
           <Field label="Straße">{customer.billing_street}</Field>
           <Field label="PLZ / Ort">{customer.billing_zip} {customer.billing_city}</Field>
           <Field label="E-Mail">{customer.email}</Field>
+          <Field label="E-Mail Rechnungen">{customer.invoice_email}</Field>
           <Field label="Telefon">{customer.phone}</Field>
           <Field label="Letzte Bestellung">{customer.datum_letzte_lieferung ? new Date(customer.datum_letzte_lieferung).toLocaleDateString('de-DE') : '—'}</Field>
           <div style={{ display:'flex', gap:'.4rem', alignItems:'center' }}>
@@ -355,7 +357,7 @@ function CustomerDetail({ customer: init, onClose, onRefresh }) {
         )}
       </>) : (<>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.5rem .75rem', marginBottom:'1rem' }}>
-          {[['name','Name'],['name2','Name2'],['name3','Name3'],['company_name','Firma'],['name_empfaenger','Empfänger'],['first_name','Vorname'],['last_name','Nachname'],['billing_street','Straße'],['billing_zip','PLZ'],['billing_city','Ort'],['email','E-Mail'],['phone','Telefon'],['mobile','Mobil'],['info_sped','Speditionsinfo']].map(([k,l]) => (
+          {[['name','Name'],['name2','Name2'],['name3','Name3'],['company_name','Firma'],['name_empfaenger','Empfänger'],['first_name','Vorname'],['last_name','Nachname'],['billing_street','Straße'],['billing_zip','PLZ'],['billing_city','Ort'],['email','E-Mail'],['invoice_email','E-Mail Rechnungen'],['phone','Telefon'],['mobile','Mobil'],['info_sped','Speditionsinfo']].map(([k,l]) => (
             <div key={k} style={{ gridColumn: k==='info_sped' ? '1/-1' : undefined }}>
               <div style={{ fontSize:'.68rem', color:'var(--text3)', marginBottom:'.2rem' }}>{l}</div>
               <input {...inp(k)}/>
@@ -583,7 +585,7 @@ function BulkResult({ job, pendingDups, onResolveDup, onResolveForce, onForceAll
 function NewCustomerModal({ onClose, onCreated }) {
   const [form, setForm] = React.useState({
     company_name: '', first_name: '', last_name: '', name2: '', name3: '', billing_street: '', billing_zip: '', billing_city: '',
-    billing_country: 'DE', phone: '', email: '', customer_number: '',
+    billing_country: 'DE', phone: '', email: '', invoice_email: '', customer_number: '',
     ser_kategorie: 'F', info_sped: '',
     pfjn: true, mwstkz: true, belegart: 'L',
   });
@@ -667,6 +669,12 @@ function NewCustomerModal({ onClose, onCreated }) {
           <div>
             <label style={labelStyle}>E-Mail</label>
             <input style={inputStyle} value={form.email} onChange={inp('email')} placeholder="info@firma.de" />
+          </div>
+        </div>
+        <div style={rowStyle}>
+          <div style={{ gridColumn:'1/-1' }}>
+            <label style={labelStyle}>E-Mail für Rechnungen (optional, nur Lexware)</label>
+            <input style={inputStyle} value={form.invoice_email} onChange={inp('invoice_email')} placeholder="rechnung@firma.de" />
           </div>
         </div>
         <div style={rowStyle}>
