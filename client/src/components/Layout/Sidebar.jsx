@@ -24,6 +24,7 @@ const ICONS = {
   cms:        'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10',
   shop:       'M2 7l2-4h16l2 4M2 7h20M4 7v13h16V7M9 20v-6h6v6',
   images:     'M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 9.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM21 15l-5-5L5 21',
+  bell:       'M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0',
   calendar:   'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
   employees:  'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
   logout:     'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
@@ -118,6 +119,7 @@ export default function Sidebar({ user }) {
           <NavItem to="/finance/kunden"       icon="employees" label="Kunden" collapsed={collapsed}/>
           <NavItem to="/finance/bestellungen" icon="orders"    label="Bestellungen"              collapsed={collapsed}/>
           <NavItem to="/finance/rhythmus"  icon="calendar"  label="Lieferrhythmus"             collapsed={collapsed}/>
+          <NavItem to="/finance/mitteilungen" icon="bell"  label="Mitteilungen"               collapsed={collapsed}/>
           <NavItem to="/finance/produkte"     icon="products"  label="Produkte"                  collapsed={collapsed}/>
           <NavItem to="/finance/widmann-bestand" icon="products" label="Widmann-Bestand" collapsed={collapsed}/>
         </>}

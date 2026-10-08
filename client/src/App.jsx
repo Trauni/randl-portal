@@ -16,6 +16,7 @@ import Orders   from './components/pages/finance/Orders';
 import Products from './components/pages/finance/Products';
 import Customers       from './components/pages/finance/Customers';
 import DeliveryRhythm from './components/pages/finance/DeliveryRhythm';
+import ShopNews from './components/pages/finance/ShopNews';
 import WidmannBestand from './components/pages/finance/WidmannBestand';
 import Logs     from './components/pages/it/Logs'
 import { CmsPage, CmsEditorPage } from './components/pages/content/CmsEditor'
@@ -74,6 +75,7 @@ function AppRoutes() {
               <Route path="it/maintenance" element={<Wartung />} />
         <Route path="finance/kunden"       element={<Customers />} />
         <Route path="finance/rhythmus"  element={<DeliveryRhythm />} />
+        <Route path="finance/mitteilungen" element={<ShopNews />} />
         <Route path="finance/widmann-bestand" element={<WidmannBestand />} />
         <Route path="finance/bestellungen" element={<Orders />} />
         <Route path="finance/produkte"     element={<Products />} />
