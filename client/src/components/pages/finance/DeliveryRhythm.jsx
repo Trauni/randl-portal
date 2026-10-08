@@ -109,21 +109,21 @@ function ItemsEditor({ items, onChange }) {
   return (
     <div style={{ marginTop:'.4rem' }}>
       {items.map((item, i) => (
-        <div key={i} style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr auto', gap:'.3rem', marginBottom:'.3rem', alignItems:'center' }}>
+        <div key={i} style={{ background:'var(--bg1)', border:'1px solid var(--border)', borderRadius:6, padding:'.4rem', marginBottom:'.4rem' }}>
           <ProductSearch value={item.productName}
             onChange={v => setItem(i, 'productName', v)}
             onSelect={p => onChange(items.map((it,idx) => idx===i ? { ...it, product_id:p.articleNumber, productName:p.name, articleNumber:p.articleNumber, unitPriceNet:p.price } : it))}/>
-          <input type="number" min="0" value={item.quantity} placeholder="Menge"
-            onChange={e => setItem(i, 'quantity', parseInt(e.target.value)||0)}
-            style={{ background:'var(--bg0)', border:'1px solid var(--border)', borderRadius:5, padding:'.25rem .4rem', color:'var(--text1)', fontSize:'.72rem' }}/>
-          <input type="number" step="0.01" value={item.unitPriceNet} placeholder="Preis"
-            onChange={e => setItem(i, 'unitPriceNet', parseFloat(e.target.value)||0)}
-            style={{ background:'var(--bg0)', border:'1px solid var(--border)', borderRadius:5, padding:'.25rem .4rem', color:'var(--text1)', fontSize:'.72rem' }}/>
-          <input type="number" min="0" value={item.emptyReturn} placeholder="Leergut"
-            onChange={e => setItem(i, 'emptyReturn', parseInt(e.target.value)||0)}
-            style={{ background:'var(--bg0)', border:'1px solid var(--border)', borderRadius:5, padding:'.25rem .4rem', color:'var(--text1)', fontSize:'.72rem' }}/>
-          <button onClick={() => onChange(items.filter((_,idx) => idx!==i))}
-            style={{ background:'transparent', border:'1px solid rgba(224,80,80,.3)', borderRadius:5, color:'var(--red2)', cursor:'pointer', padding:'.2rem .4rem', fontSize:'.7rem' }}>✕</button>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0, 1fr)) auto', gap:'.35rem', marginTop:'.35rem', alignItems:'end' }}>
+            {[['quantity', 'Menge', 1, v => parseInt(v)||0], ['unitPriceNet', 'Preis netto', 0.01, v => parseFloat(v)||0], ['emptyReturn', 'Leergut', 1, v => parseInt(v)||0]].map(([k, label, step, conv]) => (
+              <label key={k} style={{ display:'flex', flexDirection:'column', gap:'.1rem', fontSize:'.62rem', color:'var(--text3)', minWidth:0 }}>
+                {label}
+                <input type="number" min="0" step={step} value={item[k]} onChange={e => setItem(i, k, conv(e.target.value))}
+                  style={{ background:'var(--bg0)', border:'1px solid var(--border)', borderRadius:5, padding:'.25rem .4rem', color:'var(--text1)', fontSize:'.75rem', width:'100%', minWidth:0 }}/>
+              </label>
+            ))}
+            <button onClick={() => onChange(items.filter((_,idx) => idx!==i))} title="Artikel entfernen"
+              style={{ background:'transparent', border:'1px solid rgba(224,80,80,.3)', borderRadius:5, color:'var(--red2)', cursor:'pointer', padding:'.3rem .45rem', fontSize:'.7rem' }}>✕</button>
+          </div>
         </div>
       ))}
       <button onClick={() => onChange([...items, { ...EMPTY_ITEM }])}
@@ -151,7 +151,7 @@ function CustomerCard({ entry, onUpdate, onRemove, onSend }) {
   };
 
   return (
-    <div style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:8, padding:'.6rem .7rem', marginBottom:'.5rem' }}>
+    <div style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:8, padding:'.6rem .7rem', minWidth:0 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'.5rem' }}>
         <div>
           <div style={{ fontSize:'.85rem', color:'var(--text1)', fontWeight:500 }}>{entry.company_name || entry.name}</div>
@@ -280,20 +280,22 @@ export default function DeliveryRhythm() {
       <p style={{ color:'var(--text2)', fontSize:'.8rem', marginBottom:'1.2rem' }}>Stammkunden nach Liefer-Rhythmus gruppiert · {entries.length} zugeordnet · 1. Woche = gerade KW, 2. Woche = ungerade KW · Kunden können ihren Rhythmus im Shop selbst ändern</p>
       {error && <div style={{ background:'rgba(224,80,80,.08)', border:'1px solid rgba(224,80,80,.3)', borderRadius:9, padding:'.75rem 1rem', color:'var(--red2)', fontSize:'.85rem', marginBottom:'1rem' }}>✗ {error}</div>}
       {addingTo && <CustomerSearch onClose={() => setAddingTo(null)} onSelect={(c) => addCustomer(c, addingTo)}/>}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(280px, 1fr))', gap:'1rem' }}>
+      <div style={{ display:'flex', flexDirection:'column', gap:'1rem' }}>
         {RHYTHMUS_KEYS.map(key => (
-          <div key={key} style={{ background:'var(--bg1)', border:'1px solid var(--border)', borderRadius:9, padding:'.9rem' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'.7rem' }}>
-              <span style={{ fontWeight:600, color:'var(--text1)', fontSize:'.9rem' }}>{RHYTHMUS_LABELS[key]}{RHYTHMUS_HINTS[key] && <span style={{ fontWeight:400, color:'var(--text3)', fontSize:'.72rem', marginLeft:'.35rem' }}>{RHYTHMUS_HINTS[key]}</span>}</span>
+          <section key={key} style={{ background:'var(--bg1)', border:'1px solid var(--border)', borderRadius:9, padding:'.9rem' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'.7rem', gap:'.75rem' }}>
+              <span style={{ fontWeight:600, color:'var(--text1)', fontSize:'.9rem' }}>{RHYTHMUS_LABELS[key]}{RHYTHMUS_HINTS[key] && <span style={{ fontWeight:400, color:'var(--text3)', fontSize:'.72rem', marginLeft:'.35rem' }}>{RHYTHMUS_HINTS[key]}</span>}<span style={{ fontWeight:400, color:'var(--text3)', fontSize:'.72rem', marginLeft:'.5rem' }}>{'· ' + entries.filter(e => e.rhythmus === key).length + ' Kunden'}</span></span>
               <button onClick={() => setAddingTo(key)} style={{ padding:'.25rem .6rem', borderRadius:6, fontSize:'.72rem', cursor:'pointer', background:'rgba(184,49,31,.1)', border:'1px solid rgba(184,49,31,.3)', color:'var(--r)' }}>+ Kunde</button>
             </div>
-            {entries.filter(e => e.rhythmus === key).map(e => (
-              <CustomerCard key={e.customer_id} entry={e} onUpdate={patchEntry} onRemove={removeEntry} onSend={sendOrder}/>
-            ))}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(340px, 1fr))', gap:'.6rem', alignItems:'start' }}>
+              {entries.filter(e => e.rhythmus === key).map(e => (
+                <CustomerCard key={e.customer_id} entry={e} onUpdate={patchEntry} onRemove={removeEntry} onSend={sendOrder}/>
+              ))}
+            </div>
             {entries.filter(e => e.rhythmus === key).length === 0 && (
               <div style={{ fontSize:'.78rem', color:'var(--text3)' }}>Keine Kunden.</div>
             )}
-          </div>
+          </section>
         ))}
       </div>
     </div>
