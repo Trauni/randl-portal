@@ -121,13 +121,13 @@ function SektionKategorien({ categories, onRefresh }) {
   };
 
   const handleDelete = async (catId, filename) => {
-    if (!confirm(`Kategoriebild "${filename}" löschen?`)) return;
+    if (!confirm(`Hochgeladenes Bild "${filename}" entfernen? Der Shop zeigt dann wieder das Standardbild.`)) return;
     setError(null);
     try {
       const res = await fetch(`${API}/shop-images/category/${filename}`, { method: 'DELETE' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Löschen fehlgeschlagen');
-      setSuccess(`${filename} gelöscht`);
+      setSuccess(`${filename}: zurück auf Standardbild`);
       onRefresh();
     } catch (e) {
       setError(e.message);
@@ -139,7 +139,7 @@ function SektionKategorien({ categories, onRefresh }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
         <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--text1)' }}>Kategorie-Kacheln</h3>
         <span style={{ fontSize: 12, color: 'var(--text3)', background: 'var(--bg3)', padding: '2px 8px', borderRadius: 4 }}>
-          480×200px · JPEG · max. 100KB
+          JPG · 640×480 px · Querformat
         </span>
         <span style={{ fontSize: 11, color: 'var(--green)', marginLeft: 'auto' }}>✓ kein Rebuild nötig</span>
       </div>
@@ -153,8 +153,8 @@ function SektionKategorien({ categories, onRefresh }) {
           return (
             <div key={id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 9, overflow: 'hidden' }}>
               <div style={{ height: 90, background: 'var(--bg3)', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                {hasImage ? (
-                  <img src={`https://shop.randl.group/cat-${id}.jpg?t=${Date.now()}`} alt={id}
+                {hasImage && cat.url ? (
+                  <img src={cat.url} alt={id}
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     onError={(e) => { e.target.style.display = 'none'; }} />
                 ) : (
@@ -162,9 +162,9 @@ function SektionKategorien({ categories, onRefresh }) {
                     <IconImage /><div style={{ fontSize: 11, marginTop: 4 }}>kein Bild</div>
                   </div>
                 )}
-                <div style={{ position: 'absolute', top: 6, left: 6, background: hasImage ? 'rgba(46,189,122,0.85)' : 'rgba(42,45,51,0.85)', color: hasImage ? '#fff' : 'var(--text3)', fontSize: 10, fontFamily: 'DM Mono, monospace', padding: '2px 6px', borderRadius: 4 }}>{id}</div>
-                {hasImage && (
-                  <button onClick={() => handleDelete(id, `cat-${id}.jpg`)}
+                <div style={{ position: 'absolute', top: 6, left: 6, background: hasImage ? 'rgba(46,189,122,0.85)' : 'rgba(42,45,51,0.85)', color: hasImage ? '#fff' : 'var(--text3)', fontSize: 10, fontFamily: 'DM Mono, monospace', padding: '2px 6px', borderRadius: 4 }}>{id}{cat?.custom ? ' · eigenes Bild' : hasImage ? ' · Standard' : ''}</div>
+                {cat?.custom && (
+                  <button onClick={() => handleDelete(id, `cat-${id}.jpg`)} title="Zurück auf Standardbild"
                     style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(224,80,80,0.85)', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <IconTrash />
                   </button>
@@ -175,7 +175,7 @@ function SektionKategorien({ categories, onRefresh }) {
                 {isUp ? (
                   <div style={{ textAlign: 'center', padding: '8px', fontSize: 12, color: 'var(--text2)' }}>Lade hoch…</div>
                 ) : (
-                  <DropZone onFile={(file) => handleUpload(id, file)} hint="JPEG/PNG/WebP" />
+                  <DropZone onFile={(file) => handleUpload(id, file)} hint="nur JPG" accept=".jpg,.jpeg,image/jpeg" />
                 )}
                 {cat?.size && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>{(cat.size / 1024).toFixed(1)} KB · {new Date(cat.mtime).toLocaleDateString('de-DE')}</div>}
               </div>
@@ -221,13 +221,13 @@ function SektionProdukte({ products, onRefresh }) {
   };
 
   const handleDelete = async (filename) => {
-    if (!confirm(`Produktbild "${filename}" löschen?`)) return;
+    if (!confirm(`Hochgeladenes Produktbild "${filename}" entfernen?`)) return;
     setDeleting(prev => ({ ...prev, [filename]: true }));
     try {
       const res = await fetch(`${API}/shop-images/product/${filename}`, { method: 'DELETE' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Löschen fehlgeschlagen');
-      setSuccess(`${filename} gelöscht`);
+      setSuccess(`${filename} entfernt`);
       onRefresh();
     } catch (e) {
       setError(e.message);
@@ -242,7 +242,7 @@ function SektionProdukte({ products, onRefresh }) {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
         <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--text1)' }}>Produktbilder</h3>
-        <span style={{ fontSize: 12, color: 'var(--text3)', background: 'var(--bg3)', padding: '2px 8px', borderRadius: 4 }}>200×200px · JPEG · weißer Hintergrund</span>
+        <span style={{ fontSize: 12, color: 'var(--text3)', background: 'var(--bg3)', padding: '2px 8px', borderRadius: 4 }}>JPG · quadratisch · weißer Hintergrund</span>
         <span style={{ fontSize: 11, color: 'var(--green)', marginLeft: 'auto' }}>✓ kein Rebuild nötig</span>
       </div>
       {error && <div style={{ background: 'rgba(224,80,80,0.1)', border: '1px solid var(--red2)', borderRadius: 7, padding: '8px 12px', marginBottom: 12, fontSize: 13, color: 'var(--red2)' }}>{error}</div>}
@@ -253,7 +253,7 @@ function SektionProdukte({ products, onRefresh }) {
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text1)', marginBottom: 12 }}>Neues Produktbild hochladen</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
           <div>
-            <DropZone onFile={setFile} hint="JPEG/PNG/WebP · 200×200px empfohlen" />
+            <DropZone onFile={setFile} hint="nur JPG · quadratisch, z. B. 400×400 px" accept=".jpg,.jpeg,image/jpeg" />
             {file && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ color: 'var(--green)' }}>✓</span>{file.name} ({(file.size / 1024).toFixed(1)} KB)</div>}
           </div>
           <div>
@@ -287,18 +287,18 @@ function SektionProdukte({ products, onRefresh }) {
               onMouseEnter={e => e.currentTarget.style.background = 'var(--bg3)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
               <div style={{ width: 40, height: 40, borderRadius: 6, background: '#fff', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border)' }}>
-                <img src={`https://shop.randl.group/products/${p.filename}?t=${Date.now()}`} alt={p.filename}
+                <img src={p.url} alt={p.filename}
                   style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                   onError={(e) => { e.target.style.display = 'none'; }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, color: 'var(--text1)', fontFamily: 'DM Mono, monospace', fontWeight: 500 }}>{p.artikelnr}</div>
-                <div style={{ fontSize: 11, color: 'var(--text3)' }}>{p.filename} · {(p.size / 1024).toFixed(1)} KB · {new Date(p.mtime).toLocaleDateString('de-DE')}</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)' }}>{p.custom ? 'eigenes Bild' : 'Standard'} · {(p.size / 1024).toFixed(1)} KB · {new Date(p.mtime).toLocaleDateString('de-DE')}</div>
               </div>
-              <button onClick={() => handleDelete(p.filename)} disabled={deleting[p.filename]}
+              {p.custom && <button onClick={() => handleDelete(p.filename)} disabled={deleting[p.filename]}
                 style={{ padding: '5px 10px', fontSize: 12, background: 'transparent', color: 'var(--red2)', border: '1px solid rgba(224,80,80,0.3)', borderRadius: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-                <IconTrash />{deleting[p.filename] ? '…' : 'Löschen'}
-              </button>
+                <IconTrash />{deleting[p.filename] ? '…' : p.standard ? 'Zurücksetzen' : 'Entfernen'}
+              </button>}
             </div>
           ))}
         </div>
