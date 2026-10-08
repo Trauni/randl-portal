@@ -11,26 +11,20 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const requireAuth = require('../../../middleware/requireAuth');
+const { CONTENT_DIR, CONFIG_PATH, readJson, writeAtomic, updateCmsConfig } = require('../../../utils/shopContent');
 
-const CONTENT_DIR = '/srv/docker/gas-webshop/shop-content';
-const CONFIG_PATH = path.join(CONTENT_DIR, 'shop-config.json');
 const CSS_PATH = path.join(CONTENT_DIR, 'shop-custom.css');
 // Standardwerte aus dem Repo (werden ins Image gebacken)
-const DEFAULT_CONFIG_PATH = '/srv/docker/gas-webshop/frontend/public/shop-config.json';
+const DEFAULT_CONFIG_PATH = process.env.SHOP_DEFAULT_CONFIG || '/srv/docker/gas-webshop/frontend/public/shop-config.json';
 const MAX_CSS_BYTES = 90 * 1024; // unter dem express.json-Limit (100 KB) des Portals
 const CATEGORY_IDS = ['ALLE', 'HEIZUNG', 'CAMPING', 'GASTRO', 'TECHNIK'];
-
-function readJson(file) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; }
-}
-
-// Atomar schreiben, damit nginx nie eine halbe Datei ausliefert
-function writeAtomic(file, content) {
-  fs.mkdirSync(CONTENT_DIR, { recursive: true });
-  const tmp = file + '.tmp-' + process.pid;
-  fs.writeFileSync(tmp, content, 'utf8');
-  fs.renameSync(tmp, file);
-}
+// Texte, die der Shop aus der CMS-Datei liest (#285). Leer = Standardtext im Shop.
+const TEXT_FIELDS = [
+  'loginTitle', 'loginSubtitle', 'greeting', 'rhythmCardText', 'contactCardText',
+  'priceNotice', 'priceNoticeExtra', 'orderSuccessText', 'contactIntro', 'footerCompany',
+];
+const URL_FIELDS = ['imprintUrl', 'privacyUrl'];
+const MAX_TEXT = 1000;
 
 // Wirksame Config = Standardwerte, ueberlagert von der CMS-Datei (wie im Shop)
 function effectiveConfig() {
@@ -48,27 +42,39 @@ router.get('/config', requireAuth, (req, res) => {
 
 // ──────────────────────────────────────────────
 // PUT /api/shop-cms/config
-// Nur bekannte Felder werden geaendert, alle anderen (z. B. priceNoticeExtra) bleiben.
+// Nur bekannte Felder werden geaendert, alle anderen (z. B. images) bleiben. Leer = Standard.
 // ──────────────────────────────────────────────
 router.put('/config', requireAuth, (req, res) => {
   try {
-    const { priceNotice, loginSubtitle, categories } = req.body;
-    if (typeof priceNotice !== 'string' || typeof loginSubtitle !== 'string') {
-      return res.status(400).json({ error: 'priceNotice und loginSubtitle müssen Strings sein' });
+    const body = req.body || {};
+    const changes = {};
+    for (const k of [...TEXT_FIELDS, ...URL_FIELDS]) {
+      if (!(k in body)) continue;
+      const v = body[k] == null ? '' : body[k];
+      if (typeof v !== 'string') return res.status(400).json({ error: k + ' muss Text sein' });
+      const t = v.trim();
+      if (t.length > MAX_TEXT) return res.status(400).json({ error: k + ' ist zu lang (max. ' + MAX_TEXT + ' Zeichen)' });
+      if (URL_FIELDS.includes(k) && t && !/^https?:\/\/\S+$/i.test(t)) {
+        return res.status(400).json({ error: 'Link muss mit https:// beginnen' });
+      }
+      changes[k] = t;
     }
-    if (categories && typeof categories !== 'object') {
+    if (body.categories && typeof body.categories !== 'object') {
       return res.status(400).json({ error: 'categories muss ein Objekt sein' });
     }
 
-    const config = effectiveConfig();
-    config.priceNotice = priceNotice.trim();
-    config.loginSubtitle = loginSubtitle.trim();
-    CATEGORY_IDS.forEach(k => {
-      const v = categories?.[k];
-      config.categories[k] = (typeof v === 'string' && v.trim()) || config.categories[k] || k;
+    const base = effectiveConfig();
+    updateCmsConfig(cfg => {
+      // leere Felder entfernen -> Shop zeigt den Standardtext
+      for (const [k, t] of Object.entries(changes)) { if (t) cfg[k] = t; else delete cfg[k]; }
+      if (body.categories) {
+        cfg.categories = cfg.categories || {};
+        CATEGORY_IDS.forEach(k => {
+          const v = body.categories[k];
+          cfg.categories[k] = (typeof v === 'string' && v.trim()) || base.categories[k] || k;
+        });
+      }
     });
-
-    writeAtomic(CONFIG_PATH, JSON.stringify(config, null, 2) + '\n');
     console.log('[shop-cms] shop-config.json gespeichert');
     res.json({ ok: true });
   } catch (err) {

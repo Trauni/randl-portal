@@ -1,5 +1,5 @@
 // portal/client/src/components/pages/content/CMSShopseite.jsx
-// CMS Shopseite – Texte und Zusatz-CSS, wirken sofort (gasshop #281)
+// CMS Shopseite – Texte und Zusatz-CSS, wirken sofort (gasshop #281, #285)
 
 import React, { useState, useEffect, useCallback } from 'react';
 
@@ -32,6 +32,32 @@ const IconCheck = () => (
     <polyline points="20 6 9 17 4 12"/>
   </svg>
 );
+
+// ──────────────────────────────────────────────
+// Texte im Shop (gasshop #285). Leer lassen = Standardtext (steht als Platzhalter im Feld).
+// ──────────────────────────────────────────────
+const TEXT_SECTIONS = [
+  { title: 'Login', fields: [
+    { key: 'loginTitle', label: 'Titel', std: 'Firma Dominik Randl', hint: 'Großer Schriftzug auf der Login-Seite.' },
+    { key: 'loginSubtitle', label: 'Untertitel', std: 'Gashandel – Gewerbe, Camper und Haushalter', hint: 'Zeile unter dem Titel.' },
+  ] },
+  { title: 'Startseite', fields: [
+    { key: 'greeting', label: 'Begrüßung', std: 'Guten Tag,', hint: 'Steht über dem Kundennamen.' },
+    { key: 'rhythmCardText', label: 'Karte Lieferrhythmus', std: 'Ihre übliche Bestellung regelmäßig liefern lassen.', hint: 'Seitenkarte am PC, solange der Kunde keinen Rhythmus eingerichtet hat.' },
+    { key: 'contactCardText', label: 'Karte „Nachricht an uns“', std: 'Frage zur Bestellung, Lieferung oder Rechnung? Wir antworten per E-Mail.', hint: 'Text der Kontakt-Karte (mobil und PC).' },
+    { key: 'priceNotice', label: 'Preishinweis', std: 'Alle Preise sind Nettopreise zzgl. gesetzlicher MwSt.', multi: true, hint: 'Unten auf der Startseite – nur sichtbar, wenn Preise eingeblendet sind.' },
+    { key: 'priceNoticeExtra', label: 'Hinweis unten', std: 'Ihr Produkt war nicht dabei? Fragen Sie uns gerne – wir können fast alles bestellen.', multi: true, hint: 'Letzter Hinweis unten auf der Startseite (immer sichtbar).' },
+  ] },
+  { title: 'Bestellung & Kontakt', fields: [
+    { key: 'orderSuccessText', label: 'Text nach dem Bestellen', std: 'Wir haben Ihre Bestellung erhalten und werden uns schnellstmöglich darum kümmern. Bei Fragen …', multi: true, hint: 'Bestätigungsseite unter „Ihre Bestellung #… ist bei uns eingegangen“. Zeilenumbrüche werden übernommen.' },
+    { key: 'contactIntro', label: 'Einleitung „Nachricht an uns“', std: 'Wir antworten an Ihre hinterlegte E-Mail-Adresse.', multi: true, hint: 'Oben auf der Kontaktseite. Die E-Mail des Kunden wird automatisch angehängt.' },
+  ] },
+  { title: 'Fußzeile', fields: [
+    { key: 'footerCompany', label: 'Firmenname', std: 'Firma Dominik Randl · Gashandel', hint: 'Nach „© Jahr“.' },
+    { key: 'imprintUrl', label: 'Link Impressum', std: 'https://randl.group/impressum/', url: true, hint: 'Muss mit https:// beginnen.' },
+    { key: 'privacyUrl', label: 'Link Datenschutz', std: 'https://randl.group/datenschutz/', url: true, hint: 'Muss mit https:// beginnen.' },
+  ] },
+];
 
 // ──────────────────────────────────────────────
 // Tab 1: Texte & Beschriftungen
@@ -114,7 +140,7 @@ function TabTexte() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
         <span style={{ fontSize: 11, color: 'var(--green)' }}>
-          ✓ kein Rebuild nötig – Änderungen sind sofort live
+          ✓ kein Rebuild nötig – Änderungen sind sofort live · leeres Feld = Standardtext (grau im Feld)
         </span>
       </div>
 
@@ -129,37 +155,38 @@ function TabTexte() {
         </div>
       )}
 
-      {/* Sektion: Allgemeine Texte */}
-      <div style={{
-        background: 'var(--bg2)', border: '1px solid var(--border)',
-        borderRadius: 9, padding: '16px 18px', marginBottom: 16
-      }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text1)', marginBottom: 14 }}>
-          Allgemeine Texte
+      {TEXT_SECTIONS.map(sec => (
+        <div key={sec.title} style={{
+          background: 'var(--bg2)', border: '1px solid var(--border)',
+          borderRadius: 9, padding: '16px 18px', marginBottom: 16
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text1)', marginBottom: 14 }}>{sec.title}</div>
+          {sec.fields.map((f, i) => (
+            <div key={f.key} style={{ marginBottom: i < sec.fields.length - 1 ? 14 : 0 }}>
+              <label style={labelStyle}>{f.label}</label>
+              {f.multi ? (
+                <textarea
+                  value={config[f.key] || ''}
+                  onChange={e => update(f.key, e.target.value)}
+                  rows={3} maxLength={1000}
+                  style={{ ...inputStyle, resize: 'vertical' }}
+                  placeholder={f.std}
+                />
+              ) : (
+                <input
+                  type={f.url ? 'url' : 'text'}
+                  value={config[f.key] || ''}
+                  onChange={e => update(f.key, e.target.value)}
+                  maxLength={1000}
+                  style={inputStyle}
+                  placeholder={f.std}
+                />
+              )}
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>{f.hint}</div>
+            </div>
+          ))}
         </div>
-
-        <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>Preishinweis (unter Produkten)</label>
-          <input
-            type="text"
-            value={config.priceNotice || ''}
-            onChange={e => update('priceNotice', e.target.value)}
-            style={inputStyle}
-            placeholder="z.B. Alle Preise sind Nettopreise zzgl. gesetzlicher MwSt."
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Login-Untertitel</label>
-          <input
-            type="text"
-            value={config.loginSubtitle || ''}
-            onChange={e => update('loginSubtitle', e.target.value)}
-            style={inputStyle}
-            placeholder="z.B. Gashandel - Gewerbe, Camper und Haushalter"
-          />
-        </div>
-      </div>
+      ))}
 
       {/* Sektion: Kategorie-Labels */}
       <div style={{
