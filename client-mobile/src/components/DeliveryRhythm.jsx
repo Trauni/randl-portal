@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { CalendarDays } from 'lucide-react'
 
-const RHYTHMUS_LABELS = { woechentlich: 'Wöchentlich', woche_1: '1. Woche', woche_2: '2. Woche' }
-const RHYTHMUS_KEYS = ['woechentlich', 'woche_1', 'woche_2']
+const RHYTHMUS_LABELS = { woechentlich: 'Wöchentlich', woche_1: '1. Woche (gerade KW)', woche_2: '2. Woche (ungerade KW)', alle_3: 'Alle 3 Wochen', alle_4: 'Alle 4 Wochen' }
+const RHYTHMUS_KEYS = ['woechentlich', 'woche_1', 'woche_2', 'alle_3', 'alle_4']
 
 // F50 (09.09.2026): reine Lese-Ansicht der Desktop-Lieferrhythmus-Planung
 // (F49, Seite 47). Kein neues Backend -- nutzt denselben Endpoint wie
