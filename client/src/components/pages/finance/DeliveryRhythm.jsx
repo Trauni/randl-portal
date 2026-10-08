@@ -2,8 +2,37 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import ProductSearch from './ProductSearch';
 
-const RHYTHMUS_LABELS = { woechentlich: 'Wöchentlich', woche_1: '1. Woche', woche_2: '2. Woche' };
-const RHYTHMUS_KEYS = ['woechentlich', 'woche_1', 'woche_2'];
+// 1. Woche = gerade KW, 2. Woche = ungerade KW (Festlegung 08.10.2026, gasshop #230)
+const RHYTHMUS_LABELS = { woechentlich: 'Wöchentlich', woche_1: '1. Woche', woche_2: '2. Woche', alle_3: 'Alle 3 Wochen', alle_4: 'Alle 4 Wochen' };
+const RHYTHMUS_HINTS = { woche_1: 'gerade KW', woche_2: 'ungerade KW', alle_3: 'ab Start-KW', alle_4: 'ab Start-KW' };
+const RHYTHMUS_KEYS = ['woechentlich', 'woche_1', 'woche_2', 'alle_3', 'alle_4'];
+const NEEDS_START = { alle_3: true, alle_4: true };
+
+// Montag einer Woche als 'YYYY-MM-DD' <-> Wert für <input type="week"> ('YYYY-Www')
+function isoWeekOf(dateStr) {
+  const d = new Date(String(dateStr).slice(0, 10) + 'T00:00:00Z');
+  const x = new Date(d); x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7) + 3);
+  const y = x.getUTCFullYear(), jan4 = new Date(Date.UTC(y, 0, 4));
+  const w = 1 + Math.round(((x - jan4) / 86400000 - 3 + ((jan4.getUTCDay() + 6) % 7)) / 7);
+  return { year: y, week: w };
+}
+function weekInputValue(dateStr) {
+  if (!dateStr) return '';
+  const { year, week } = isoWeekOf(dateStr);
+  return year + '-W' + String(week).padStart(2, '0');
+}
+function mondayFromWeekInput(v) {
+  const m = /^(\d{4})-W(\d{2})$/.exec(v || '');
+  if (!m) return null;
+  const jan4 = new Date(Date.UTC(+m[1], 0, 4));
+  const mon1 = new Date(jan4.getTime() - ((jan4.getUTCDay() + 6) % 7) * 86400000);
+  return new Date(mon1.getTime() + (+m[2] - 1) * 7 * 86400000).toISOString().slice(0, 10);
+}
+function fmtNext(next) {
+  if (!next) return '–';
+  const d = new Date(next.monday + 'T00:00:00Z');
+  return 'KW ' + next.week + ' (ab ' + d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', timeZone: 'UTC' }) + ')';
+}
 const EMPTY_ITEM = { productName:'', articleNumber:'', quantity:1, unitPriceNet:0, emptyReturn:0 };
 
 function Modal({ title, children, onClose }) {
@@ -136,10 +165,25 @@ function CustomerCard({ entry, onUpdate, onRemove, onSend }) {
           style={{ background:'var(--bg0)', border:'1px solid var(--border)', borderRadius:5, padding:'.2rem .4rem', color:'var(--text1)', fontSize:'.72rem' }}>
           {RHYTHMUS_KEYS.map(k => <option key={k} value={k}>{RHYTHMUS_LABELS[k]}</option>)}
         </select>
+        {NEEDS_START[entry.rhythmus] && (
+          <label style={{ display:'flex', alignItems:'center', gap:'.3rem', fontSize:'.7rem', color:'var(--text3)' }}>
+            ab
+            <input type="week" value={weekInputValue(entry.start_kw)} onChange={e => { const m = mondayFromWeekInput(e.target.value); if (m) onUpdate(entry.customer_id, { start_kw: m }); }}
+              style={{ background:'var(--bg0)', border:'1px solid var(--border)', borderRadius:5, padding:'.15rem .35rem', color:'var(--text1)', fontSize:'.72rem' }}/>
+          </label>
+        )}
         <button onClick={() => setEditingAus(e => !e)} style={{ background:'transparent', border:'1px solid var(--border)', borderRadius:5, color: isAussetzend ? 'var(--amber)' : 'var(--text3)', cursor:'pointer', padding:'.2rem .5rem', fontSize:'.7rem' }}>
           {isAussetzend ? '⏸ Aussetzend' : 'Aussetzen'}
         </button>
       </div>
+      <div style={{ fontSize:'.72rem', color:'var(--text2)', marginTop:'.35rem' }}>
+        Nächster Rhythmus: <strong style={{ color:'var(--text1)' }}>{fmtNext(entry.next)}</strong>
+      </div>
+      {entry.updated_source === 'shop' && (
+        <div style={{ fontSize:'.68rem', color:'var(--amber)', marginTop:'.2rem' }}>
+          vom Kunden geändert{entry.updated_at ? ' am ' + new Date(entry.updated_at).toLocaleString('de-DE', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : ''}
+        </div>
+      )}
       {isAussetzend && !editingAus && (
         <div style={{ fontSize:'.7rem', color:'var(--amber)', marginTop:'.3rem' }}>
           {entry.aussetzen_von?.slice(0,10)} – {entry.aussetzen_bis?.slice(0,10)}{entry.notiz ? ' · ' + entry.notiz : ''}
@@ -197,9 +241,12 @@ export default function DeliveryRhythm() {
 
   const patchEntry = async (customerId, changes) => {
     const current = entries.find(e => e.customer_id === customerId) || {};
-    const body = { rhythmus: current.rhythmus, aussetzen_von: current.aussetzen_von, aussetzen_bis: current.aussetzen_bis, notiz: current.notiz, ...changes };
+    const body = { rhythmus: current.rhythmus, start_kw: current.start_kw, aussetzen_von: current.aussetzen_von, aussetzen_bis: current.aussetzen_bis, notiz: current.notiz, ...changes };
     setEntries(prev => prev.map(e => e.customer_id === customerId ? { ...e, ...body } : e));
-    await fetch('/api/finance/delivery-rhythm/' + customerId, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const r = await fetch('/api/finance/delivery-rhythm/' + customerId, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    // Antwort enthält Start-KW und nächste Liefer-KW vom Server
+    const d = await r.json().catch(() => ({}));
+    if (d.entry) setEntries(prev => prev.map(e => e.customer_id === customerId ? { ...e, ...d.entry } : e));
   };
 
   const removeEntry = async (customerId) => {
@@ -230,14 +277,14 @@ export default function DeliveryRhythm() {
   return (
     <div>
       <h1 style={{ fontSize:'1.15rem', fontWeight:600, color:'var(--text1)', marginBottom:'.2rem' }}>Lieferrhythmus</h1>
-      <p style={{ color:'var(--text2)', fontSize:'.8rem', marginBottom:'1.2rem' }}>Stammkunden nach Liefer-Rhythmus gruppiert · {entries.length} zugeordnet</p>
+      <p style={{ color:'var(--text2)', fontSize:'.8rem', marginBottom:'1.2rem' }}>Stammkunden nach Liefer-Rhythmus gruppiert · {entries.length} zugeordnet · 1. Woche = gerade KW, 2. Woche = ungerade KW · Kunden können ihren Rhythmus im Shop selbst ändern</p>
       {error && <div style={{ background:'rgba(224,80,80,.08)', border:'1px solid rgba(224,80,80,.3)', borderRadius:9, padding:'.75rem 1rem', color:'var(--red2)', fontSize:'.85rem', marginBottom:'1rem' }}>✗ {error}</div>}
       {addingTo && <CustomerSearch onClose={() => setAddingTo(null)} onSelect={(c) => addCustomer(c, addingTo)}/>}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(280px, 1fr))', gap:'1rem' }}>
         {RHYTHMUS_KEYS.map(key => (
           <div key={key} style={{ background:'var(--bg1)', border:'1px solid var(--border)', borderRadius:9, padding:'.9rem' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'.7rem' }}>
-              <span style={{ fontWeight:600, color:'var(--text1)', fontSize:'.9rem' }}>{RHYTHMUS_LABELS[key]}</span>
+              <span style={{ fontWeight:600, color:'var(--text1)', fontSize:'.9rem' }}>{RHYTHMUS_LABELS[key]}{RHYTHMUS_HINTS[key] && <span style={{ fontWeight:400, color:'var(--text3)', fontSize:'.72rem', marginLeft:'.35rem' }}>{RHYTHMUS_HINTS[key]}</span>}</span>
               <button onClick={() => setAddingTo(key)} style={{ padding:'.25rem .6rem', borderRadius:6, fontSize:'.72rem', cursor:'pointer', background:'rgba(184,49,31,.1)', border:'1px solid rgba(184,49,31,.3)', color:'var(--r)' }}>+ Kunde</button>
             </div>
             {entries.filter(e => e.rhythmus === key).map(e => (
