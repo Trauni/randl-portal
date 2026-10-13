@@ -100,7 +100,7 @@ export default function CustomerQr() {
         {customerSearch.results.map((c) => (
           <li key={c.id} className="card card-clickable" onClick={() => showQr(c)}>
             <span>{customerLabel(c)}</span>
-            <span className="card-sub">{c.customer_number} · {c.billing_city || '–'}</span>
+            <span className="card-sub">{c.lexware_customer_number || c.customer_number} · {c.billing_city || '–'}</span>
           </li>
         ))}
       </ul>

@@ -89,7 +89,7 @@ function CustomerPicker({ onSelect, onClose }) {
         <div key={c.id} onClick={() => onSelect(c)}
           style={{ padding:'.5rem .6rem', borderRadius:6, cursor:'pointer', marginBottom:'.3rem', background:'var(--bg2)', border:'1px solid var(--border)' }}>
           <div style={{ fontSize:'.85rem', color:'var(--text1)' }}>{c.company_name || c.name}</div>
-          <div style={{ fontSize:'.72rem', color:'var(--text3)' }}>{c.customer_number} · {c.billing_zip} {c.billing_city}</div>
+          <div style={{ fontSize:'.72rem', color:'var(--text3)' }}>{c.lexware_customer_number || c.customer_number} · {c.billing_zip} {c.billing_city}</div>
         </div>
       ))}
       {!busy && q.length >= 2 && results.length === 0 && (
@@ -329,7 +329,7 @@ function OrderDetail({ order: initOrder, onClose, onRefresh, onReorder }) {
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.5rem .75rem', marginBottom:'1rem' }}>
         {[
           ['Kunde', order.customer_name || '—'],
-          ['Kundennummer', order.customer_number || '—'],
+          ['Kundennummer', order.lexware_customer_number || order.customer_number || '—'],
           ['Status', <OrderStatusBadge order={order}/>],
           ['Bestellt über', channelLabel(order)],
           ['Datum', order.created_at ? new Date(order.created_at).toLocaleDateString('de-DE') : '—'],

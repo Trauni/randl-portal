@@ -51,7 +51,7 @@ export default function DeliveryRhythm() {
                 return (
                   <li key={e.customer_id} className="card">
                     <span>{customerLabel(e)}</span>
-                    <span className="card-sub">{e.customer_number} · {e.billing_zip} {e.billing_city}</span>
+                    <span className="card-sub">{e.lexware_customer_number || e.customer_number} · {e.billing_zip} {e.billing_city}</span>
                     {isAussetzend && (
                       <span className="card-sub" style={{ color: '#E8A020' }}>
                         ⏸ Aussetzend: {e.aussetzen_von?.slice(0, 10)} – {e.aussetzen_bis?.slice(0, 10)}{e.notiz ? ` · ${e.notiz}` : ''}

@@ -252,7 +252,7 @@ export default function NewOrder({ user }) {
                 onClick={() => { setCustomer(c); customerSearch.clear() }}
               >
                 <span>{customerLabel(c)}</span>
-                <span className="card-sub">{c.customer_number} · {c.billing_city || '–'}</span>
+                <span className="card-sub">{c.lexware_customer_number || c.customer_number} · {c.billing_city || '–'}</span>
               </li>
             ))}
           </ul>
@@ -263,7 +263,7 @@ export default function NewOrder({ user }) {
         <>
           <div className="card selected-card">
             <span>{customerLabel(customer)}</span>
-            <span className="card-sub">{customer.customer_number}</span>
+            <span className="card-sub">{customer.lexware_customer_number || customer.customer_number}</span>
             <button type="button" className="link-btn" onClick={() => setCustomer(null)}>Ändern</button>
           </div>
 
