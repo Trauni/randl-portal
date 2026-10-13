@@ -27,23 +27,132 @@ function fill(tpl, c) {
   return String(tpl || '').replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k) => (k in v ? v[k] : m));
 }
 
-function printLetters(customers, tpl) {
-  const pages = customers.map(c => `
-    <section class="page">
-      <div class="addr">${esc(c.name)}<br>${esc(c.street)}<br>${esc(c.zip)} ${esc(c.city)}</div>
-      <div class="body">${fill(tpl, c)}</div>
-      <div class="qr"><img src="${c.qr}" alt=""><div>Mit dem Handy scannen und direkt anmelden<br>Kundennummer ${esc(c.customer_number)}</div></div>
-    </section>`).join('');
+// Begrüßungstext auf dem Brief, wenn in der Vorlage kein eigener Brieftext steht (aus dem Kundenflyer)
+const DEFAULT_GREETING = '<strong>Hallo {{name}}!</strong><br>Wir freuen uns, euch unser <strong>neues Bestellsystem</strong> vorstellen zu dürfen. '
+  + 'Ab sofort könnt ihr ganz einfach online bestellen – ohne Wartezeit, ohne Telefonat, wann immer es euch passt.';
+
+// Icons aus dem Kundenflyer (Uhr, Dokument, Blitz, Handy)
+const ICON = {
+  clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  doc: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+  bolt: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+  phone: '<rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>',
+};
+const icon = k => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#CC1111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[k]}</svg>`;
+
+const FLYER_CSS = `
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  @page { size: A4; margin: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; background: #ccc; }
+  .page { width: 210mm; height: 297mm; margin: 0 auto 12px; background: #F7F4F0; display: flex; flex-direction: column; overflow: hidden; page-break-after: always; break-after: page; }
+  @media print { body { background: none; } .page { margin: 0; } }
+  .top-stripe { background: #2C2320; height: 5px; }
+  .header { background: #2C2320; padding: 14px 32px; display: flex; align-items: center; justify-content: space-between; }
+  .header img { width: 48px; height: 48px; object-fit: contain; filter: brightness(0) invert(1); }
+  .company-name { font-size: 21.5px; font-weight: 800; color: #fff; text-align: right; }
+  .company-sub { font-size: 10.5px; color: rgba(255,255,255,.5); margin-top: 2px; text-align: right; }
+  .hero { background: #CC1111; padding: 22px 32px 20px; position: relative; overflow: hidden; }
+  .hero::before { content: ''; position: absolute; right: 24px; top: 50%; transform: translateY(-50%); width: 110px; height: 110px; border: 18px solid rgba(255,255,255,.07); border-radius: 50%; }
+  .eyebrow { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: rgba(255,255,255,.7); margin-bottom: 8px; }
+  .hero h1 { font-size: 27.5px; font-weight: 800; color: #fff; line-height: 1.15; margin-bottom: 8px; }
+  .hero p { font-size: 13.5px; color: rgba(255,255,255,.85); line-height: 1.55; max-width: 400px; }
+  .main { display: grid; grid-template-columns: 1fr 185px; flex: 1; min-height: 0; }
+  .left { padding: 20px 24px 20px 32px; display: flex; flex-direction: column; gap: 14px; border-right: 1px solid #E0DAD4; }
+  .greeting { font-size: 14px; line-height: 1.65; color: #3A3330; background: #fff; border-radius: 8px; padding: 12px 14px; border-left: 3px solid #CC1111; }
+  .greeting strong { color: #CC1111; }
+  .benefits { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+  .benefit { background: #fff; border-radius: 7px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; border: 1px solid #E8E3DE; }
+  .benefit-icon { width: 30px; height: 30px; background: #F7F4F0; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .benefit-text { font-size: 11.5px; color: #5A5350; line-height: 1.35; font-weight: 600; }
+  .section-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9A8F8A; margin-bottom: 8px; }
+  .steps { display: flex; flex-direction: column; gap: 10px; }
+  .step { display: flex; align-items: flex-start; gap: 12px; }
+  .step-num { width: 24px; height: 24px; background: #2C2320; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 800; flex-shrink: 0; }
+  .step strong { display: block; font-size: 13.5px; color: #2C2320; margin-bottom: 2px; }
+  .step span { font-size: 12px; color: #6A605C; line-height: 1.45; }
+  .contacts { display: flex; flex-direction: column; gap: 6px; }
+  .contact { display: flex; align-items: center; gap: 10px; background: #fff; border-radius: 7px; padding: 8px 12px; border: 1px solid #E8E3DE; }
+  .dot { width: 8px; height: 8px; background: #CC1111; border-radius: 50%; }
+  .c-lbl { font-size: 10.5px; color: #9A8F8A; width: 62px; }
+  .c-val { font-size: 12.5px; font-weight: 700; color: #2C2320; }
+  .right { padding: 20px 16px; display: flex; flex-direction: column; align-items: center; gap: 10px; background: #EFEBE6; }
+  .qr-card { background: #fff; border-radius: 10px; padding: 12px; text-align: center; width: 153px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+  .qr-card img { width: 125px; height: 125px; display: block; margin: 0 auto 8px; }
+  .qr-title { font-size: 11px; font-weight: 700; color: #2C2320; line-height: 1.3; }
+  .qr-sub { font-size: 9.5px; color: #9A8F8A; margin-top: 3px; line-height: 1.4; }
+  .cn-card { background: #CC1111; border-radius: 8px; padding: 9px 12px; text-align: center; width: 153px; }
+  .cn-lbl { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: rgba(255,255,255,.7); margin-bottom: 3px; }
+  .cn-val { font-size: 17.5px; font-weight: 800; color: #fff; letter-spacing: 1px; }
+  .divider { width: 100%; height: 1px; background: #DDD8D3; }
+  .url-card { background: #fff; border-radius: 8px; padding: 10px 12px; text-align: center; width: 153px; border: 1px solid #E0DAD4; }
+  .url-label { font-size: 9.5px; color: #9A8F8A; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+  .url-val { font-size: 12.5px; font-weight: 800; color: #CC1111; }
+  .note-card { background: #2C2320; border-radius: 8px; padding: 10px 12px; width: 153px; text-align: center; }
+  .note-text { font-size: 10.5px; color: rgba(255,255,255,.7); line-height: 1.5; }
+  .note-text strong { color: #fff; display: block; margin-bottom: 2px; }
+  .note-phone { font-size: 11.5px; color: #CC1111; font-weight: 700; margin-top: 5px; }
+  .for { font-size: 9.5px; color: #9A8F8A; text-align: center; width: 153px; line-height: 1.4; }
+  .footer { background: #2C2320; padding: 9px 32px; display: flex; justify-content: space-between; }
+  .footer span { font-size: 10px; color: rgba(255,255,255,.4); }
+  .footer .accent { color: rgba(255,255,255,.7); font-weight: 600; }
+`;
+
+function flyerPage(c, greeting, logo) {
+  return `<section class="page">
+  <div class="top-stripe"></div>
+  <div class="header"><img src="${logo}" alt=""><div><div class="company-name">Randl Group</div><div class="company-sub">Gas · Zeltverleih · CNC &amp; Metallbau</div></div></div>
+  <div class="hero">
+    <div class="eyebrow">Neuigkeit für unsere Kunden</div>
+    <h1>Einfacher bestellen –<br>jetzt online!</h1>
+    <p>Wir haben für euch einen neuen Gasshop eingerichtet. Bestellt bequem rund um die Uhr – mit eurem persönlichen Konto und eurer Kundennummer.</p>
+  </div>
+  <div class="main">
+    <div class="left">
+      <div class="greeting">${fill(greeting, c)}</div>
+      <div class="benefits">
+        <div class="benefit"><div class="benefit-icon">${icon('clock')}</div><div class="benefit-text">Rund um die Uhr bestellbar</div></div>
+        <div class="benefit"><div class="benefit-icon">${icon('doc')}</div><div class="benefit-text">Bestellhistorie immer einsehbar</div></div>
+        <div class="benefit"><div class="benefit-icon">${icon('bolt')}</div><div class="benefit-text">Schnell &amp; unkompliziert</div></div>
+        <div class="benefit"><div class="benefit-icon">${icon('phone')}</div><div class="benefit-text">Handy &amp; Computer geeignet</div></div>
+      </div>
+      <div>
+        <div class="section-label">So kommt ihr rein – 3 Schritte</div>
+        <div class="steps">
+          <div class="step"><div class="step-num">1</div><div><strong>QR-Code scannen</strong><span>Den QR-Code rechts mit dem Handy scannen – ihr landet direkt in eurem Kundenkonto.</span></div></div>
+          <div class="step"><div class="step-num">2</div><div><strong>Daten prüfen &amp; Passwort festlegen</strong><span>Beim ersten Mal E-Mail-Adresse und Telefonnummer ergänzen und ein eigenes Passwort festlegen. Danach ist euer Konto dauerhaft aktiv.</span></div></div>
+          <div class="step"><div class="step-num">3</div><div><strong>Bestellen wie gewohnt</strong><span>Alle bisherigen Daten sind bereits hinterlegt – einfach Produkte auswählen und Bestellung absenden.</span></div></div>
+        </div>
+      </div>
+      <div>
+        <div class="section-label">Unsere neuen Kontakte</div>
+        <div class="contacts">
+          <div class="contact"><div class="dot"></div><div class="c-lbl">Bestellungen</div><div class="c-val">bestellung@randl.group</div></div>
+          <div class="contact"><div class="dot"></div><div class="c-lbl">Rechnungen</div><div class="c-val">rechnung@randl.group</div></div>
+          <div class="contact"><div class="dot"></div><div class="c-lbl">Allgemein</div><div class="c-val">info@randl.group</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="right">
+      <div class="qr-card"><img src="${c.qr}" alt=""><div class="qr-title">Euer persönlicher<br>Zugang</div><div class="qr-sub">Einmalig scannen –<br>dauerhaft aktiv</div></div>
+      <div class="cn-card"><div class="cn-lbl">Kundennummer</div><div class="cn-val">${esc(c.customer_number)}</div></div>
+      <div class="divider"></div>
+      <div class="url-card"><div class="url-label">Webshop</div><div class="url-val">shop.randl.group</div></div>
+      <div class="note-card"><div class="note-text"><strong>Fragen?</strong>Wir helfen gerne beim ersten Login.</div><div class="note-phone">+49 171 45 850 63</div></div>
+      <div class="for">Für: ${esc(c.name)}<br>${esc(c.street)}<br>${esc(c.zip)} ${esc(c.city)}</div>
+    </div>
+  </div>
+  <div class="footer"><span>Randl Group · Gas · Zeltverleih · CNC &amp; Metallbau</span><span class="accent">gas.randl.group</span></div>
+</section>`;
+}
+
+function printLetters(customers, letter) {
+  const greeting = letter && letter.trim() ? letter : DEFAULT_GREETING;
+  const logo = window.location.origin + '/randl-flyer-logo.png';
   const w = window.open('', '_blank');
   if (!w) { alert('Pop-up blockiert – bitte für das Portal erlauben.'); return; }
-  w.document.write(`<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Info-Brief Gasshop</title><style>
-    @page { size: A4; margin: 20mm; }
-    body { font-family: Arial, sans-serif; font-size: 11pt; color: #000; margin: 0; }
-    .page { page-break-after: always; min-height: 250mm; }
-    .addr { margin: 25mm 0 15mm; line-height: 1.4; }
-    .qr { display: flex; gap: 6mm; align-items: center; margin-top: 10mm; font-size: 10pt; }
-    .qr img { width: 40mm; height: 40mm; }
-  </style></head><body>${pages}<script>window.onload = () => window.print();<\/script></body></html>`);
+  w.document.write(`<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Kundenflyer Gasshop (${customers.length})</title><style>${FLYER_CSS}</style></head>
+<body>${customers.map(c => flyerPage(c, greeting, logo)).join('')}
+<script>window.onload = () => setTimeout(() => window.print(), 300);<\/script></body></html>`);
   w.document.close();
 }
 
@@ -138,7 +247,7 @@ export default function InfoMail() {
           <input style={{ ...S.input, marginBottom: '.6rem' }} value={tpl.subject || ''} onChange={e => setTpl({ ...tpl, subject: e.target.value })} />
           <label style={S.label}>Mailtext (HTML) – Platzhalter: {'{{name}}'}, {'{{kundennummer}}'}, {'{{login_link}}'}, {'{{shop_url}}'}</label>
           <textarea style={{ ...S.input, minHeight: 180, fontFamily: 'DM Mono, monospace', fontSize: '.78rem' }} value={tpl.html || ''} onChange={e => setTpl({ ...tpl, html: e.target.value })} />
-          <label style={{ ...S.label, marginTop: '.6rem' }}>Brieftext für Welle 2 (HTML, leer = Mailtext) – QR-Code und Anschrift kommen automatisch dazu</label>
+          <label style={{ ...S.label, marginTop: '.6rem' }}>Begrüßung auf dem Flyer für Welle 2 (HTML, leer = Standardtext „Hallo {{name}}! …“) – Rest des Flyers, QR-Code und Kundennummer kommen automatisch</label>
           <textarea style={{ ...S.input, minHeight: 100, fontFamily: 'DM Mono, monospace', fontSize: '.78rem' }} value={tpl.letter || ''} onChange={e => setTpl({ ...tpl, letter: e.target.value })} />
           <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '.7rem' }}>
             <button style={S.btnPrimary} disabled={saving} onClick={saveTemplate}>{saving ? '…' : 'Vorlage speichern'}</button>
@@ -170,7 +279,7 @@ export default function InfoMail() {
               <strong style={{ color: 'var(--text1)' }}>{data.total} Kunden</strong>
               {wave !== 2 && <span style={{ fontSize: '.8rem', color: 'var(--text2)' }}>{data.sent} bereits angeschrieben · {open} offen</span>}
               {wave === 2 ? (
-                <button style={S.btnPrimary} disabled={!customers.length} onClick={() => printLetters(customers, tpl?.letter?.trim() ? tpl.letter : tpl?.html)}>
+                <button style={S.btnPrimary} disabled={!customers.length} onClick={() => printLetters(customers, tpl?.letter)}>
                   Briefe drucken ({customers.length})
                 </button>
               ) : (
