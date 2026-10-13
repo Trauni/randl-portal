@@ -61,10 +61,10 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// PATCH /api/hr/employees/:id — Rolle, Zugriffe, Urlaubstage, Notiz
+// PATCH /api/hr/employees/:id — Rolle, Zugriffe, Urlaubstage, Notiz, Abteilung
 router.patch('/:id', async (req, res) => {
   if (!req.session?.user) return res.status(401).json({ error: 'Nicht eingeloggt' });
-  const { role, accessTags, vacation_days_total, notes } = req.body;
+  const { role, accessTags, vacation_days_total, notes, department } = req.body;
   const id = req.params.id;
   if (role && !ROLES.includes(role)) {
     return res.status(400).json({ error: 'Unbekannte Rolle: ' + role });
@@ -82,6 +82,11 @@ router.patch('/:id', async (req, res) => {
        WHERE id = ?`,
       [role || null, vacation_days_total ?? null, notes ?? null, id]
     );
+    // Abteilung (#55): Profil und Urlaubskalender lesen sie; leer = keine Abteilung
+    if (typeof department === 'string') {
+      await pool.execute('UPDATE employees SET department = ? WHERE id = ?',
+        [department.trim().slice(0, 100) || null, id]);
+    }
     if (tags) {
       await pool.execute('DELETE FROM employee_access WHERE employee_id = ?', [id]);
       for (const t of tags) {
