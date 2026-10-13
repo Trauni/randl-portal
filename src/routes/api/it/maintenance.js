@@ -60,15 +60,6 @@ async function certInfo(label, certPath) {
   }
 }
 
-async function watchtowerRecent() {
-  try {
-    const out = await execAsync(`docker logs watchtower --since 720h 2>&1 | grep -E "Found new|Stopping|Creating" | tail -10`);
-    return out.split('\n').map(l => l.trim()).filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
 async function diskInfo() {
   try {
     const out = await execAsync(`df -h / | tail -1`);
@@ -103,11 +94,10 @@ async function dockerLogSizes() {
 // GET /api/it/maintenance/status
 router.get('/status', requireAuth, async (req, res) => {
   try {
-    const [sw, gasDb, disk, wt, logs] = await Promise.all([
+    const [sw, gasDb, disk, logs] = await Promise.all([
       latestBackupInfo(BACKUP_DIRS.shopware.dir, BACKUP_DIRS.shopware.pattern),
       latestBackupInfo(BACKUP_DIRS.gas_db.dir, BACKUP_DIRS.gas_db.pattern),
       diskInfo(),
-      watchtowerRecent(),
       dockerLogSizes(),
     ]);
     const certs = (await Promise.all(CERTS.map(c => certInfo(c.label, c.path)))).filter(Boolean);
@@ -119,7 +109,6 @@ router.get('/status', requireAuth, async (req, res) => {
         gas_db:   { ...gasDb, warn: gasDb.age_hours === null || gasDb.age_hours > 26 },
       },
       certificates: certs.map(c => ({ ...c, warn: c.days_left <= 21 })),
-      watchtower_recent: wt,
       disk,
       docker_log_sizes: logs,
     });

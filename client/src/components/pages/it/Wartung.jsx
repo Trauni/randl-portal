@@ -9,13 +9,6 @@ function fmtBytes(bytes) {
   return b + ' B';
 }
 
-function fmtWatchtowerLine(line) {
-  const m = line.match(/time="([^"]+)".*msg="([^"]+)"/);
-  if (!m) return line;
-  const date = new Date(m[1]).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Berlin' });
-  return `${date} — ${m[2]}`;
-}
-
 const card = { background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: 20, marginBottom: 20 };
 const cardTitle = { fontWeight: 600, fontSize: 15, marginBottom: 14, color: '#111827' };
 const label = { color: '#6b7280', fontSize: 13 };
@@ -105,18 +98,6 @@ export default function Wartung() {
                 ))}
               </tbody>
             </table>
-          </div>
-
-          {/* Watchtower */}
-          <div style={card}>
-            <div style={cardTitle}>Watchtower — letzte automatische Updates (30 Tage)</div>
-            {data.watchtower_recent.length === 0 ? (
-              <div style={label}>Keine Updates im Zeitraum.</div>
-            ) : (
-              <div style={{ fontFamily: 'monospace', fontSize: 12, color: '#374151', lineHeight: 1.7 }}>
-                {data.watchtower_recent.map((l, i) => <div key={i}>{fmtWatchtowerLine(l)}</div>)}
-              </div>
-            )}
           </div>
 
           {/* Disk */}
