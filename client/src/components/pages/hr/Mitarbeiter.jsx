@@ -36,10 +36,12 @@ const IconClose = () => (
 );
 
 // ── Detail-Modal ──────────────────────────────────────────────────────────────
-function MitarbeiterModal({ emp, onClose, onSave }) {
+function MitarbeiterModal({ emp, departments, onClose, onSave }) {
   const [role, setRole] = useState(emp.role || 'mitarbeiter');
   const [tags, setTags] = useState(emp.access_tags || []);
   const [notes, setNotes] = useState(emp.notes || '');
+  const [department, setDepartment] = useState(emp.department || '');
+  const [newDept, setNewDept] = useState(false);
   const [pushInfo, setPushInfo] = useState(null);
   const [days, setDays] = useState(emp.vacation_days_total ?? 30);
   const [saving, setSaving] = useState(false);
@@ -53,7 +55,7 @@ function MitarbeiterModal({ emp, onClose, onSave }) {
       const resp = await fetch(`/api/hr/employees/${emp.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, accessTags: tags, vacation_days_total: days, notes })
+        body: JSON.stringify({ role, accessTags: tags, vacation_days_total: days, notes, department })
       });
       const data = await resp.json().catch(() => ({}));
       onSave();
@@ -164,6 +166,41 @@ function MitarbeiterModal({ emp, onClose, onSave }) {
             fontSize: '11px', fontWeight: 600, color: 'var(--text3)',
             textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px'
           }}>Portal-Einstellungen</div>
+
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ display: 'block', fontSize: '12px', color: 'var(--text2)', marginBottom: '5px' }}>
+              Abteilung
+            </label>
+            {newDept ? (
+              <input
+                autoFocus value={department} maxLength={100}
+                onChange={e => setDepartment(e.target.value)}
+                placeholder="Neue Abteilung"
+                style={{
+                  width: '100%', background: 'var(--bg2)', border: '1px solid var(--border)',
+                  borderRadius: '6px', padding: '8px 10px', color: 'var(--text1)',
+                  fontSize: '13px', boxSizing: 'border-box'
+                }}
+              />
+            ) : (
+              <select
+                value={department}
+                onChange={e => {
+                  if (e.target.value === '__neu') { setNewDept(true); setDepartment(''); }
+                  else setDepartment(e.target.value);
+                }}
+                style={{
+                  width: '100%', background: 'var(--bg2)', border: '1px solid var(--border)',
+                  borderRadius: '6px', padding: '8px 10px', color: 'var(--text1)',
+                  fontSize: '13px', boxSizing: 'border-box', cursor: 'pointer'
+                }}
+              >
+                <option value="">— keine —</option>
+                {departments.map(d => <option key={d} value={d}>{d}</option>)}
+                <option value="__neu">+ Neue Abteilung…</option>
+              </select>
+            )}
+          </div>
 
           <div style={{ marginBottom: '12px' }}>
             <label style={{ display: 'block', fontSize: '12px', color: 'var(--text2)', marginBottom: '5px' }}>
@@ -547,6 +584,7 @@ export default function Mitarbeiter() {
       {selected && (
         <MitarbeiterModal
           emp={selected}
+          departments={[...new Set(employees.map(e => e.department).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'))}
           onClose={() => setSelected(null)}
           onSave={loadEmployees}
         />
