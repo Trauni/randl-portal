@@ -154,6 +154,9 @@ function MitarbeiterModal({ emp, onClose, onSave }) {
                 </div>
               ))}
             </div>
+            <div style={{ fontSize: '11px', color: 'var(--text3)', marginTop: '6px' }}>
+              „Genommen“ zählt alle genehmigten Urlaube dieses Jahres, auch künftige – „Verbleibend“ ist schon um geplanten Urlaub reduziert.
+            </div>
           </div>
 
           {/* Editierbare Felder */}
@@ -495,7 +498,7 @@ export default function Mitarbeiter() {
                     </td>
                     {/* Urlaub */}
                     <td style={{ padding: '12px 14px' }}>
-                      <div style={{ fontSize: '13px' }}>
+                      <div style={{ fontSize: '13px' }} title="Verbleibend = Anspruch minus alle genehmigten Urlaube dieses Jahres, auch künftige">
                         <span style={{ color: remaining < 5 ? 'var(--red2)' : 'var(--green)', fontWeight: 600 }}>
                           {remaining}
                         </span>

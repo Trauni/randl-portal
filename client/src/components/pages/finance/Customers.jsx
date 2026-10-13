@@ -829,7 +829,7 @@ function Customers() {
   const [showNewCustomer, setShowNewCustomer] = useState(false);
   const [detail,       setDetail]       = useState(null);
   const [page,         setPage]         = useState(0);
-  const [filters,      setFilters]      = useState({ q:'', in_lexware:'' });
+  const [filters,      setFilters]      = useState({ q:'', in_lexware:'', in_ser_fvk:'' });
   const [showInactive, setShowInactive] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteBusy,   setDeleteBusy]   = useState(false);
@@ -853,6 +853,7 @@ function Customers() {
       const params = new URLSearchParams({ limit: LIMIT, page: p });
       if (f.q) params.set('q', f.q);
       if (f.in_lexware !== '') params.set('in_lexware', f.in_lexware);
+      if (f.in_ser_fvk) params.set('in_ser_fvk', f.in_ser_fvk);
       if (inactive) params.set('showInactive', 'true');
       const r = await fetch('/api/finance/customers?' + params);
       const d = await r.json();
@@ -1138,6 +1139,12 @@ function Customers() {
             <option value="true">In Lexware</option>
             <option value="false">Nicht in Lexware</option>
           </select>
+          <select value={filters.in_ser_fvk} onChange={e => applyFilter('in_ser_fvk', e.target.value)}
+            style={{ background:'var(--bg0)', border:'1px solid var(--border)', borderRadius:7, padding:'.3rem .6rem', color: filters.in_ser_fvk ? 'var(--text1)' : 'var(--text3)', fontSize:'.8rem', outline:'none' }}>
+            <option value="">SER: alle</option>
+            <option value="true">Mit SER (Gaskunden)</option>
+            <option value="false">Ohne SER</option>
+          </select>
           {/* Toggle: Inaktive anzeigen */}
           <button onClick={toggleInactive}
             style={{ padding:'.3rem .65rem', borderRadius:7, fontSize:'.75rem', cursor:'pointer',
@@ -1218,7 +1225,7 @@ function Customers() {
                   <th style={{ padding:'.5rem .65rem', width:32 }}>
                     <input type="checkbox" style={cbStyle} checked={allSelected} onChange={toggleAll} title="Alle auf dieser Seite"/>
                   </th>
-                  {['Name','PLZ / Ort','KD-Nr','SER','LEX','Letzte Best.',''].map(h => (
+                  {['Name','PLZ / Ort','KD-Nr','SER','LEX','First Login','Letzte Best.',''].map(h => (
                     <th key={h} style={{ textAlign:'left', padding:'.5rem .65rem', fontSize:'.65rem', textTransform:'uppercase', letterSpacing:'.08em', color:'var(--text3)', fontFamily:'DM Mono, monospace', whiteSpace:'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -1243,6 +1250,10 @@ function Customers() {
                       <td style={{ padding:'.5rem .65rem', fontFamily:'DM Mono, monospace', fontSize:'.75rem', color:'var(--text3)' }}>{c.customer_number}</td>
                       <td style={{ padding:'.5rem .65rem' }}><SerBadge in_ser_fvk={c.in_ser_fvk}/></td>
                       <td style={{ padding:'.5rem .65rem' }}><LexBadge in_lexware={c.in_lexware}/></td>
+                      <td style={{ padding:'.5rem .65rem', fontSize:'.78rem', whiteSpace:'nowrap', color: c.first_login_at ? 'var(--green)' : 'var(--text3)' }}
+                        title={c.first_login_at ? 'Erster Shop-Login am ' + new Date(c.first_login_at).toLocaleString('de-DE') : 'Noch nicht im Shop angemeldet'}>
+                        {c.first_login_at ? '✓ ' + new Date(c.first_login_at).toLocaleDateString('de-DE') : '✗'}
+                      </td>
                       <td style={{ padding:'.5rem .65rem', fontSize:'.78rem', color:'var(--text2)' }}>{c.datum_letzte_lieferung ? new Date(c.datum_letzte_lieferung).toLocaleDateString('de-DE') : '—'}</td>
                       <td style={{ padding:'.5rem .65rem', display:'flex', gap:'.35rem', alignItems:'center' }}>
                         {!isInactive && (
@@ -1258,7 +1269,7 @@ function Customers() {
                     </tr>
                   );
                 })}
-                {customers.length === 0 && <tr><td colSpan={8} style={{ padding:'2rem', textAlign:'center', color:'var(--text3)', fontSize:'.82rem' }}>Keine Kunden gefunden.</td></tr>}
+                {customers.length === 0 && <tr><td colSpan={9} style={{ padding:'2rem', textAlign:'center', color:'var(--text3)', fontSize:'.82rem' }}>Keine Kunden gefunden.</td></tr>}
               </tbody>
             </table>
           </div>
