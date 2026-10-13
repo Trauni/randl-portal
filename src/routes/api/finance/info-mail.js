@@ -78,7 +78,8 @@ router.post('/pdf', express.raw({ type: 'application/pdf', limit: '3mb' }), (req
 
 router.get('/pdf', (req, res) => {
   if (!pdfInfo().exists) return res.status(404).json({ error: 'Keine Anleitung hochgeladen' });
-  res.type('application/pdf').sendFile(PDF);
+  // nie zwischenspeichern – sonst zeigt der Browser nach neuem Upload die alte Datei
+  res.set('Cache-Control', 'no-store').type('application/pdf').sendFile(PDF, { etag: false, lastModified: false });
 });
 
 router.get('/recipients', async (req, res) => {
