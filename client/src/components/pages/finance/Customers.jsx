@@ -83,7 +83,7 @@ function DupModal({ portalCustomer, matches = [], onLink, onOverwrite, onForce, 
         <div style={{ display:'flex', background:'var(--bg2)', borderBottom:'1px solid var(--border)' }}>
           <div style={{ width:90, flexShrink:0, padding:'.35rem .75rem' }}/>
           <div style={{ flex:1, padding:'.35rem .75rem', fontSize:'.65rem', textTransform:'uppercase', letterSpacing:'.08em', color:'var(--text3)', background:'rgba(184,49,31,.05)' }}>
-            Portal / Shop{portalCustomer?.customer_number && <span style={{ marginLeft:'.5rem' }}>#{portalCustomer.customer_number}</span>}
+            Portal / Shop{(portalCustomer?.lexware_customer_number || portalCustomer?.customer_number) && <span style={{ marginLeft:'.5rem' }}>#{portalCustomer.lexware_customer_number || portalCustomer.customer_number}</span>}
           </div>
           <div style={{ flex:1, padding:'.35rem .75rem', fontSize:'.65rem', textTransform:'uppercase', letterSpacing:'.08em', color:'var(--text3)', borderLeft:'1px solid var(--border)' }}>
             Lexware{matches.length === 1 && lexId && <span style={{ marginLeft:'.5rem' }}>ID: {lexId}</span>}
@@ -263,7 +263,7 @@ function CustomerDetail({ customer: init, onClose, onRefresh }) {
   });
 
   return (
-    <Modal title={customer.company_name || customer.name || customer.customer_number} onClose={onClose} wide>
+    <Modal title={customer.company_name || customer.name || customer.lexware_customer_number || customer.customer_number} onClose={onClose} wide>
       {qrData && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center' }}>
           <div style={{ background:'var(--bg1)', border:'1px solid var(--border)', borderRadius:10, padding:'1.5rem', maxWidth:340, width:'90%', textAlign:'center' }}>
@@ -283,7 +283,8 @@ function CustomerDetail({ customer: init, onClose, onRefresh }) {
       {dupData && <DupModal portalCustomer={customer} matches={dupData.matches} onLink={handleDupLink} onOverwrite={handleDupOverwrite} onForce={handleDupForce} onCancel={() => setDupData(null)}/>}
       {!editing ? (<>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.6rem .75rem', marginBottom:'1rem' }}>
-          <Field label="KD-Nr">{customer.customer_number}</Field>
+          <Field label="KD-Nr">{customer.lexware_customer_number || customer.customer_number}</Field>
+          <Field label="SER-Nr">{customer.customer_number || '—'}</Field>
           <Field label="Name">{customer.name}</Field>
           <Field label="Firma">{customer.company_name}</Field>
           <Field label="Name2">{customer.name2}</Field>
@@ -1247,7 +1248,7 @@ function Customers() {
                         {isInactive && <span style={{ marginLeft:'.4rem', fontSize:'.65rem', color:'var(--text3)', fontFamily:'DM Mono, monospace' }}>inaktiv</span>}
                       </td>
                       <td style={{ padding:'.5rem .65rem', fontSize:'.8rem', color:'var(--text2)' }}>{c.billing_zip} {c.billing_city}</td>
-                      <td style={{ padding:'.5rem .65rem', fontFamily:'DM Mono, monospace', fontSize:'.75rem', color:'var(--text3)' }}>{c.customer_number}</td>
+                      <td style={{ padding:'.5rem .65rem', fontFamily:'DM Mono, monospace', fontSize:'.75rem', color:'var(--text3)' }} title={c.customer_number ? 'SER-Nr ' + c.customer_number : ''}>{c.lexware_customer_number || c.customer_number}</td>
                       <td style={{ padding:'.5rem .65rem' }}><SerBadge in_ser_fvk={c.in_ser_fvk}/></td>
                       <td style={{ padding:'.5rem .65rem' }}><LexBadge in_lexware={c.in_lexware}/></td>
                       <td style={{ padding:'.5rem .65rem', fontSize:'.78rem', whiteSpace:'nowrap', color: c.first_login_at ? 'var(--green)' : 'var(--text3)' }}
