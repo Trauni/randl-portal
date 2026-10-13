@@ -254,7 +254,7 @@ export default function InfoMail() {
             <button style={S.btnPrimary} disabled={saving} onClick={saveTemplate}>{saving ? '…' : 'Vorlage speichern'}</button>
             <span style={{ fontSize: '.78rem', color: 'var(--text2)' }}>
               PDF-Anleitung: {tpl.pdf?.exists
-                ? <><a href="/api/finance/info-mail/pdf" target="_blank" rel="noreferrer">vorhanden</a> ({Math.round(tpl.pdf.size / 1024)} KB, {fmt(tpl.pdf.updated_at)})</>
+                ? <><a href={'/api/finance/info-mail/pdf?v=' + new Date(tpl.pdf.updated_at).getTime()} target="_blank" rel="noreferrer">vorhanden</a> ({Math.round(tpl.pdf.size / 1024)} KB, {fmt(tpl.pdf.updated_at)})</>
                 : <strong style={{ color: 'var(--red2)' }}>fehlt</strong>}
             </span>
             <label style={{ ...S.btn, display: 'inline-block' }}>
