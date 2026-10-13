@@ -19,6 +19,7 @@ const WAVES = [
   [3, 'Welle 3 · Erinnerung', 'Kunden mit Mailadresse, die sich noch nicht im Shop angemeldet haben (kein First Login).'],
 ];
 
+const BATCH = 25;   // Briefe je Druckauftrag
 const fmt = v => v ? new Date(v).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
 const esc = s => String(s ?? '').replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 
@@ -279,9 +280,15 @@ export default function InfoMail() {
               <strong style={{ color: 'var(--text1)' }}>{data.total} Kunden</strong>
               {wave !== 2 && <span style={{ fontSize: '.8rem', color: 'var(--text2)' }}>{data.sent} bereits angeschrieben · {open} offen</span>}
               {wave === 2 ? (
-                <button style={S.btnPrimary} disabled={!customers.length} onClick={() => printLetters(customers, tpl?.letter)}>
-                  Briefe drucken ({customers.length})
-                </button>
+                <>
+                  <button style={S.btn} disabled={!customers.length} onClick={() => printLetters(customers.slice(0, 1), tpl?.letter)}>Probeseite</button>
+                  {/* In Paketen drucken: mehrere hundert Farbseiten auf einmal bringen die Druckvorschau des Browsers zum Absturz */}
+                  {Array.from({ length: Math.ceil(customers.length / BATCH) }, (_, i) => (
+                    <button key={i} style={S.btnPrimary} onClick={() => printLetters(customers.slice(i * BATCH, (i + 1) * BATCH), tpl?.letter)}>
+                      {i * BATCH + 1}–{Math.min((i + 1) * BATCH, customers.length)}
+                    </button>
+                  ))}
+                </>
               ) : (
                 <>
                   <input style={{ ...S.input, width: 230 }} placeholder="Testmail an …" value={testTo} onChange={e => setTestTo(e.target.value)} />
