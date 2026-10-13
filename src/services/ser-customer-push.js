@@ -10,7 +10,7 @@ const gasPool = new Pool({
   host: '127.0.0.1',
   port: 5433,
   database: 'gaswebshop',
-  user: 'gasadmin',
+  user: process.env.GAS_DB_USER || 'gasadmin', // eigener Portal-User (#232), Fallback bis zur Umstellung
   password: process.env.GAS_DB_PASS,
 });
 

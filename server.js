@@ -98,6 +98,11 @@ app.use(session({
   }
 }));
 
+// Internes Portal: Crawler komplett aussperren (#234)
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain').send('User-agent: *\nDisallow: /\n');
+});
+
 // ── Static Files (vor Routes!) ─────────────────────────────────────────────
 const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));

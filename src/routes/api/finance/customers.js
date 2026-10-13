@@ -10,7 +10,7 @@ const gasPool = new Pool({
   host: '127.0.0.1',
   port: 5433,
   database: 'gaswebshop',
-  user: 'gasadmin',
+  user: process.env.GAS_DB_USER || 'gasadmin', // eigener Portal-User (#232), Fallback bis zur Umstellung
   password: process.env.GAS_DB_PASS,
 });
 
@@ -45,7 +45,7 @@ router.get('/', async (req, res) => {
   try {
     const showInactive = req.query.showInactive === 'true';
     const params = new URLSearchParams();
-    ['q','zip','city','source','in_lexware','page','limit'].forEach(k => {
+    ['q','zip','city','source','in_lexware','in_ser_fvk','page','limit'].forEach(k => {
       if (req.query[k] !== undefined && req.query[k] !== '') params.set(k, req.query[k]);
     });
     const upstream = await shopFetch('/admin/customers?' + params);
