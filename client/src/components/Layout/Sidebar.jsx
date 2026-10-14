@@ -173,6 +173,7 @@ export default function Sidebar({ user }) {
           <div className="sidebar-footer-info" onClick={()=>navigate('/profil')} role="button" tabIndex={0}>
             <span className="sidebar-footer-name">{displayName}</span>
             <span className="sidebar-footer-role">{roleLabel}</span>
+            <span className="sidebar-footer-version">v{__APP_VERSION__} · {__APP_COMMIT__}</span>
           </div>
         )}
         <a href="/auth/logout" className="sidebar-logout-btn" title="Abmelden">
@@ -207,6 +208,7 @@ export default function Sidebar({ user }) {
         .sidebar-footer-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;cursor:pointer;}
         .sidebar-footer-name{font-size:12.5px;font-weight:600;color:var(--text1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
         .sidebar-footer-role{font-size:11px;color:var(--text3);}
+        .sidebar-footer-version{font-size:10px;color:var(--text3);opacity:.7;white-space:nowrap;}
         .sidebar-logout-btn{width:28px;height:28px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--text3);display:flex;align-items:center;justify-content:center;cursor:pointer;text-decoration:none;transition:background .15s,color .15s,border-color .15s;flex-shrink:0;}
         .sidebar-logout-btn:hover{background:var(--bg2);color:var(--red2);border-color:var(--red2);}
       `}</style>
