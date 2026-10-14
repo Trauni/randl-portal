@@ -19,7 +19,7 @@ export const ROLE_AREAS = {
 export const ACCESS_TAGS = {
   geschaeftsfuehrung: { allow: ALL_AREAS },
   backoffice:         { allow: ['gashandel', 'it', 'content', 'hr.zeitauswertung'] },
-  gashandel:          { allow: ['gashandel'] },
+  gashandel:          { allow: ['gashandel', 'gashandel.preise'] }, // #328
   metallarbeiten:     { allow: [] },
   zeltverleih:        { allow: [] },
 }
