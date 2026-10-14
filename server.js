@@ -5,6 +5,7 @@ const MySQLStore = require('express-mysql-session')(session);
 const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
+const { execSync } = require('child_process');
 
 const authRoutes = require('./src/routes/auth');
 const requireArea = require('./src/middleware/requireArea');
@@ -150,6 +151,20 @@ app.use('/api/zeltverleih',    requireArea('zeltplanung'), zeltverleihRouter);  
 app.use('/api/metallarbeiten/lieferanten', require('./src/routes/api/metallarbeiten/lieferanten'));
 app.use('/api/metallarbeiten/lieferantenauftraege', require('./src/routes/api/metallarbeiten/lieferantenauftraege'));
 
+
+// Versionsanzeige (#334): einmal beim Start ermitteln
+const APP_VERSION = require('./package.json').version;
+const APP_COMMIT = (() => {
+  if (process.env.APP_COMMIT) return process.env.APP_COMMIT;
+  try {
+    return execSync('git rev-parse --short HEAD', { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() || 'unknown';
+  } catch { return 'unknown'; }
+})();
+
+// Health-Check (kein Auth required — nur Version, Commit, Laufzeit)
+app.get('/api/health', (req, res) => {
+  res.json({ version: APP_VERSION, commit: APP_COMMIT, uptime: Math.round(process.uptime()) });
+});
 
 // Session-Info für Frontend (kein Auth required — gibt nur zurück was vorhanden)
 app.get('/api/me', (req, res) => {

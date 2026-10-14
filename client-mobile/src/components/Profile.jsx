@@ -31,6 +31,7 @@ export default function Profile() {
         naechsten Sync ueberschrieben -- hier bewusst nicht editierbar (wie im
         Desktop-Portal, siehe Seite 188).
       </p>
+      <p className="hint">v{__APP_VERSION__} · {__APP_COMMIT__}</p>
     </section>
   )
 }
