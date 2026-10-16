@@ -13,7 +13,7 @@
  * Einleitung: erste Zeile ist immer die Zeile des Vorgangs. Eine geerbte Vorgangszeile
  * (Mehrfachbestellung eines Angebots) wird ersetzt, der restliche Text bleibt.
  * Lexware liefert introduction als reinen Text (Test 16.10.2026, AG0083/AB0104).
- * Betreff: „Angebot · V-26-0012“ bzw. „Auftragsbestätigung · V-26-0012“.
+ * Betreff: „Angebot · V-26-0012“ bzw. „Auftrag · V-26-0012“ (Lexware: max. 25 Zeichen).
  *
  * Lexware uebernimmt bei precedingSalesVoucherId nichts von selbst, die Anfrage
  * enthaelt deshalb den ganzen Beleg.
@@ -25,6 +25,7 @@ const { belegZeile, bezugZeilen, speichereBeleg, AB_ZAEHLT } = require('./metall
 const ABLAUF_TAGE = 30;
 const STEUERSATZ = 19;
 const EINHEIT = 'Stück';
+const BETREFF_MAX = 25; // Lexware title (406 SIZE, Probelauf 16.10.2026)
 // Schreibbare Felder einer Position; lineItemAmount rechnet Lexware, optional/alternative
 // gibt es nur im Angebot
 const POSITION_FELDER = ['type', 'id', 'name', 'description', 'quantity', 'unitName', 'discountPercentage'];
@@ -44,8 +45,10 @@ function belegDatum(d) {
   return `${d.getFullYear()}-${zwei(d.getMonth() + 1)}-${zwei(d.getDate())}T00:00:00.000${vz}${zwei(Math.floor(abs / 60))}:${zwei(abs % 60)}`;
 }
 
+// Zu lang (z. B. sehr lange Vorgangsnummer) → nur die Vorgangsnummer
 function betreff(typ, vorgang) {
-  return `${typ === 'quotation' ? 'Angebot' : 'Auftragsbestätigung'} · ${vorgang.vorgangsnummer}`;
+  const t = `${typ === 'quotation' ? 'Angebot' : 'Auftrag'} · ${vorgang.vorgangsnummer}`;
+  return t.length <= BETREFF_MAX ? t : vorgang.vorgangsnummer.slice(0, BETREFF_MAX);
 }
 
 function vorgangsZeile(vorgang) {

@@ -32,9 +32,12 @@ test('belegDatum: Tagesbeginn mit Zeitzone, nie nur YYYY-MM-DD', () => {
   assert.match(a.belegDatum(JETZT), /^\d{4}-\d{2}-\d{2}T00:00:00\.000[+-]\d{2}:\d{2}$/);
 });
 
-test('betreff: Belegart · Vorgangsnummer', () => {
+test('betreff: Belegart · Vorgangsnummer, höchstens 25 Zeichen', () => {
   assert.equal(a.betreff('quotation', V), 'Angebot · V-26-0012');
-  assert.equal(a.betreff('orderconfirmation', V), 'Auftragsbestätigung · V-26-0012');
+  assert.equal(a.betreff('orderconfirmation', V), 'Auftrag · V-26-0012');
+  const lang = { vorgangsnummer: 'V-26-123456789012345' };
+  assert.equal(a.betreff('orderconfirmation', lang), 'V-26-123456789012345');
+  assert.ok(a.betreff('quotation', { vorgangsnummer: 'V-26-' + '9'.repeat(30) }).length <= 25);
 });
 
 test('angebotEntwurf: Platzhalter-Position, Ablauf in 30 Tagen, Vorgangszeile', () => {
@@ -70,7 +73,7 @@ test('uebernimmPositionen: nur schreibbare Felder, Preis passend zum taxType', (
 test('abEntwurf aus Angebot: geerbte Vorgangszeile ersetzt, Rest der Einleitung bleibt', () => {
   const p = a.abEntwurf({ vorgang: V, kontaktId: 'k1', quelle: ANGEBOT, jetzt: JETZT });
   assert.equal(p.introduction, 'Ihre Bestellnr. 4711 · Vorgang V-26-0012\nVielen Dank für Ihre Anfrage.');
-  assert.equal(p.title, 'Auftragsbestätigung · V-26-0012');
+  assert.equal(p.title, 'Auftrag · V-26-0012');
   assert.equal(p.lineItems.length, 2);
   assert.deepEqual(p.taxConditions, { taxType: 'net' });
   assert.deepEqual(p.totalPrice, { currency: 'EUR' });
