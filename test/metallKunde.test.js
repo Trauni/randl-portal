@@ -85,7 +85,8 @@ test('setzeMerker: anlegen/aktivieren, Notiz mit schon gelesenem Kontakt, Status
   assert.match(pool.calls[0].sql, /^INSERT INTO metall_kunde .* ON DUPLICATE KEY UPDATE .*aktiv = 1/);
   assert.deepEqual(pool.calls[0].params, ['k1', '10001', 'Testfirma GmbH', 3]);
   assert.deepEqual(lex.calls, [['get', 'k1'], ['note', 'k1', true]]);
-  assert.match(pool.calls.at(-1).sql, /notiz_status = 'ok'/);
+  assert.ok(pool.calls.some(c => /^UPDATE metall_kunde SET notiz_status = 'ok'/.test(c.sql)));
+  assert.match(pool.calls.at(-1).sql, /^SELECT \* FROM metall_kunde WHERE id = \?$/);
 });
 
 test('setzeMerker: kein Kunde → 400, nichts gespeichert', async () => {
@@ -102,7 +103,7 @@ test('setzeMerker: Notiz scheitert → Merker bleibt, Status fehler mit Grund', 
   assert.equal(r.notiz_status, 'fehler');
   assert.match(r.notiz_fehler, /406/);
   assert.match(pool.calls[0].sql, /^INSERT/);
-  assert.match(pool.calls.at(-1).sql, /notiz_status = 'fehler'/);
+  assert.ok(pool.calls.some(c => /^UPDATE metall_kunde SET notiz_status = 'fehler'/.test(c.sql)));
 });
 
 test('schreibeNotiz: zu lange Notiz → Status fehler, kein Absturz', async () => {
