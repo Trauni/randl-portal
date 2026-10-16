@@ -15,6 +15,16 @@
  */
 
 const BASE_URL = 'https://api.lexware.io/v1';
+
+// Belegart (voucherType in der Belegliste) → Pfad der Einzel-Endpunkte
+const BELEG_PFADE = {
+  quotation: 'quotations',
+  orderconfirmation: 'order-confirmations',
+  deliverynote: 'delivery-notes',
+  invoice: 'invoices',
+};
+const SEITE_MAX = 250;   // Lexware: max. 250 Eintraege pro Seite der Belegliste
+const SEITEN_LIMIT = 100; // Sicherung gegen Endlosschleifen
 const ABSTAND_MS = 1000;
 const VERSUCHE_429 = 4;
 
@@ -23,6 +33,12 @@ const VERSUCHE_429 = 4;
 const NUR_LESEN = ['organizationId', 'archived'];
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// Date → 'YYYY-MM-DD' (lokales Datum); Strings werden durchgereicht
+function datum(d) {
+  if (typeof d === 'string') return d;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 class LexwareError extends Error {
   constructor(message, status) {
@@ -57,7 +73,8 @@ function createClient({
     return lauf;
   }
 
-  async function apiCall(method, path, body) {
+  // opts.binary: Antwort als Buffer (PDF), opts.accept: Accept-Header
+  async function apiCall(method, path, body, { binary = false, accept = 'application/json' } = {}) {
     const key = typeof apiKey === 'function' ? apiKey() : apiKey;
     if (!key) throw new LexwareError('LEXWARE_API_KEY fehlt in der .env', 0);
 
@@ -67,7 +84,7 @@ function createClient({
         headers: {
           Authorization: `Bearer ${key}`,
           'Content-Type': 'application/json',
-          Accept: 'application/json',
+          Accept: accept,
         },
         body: body ? JSON.stringify(body) : undefined,
       }));
@@ -77,6 +94,8 @@ function createClient({
         await warte(retryAfter > 0 ? retryAfter * 1000 : pauseMs * versuch);
         continue;
       }
+
+      if (binary && res.ok) return Buffer.from(await res.arrayBuffer());
 
       const text = await res.text();
       let data;
@@ -131,7 +150,46 @@ function createClient({
     }
   }
 
-  return { apiCall, getContact, searchContacts, updateContactNote };
+  function belegPfad(typ) {
+    const p = BELEG_PFADE[typ];
+    if (!p) throw new LexwareError(`Unbekannte Belegart: ${typ}`, 0);
+    return p;
+  }
+
+  /**
+   * Belegliste, alle Seiten. Filter: contactId, types (Liste aus BELEG_PFADE),
+   * updatedDateFrom / voucherDateFrom (Date oder 'YYYY-MM-DD').
+   * Die Liste enthaelt weder Einleitungstext noch relatedVouchers → getVoucher().
+   */
+  async function listVouchers({ contactId, types = Object.keys(BELEG_PFADE), updatedDateFrom, voucherDateFrom } = {}) {
+    const q = new URLSearchParams({ voucherType: types.join(','), voucherStatus: 'any', size: String(SEITE_MAX) });
+    if (contactId) q.set('contactId', contactId);
+    if (updatedDateFrom) q.set('updatedDateFrom', datum(updatedDateFrom));
+    if (voucherDateFrom) q.set('voucherDateFrom', datum(voucherDateFrom));
+
+    const alle = [];
+    for (let page = 0; page < SEITEN_LIMIT; page++) {
+      q.set('page', String(page));
+      const data = await apiCall('GET', `/voucherlist?${q}`);
+      const inhalt = data?.content || [];
+      alle.push(...inhalt);
+      // Ende: letzte Seite laut Lexware, oder Seite nicht voll
+      if (data?.last === true || inhalt.length < SEITE_MAX) break;
+      if (data?.totalPages != null && page + 1 >= data.totalPages) break;
+    }
+    return alle;
+  }
+
+  async function getVoucher(typ, id) {
+    return apiCall('GET', `/${belegPfad(typ)}/${encodeURIComponent(id)}`);
+  }
+
+  // PDF eines fertigen Belegs als Buffer; bei Entwuerfen antwortet Lexware mit 409
+  async function getVoucherFile(typ, id) {
+    return apiCall('GET', `/${belegPfad(typ)}/${encodeURIComponent(id)}/file`, null, { binary: true, accept: 'application/pdf' });
+  }
+
+  return { apiCall, getContact, searchContacts, updateContactNote, listVouchers, getVoucher, getVoucherFile };
 }
 
-module.exports = { ...createClient(), createClient, LexwareError, BASE_URL };
+module.exports = { ...createClient(), createClient, LexwareError, BASE_URL, BELEG_PFADE, datum };

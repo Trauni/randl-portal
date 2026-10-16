@@ -212,6 +212,9 @@ app.listen(PORT, '127.0.0.1', () => {
   console.log(`  OIDC Issuer: ${process.env.OIDC_ISSUER}`);
 });
 
+// Metall-Sync (#363): Lexware-Belege der Metallkunden, nur mit METALL_SYNC_AKTIV=1
+if (process.env.METALL_SYNC_AKTIV === '1') require('./src/services/metallSync').starteZeitplan();
+
 // ── F29 Schritt 3: Interner Listener fuer Service-zu-Service-Aufrufe ─────────
 // Komplett separate Express-Instanz, NUR die eine Route. Gebunden an die
 // gas-net-Docker-Bridge-IP (172.19.0.1) statt 0.0.0.0 - von aussen nicht

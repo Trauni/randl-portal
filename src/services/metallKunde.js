@@ -97,8 +97,10 @@ async function setzeMerker({ pool, lexware }, { lexwareKontaktId, employeeId }) 
     [lexwareKontaktId, kontaktKdnr(contact), kontaktName(contact), employeeId ?? null]
   );
   const [[kunde]] = await pool.execute('SELECT * FROM metall_kunde WHERE lexware_kontakt_id = ?', [lexwareKontaktId]);
-  const notiz = await schreibeNotiz({ pool, lexware }, kunde, contact);
-  return { ...kunde, ...notiz };
+  await schreibeNotiz({ pool, lexware }, kunde, contact);
+  // neu lesen, damit notiz_status/notiz_geschrieben_am den gespeicherten Stand zeigen
+  const [[aktuell]] = await pool.execute('SELECT * FROM metall_kunde WHERE id = ?', [kunde.id]);
+  return aktuell;
 }
 
 /** Merker entfernen: nur aktiv = 0, die Notiz in Lexware bleibt unveraendert. */

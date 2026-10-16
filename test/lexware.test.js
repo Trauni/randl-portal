@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { createClient, LexwareError, BASE_URL } = require('../src/services/lexware');
+const { createClient, LexwareError, BASE_URL, datum } = require('../src/services/lexware');
 
 // Nachgebautes fetch: antwortet der Reihe nach mit den vorgegebenen Antworten
 function fakeFetch(antworten) {
@@ -14,6 +14,7 @@ function fakeFetch(antworten) {
       ok: a.status >= 200 && a.status < 300,
       headers: { get: k => (a.headers || {})[k.toLowerCase()] },
       text: async () => (a.body === undefined ? '' : JSON.stringify(a.body)),
+      arrayBuffer: async () => new TextEncoder().encode(a.raw || '').buffer,
     };
   };
   fn.calls = calls;
@@ -129,4 +130,63 @@ test('updateContactNote: zweimal 409 → Fehler', async () => {
     { status: 200, body: KONTAKT }, { status: 409, body: {} },
   ]);
   await assert.rejects(() => c.updateContactNote('k1', n => `${n}\nMETALL`), err => err.status === 409);
+});
+
+test('datum: Date → YYYY-MM-DD, String bleibt', () => {
+  assert.equal(datum(new Date(2025, 0, 1)), '2025-01-01');
+  assert.equal(datum(new Date(2026, 9, 16)), '2026-10-16');
+  assert.equal(datum('2025-01-01'), '2025-01-01');
+});
+
+test('listVouchers: Filter in der URL, alle Seiten bis last', async () => {
+  const seite1 = Array.from({ length: 250 }, (_, i) => ({ id: `b${i}` }));
+  const { c, calls } = client([
+    { status: 200, body: { content: seite1, last: false, totalPages: 2 } },
+    { status: 200, body: { content: [{ id: 'b250' }], last: true, totalPages: 2 } },
+  ]);
+  const r = await c.listVouchers({ contactId: 'k1', updatedDateFrom: new Date(2026, 9, 15), voucherDateFrom: '2025-01-01' });
+  assert.equal(r.length, 251);
+  const u = new URL(calls[0].url);
+  assert.equal(u.pathname, '/v1/voucherlist');
+  assert.equal(u.searchParams.get('voucherType'), 'quotation,orderconfirmation,deliverynote,invoice');
+  assert.equal(u.searchParams.get('voucherStatus'), 'any');
+  assert.equal(u.searchParams.get('contactId'), 'k1');
+  assert.equal(u.searchParams.get('updatedDateFrom'), '2026-10-15');
+  assert.equal(u.searchParams.get('voucherDateFrom'), '2025-01-01');
+  assert.equal(u.searchParams.get('page'), '0');
+  assert.equal(new URL(calls[1].url).searchParams.get('page'), '1');
+});
+
+test('listVouchers: hört auf, wenn eine Seite nicht voll ist (auch ohne last)', async () => {
+  const { c, calls } = client([{ status: 200, body: { content: [{ id: 'b1' }] } }]);
+  assert.equal((await c.listVouchers({ types: ['invoice'] })).length, 1);
+  assert.equal(calls.length, 1);
+  assert.equal(new URL(calls[0].url).searchParams.get('voucherType'), 'invoice');
+});
+
+test('getVoucher: Pfad je Belegart, unbekannte Art → Fehler ohne Anfrage', async () => {
+  const { c, calls } = client([
+    { status: 200, body: { id: 'a1' } },
+    { status: 200, body: { id: 'l1' } },
+  ]);
+  await c.getVoucher('orderconfirmation', 'a1');
+  await c.getVoucher('deliverynote', 'l1');
+  assert.equal(calls[0].url, `${BASE_URL}/order-confirmations/a1`);
+  assert.equal(calls[1].url, `${BASE_URL}/delivery-notes/l1`);
+  await assert.rejects(() => c.getVoucher('creditnote', 'x'), /Unbekannte Belegart/);
+  assert.equal(calls.length, 2);
+});
+
+test('getVoucherFile: PDF als Buffer mit Accept application/pdf', async () => {
+  const { c, calls } = client([{ status: 200, raw: '%PDF-1.4 test' }]);
+  const buf = await c.getVoucherFile('invoice', 'r1');
+  assert.ok(Buffer.isBuffer(buf));
+  assert.equal(buf.toString(), '%PDF-1.4 test');
+  assert.equal(calls[0].url, `${BASE_URL}/invoices/r1/file`);
+  assert.equal(calls[0].headers.Accept, 'application/pdf');
+});
+
+test('getVoucherFile: Entwurf → 409 als LexwareError', async () => {
+  const { c } = client([{ status: 409, body: { message: 'Conflict' } }]);
+  await assert.rejects(() => c.getVoucherFile('quotation', 'e1'), err => err instanceof LexwareError && err.status === 409);
 });
