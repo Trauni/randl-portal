@@ -14,8 +14,9 @@
  *   - AB/LS/RE mit verknuepftem AB/LS/RE, der genau einen Vorgang hat → 'verknuepfung'.
  *   - AB, die aus einem Angebot umgewandelt wurde (#364): Das Angebot kann zu mehreren
  *     Vorgaengen gehoeren und die AB erbt dessen Einleitungszeile, die zaehlt deshalb nicht.
- *     Gibt es zum Angebot genau einen offenen Vorgang ohne AB → 'auto', sonst offen mit
- *     Vorschlag (Einleitung, wenn noch ohne AB, sonst der aelteste Kandidat).
+ *     Gibt es zum Angebot genau einen offenen Vorgang ohne AB und wartet keine weitere offene
+ *     AB aus demselben Angebot → 'auto'. Sonst offen mit Vorschlag (Einleitung, wenn noch
+ *     ohne AB, sonst der aelteste Kandidat) – mehrfach umgewandelt entscheidet das Buero.
  *   - Sonst Vorgangsnummer genau in der ersten Zeile des Einleitungstexts, Vorgang gehoert
  *     zum selben Kunden → 'einleitung'. Angebote haengen dann ueber
  *     metall_vorgang.angebot_beleg_id am Vorgang (nur wenn dort noch keins steht).
@@ -110,10 +111,12 @@ function abfrageAb(juengsteAenderung) {
  *               { vorgang_id, exakt, kunde_passt, angebot_beleg_id }
  *   kandidaten: nur fuer AB – offene Vorgaenge des Kunden ohne zaehlende AB [vorgang_id],
  *               aelteste zuerst; bei AB aus Angebot nur die Vorgaenge dieses Angebots
+ *   konkurrenz: nur fuer AB aus Angebot – Anzahl weiterer offener, zaehlender ABs aus
+ *               demselben Angebot (Angebot mehrfach umgewandelt)
  * Ergebnis: null (nichts aendern) oder
  *   { zuordnung, vorgang_id, vorschlag_vorgang_id, angebot_fuer_vorgang_id }
  */
-function bestimmeZuordnung({ beleg, nachbarn = [], einleitung = null, kandidaten = [] }) {
+function bestimmeZuordnung({ beleg, nachbarn = [], einleitung = null, kandidaten = [], konkurrenz = 0 }) {
   if (FESTE_ZUORDNUNG.has(beleg.zuordnung)) return null;
 
   const treffer = einleitung && einleitung.kunde_passt ? einleitung : null;
@@ -137,7 +140,7 @@ function bestimmeZuordnung({ beleg, nachbarn = [], einleitung = null, kandidaten
 
   // Aus einem Angebot umgewandelte AB: Einleitungszeile ist geerbt, zaehlt nur als Vorschlag
   if (istAb && nachbarn.some(n => n.belegart === 'quotation')) {
-    if (kandidaten.length === 1) {
+    if (kandidaten.length === 1 && konkurrenz === 0) {
       return { zuordnung: 'auto', vorgang_id: kandidaten[0], vorschlag_vorgang_id: null, angebot_fuer_vorgang_id: null };
     }
     const besser = kandidaten.includes(vorschlag) ? vorschlag : (kandidaten[0] ?? vorschlag);
@@ -221,6 +224,21 @@ async function ladeKandidaten(pool, beleg, kundeId, nachbarn) {
   return rows.map(r => r.id);
 }
 
+/** Weitere offene, zaehlende ABs aus denselben Angeboten (Verknuepfung in beide Richtungen) */
+async function ladeKonkurrenz(pool, beleg, nachbarn) {
+  const angebote = nachbarn.filter(n => n.belegart === 'quotation').map(n => n.id);
+  if (!angebote.length) return 0;
+  const [[{ n }]] = await pool.query(
+    `SELECT COUNT(DISTINCT a.id) AS n FROM metall_beleg a JOIN metall_beleg q ON q.id IN (?)
+     WHERE a.id <> ? AND a.zuordnung = 'offen' AND ${AB_ZAEHLT} AND (
+       EXISTS (SELECT 1 FROM metall_beleg_bezug z WHERE z.beleg_id = a.id AND z.bezug_lexware_id = q.lexware_id)
+       OR EXISTS (SELECT 1 FROM metall_beleg_bezug z WHERE z.beleg_id = q.id AND z.bezug_lexware_id = a.lexware_id)
+     )`,
+    [angebote, beleg.id]
+  );
+  return Number(n);
+}
+
 /** Vorgaenge des Kunden mit mehr als einer zaehlenden AB → Hinweis "doppelte AB pruefen" */
 async function ladeDoppelteAb(pool, kundeId) {
   const [rows] = await pool.execute(
@@ -302,6 +320,7 @@ async function syncKunde({ pool, lexware }, kunde) {
       nachbarn,
       einleitung: await ladeEinleitung(pool, beleg, kunde.id),
       kandidaten: beleg.belegart === 'orderconfirmation' ? await ladeKandidaten(pool, beleg, kunde.id, nachbarn) : [],
+      konkurrenz: beleg.belegart === 'orderconfirmation' ? await ladeKonkurrenz(pool, beleg, nachbarn) : 0,
     });
     if (!z) continue;
     await wendeZuordnungAn(pool, beleg.id, z);
