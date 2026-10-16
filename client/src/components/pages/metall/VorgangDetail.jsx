@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 
 // Vorgangsdetail Metallarbeiten (#368): Statusleiste, Fertigung (Geplant / In Arbeit / Fertig),
 // Belege mit „Lösen“ bei Fehlzuordnung, Mehrfachbestellung, Abbrechen/Fortsetzen.
-// Alles außer der Fertigung kommt aus Lexware.
+// Alles außer der Fertigung kommt aus Lexware; „Jetzt abgleichen“ holt es sofort (#386).
 
 const fmt = d => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
 const eur = n => n == null ? '' : Number(n).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
@@ -44,7 +44,7 @@ export default function VorgangDetail() {
     setBusy(key); setError(''); setSuccess('');
     try {
       const r = await fn();
-      if (r && r.statusleiste) setV(r); else await load();
+      if (r && r.statusleiste) setV(r); else if (r && r.detail?.statusleiste) setV(r.detail); else await load();
       if (text) melde(typeof text === 'function' ? text(r) : text);
     } catch (e) { setError(e.message); }
     finally { setBusy(null); }
@@ -64,6 +64,17 @@ export default function VorgangDetail() {
     if (grund === null) return;
     tu('abbrechen', () => send(`${basis}/abbrechen`, 'POST', { grund }), 'Vorgang abgebrochen.');
   };
+
+  const abgleichen = () => tu('sync', () => send(`${basis}/abgleichen`), ({ abgleich: a }) => {
+    const teile = [
+      a.geholt - a.neu > 0 && `${a.geholt - a.neu} aktualisiert`,
+      a.neu > 0 && `${a.neu} neu`,
+      a.geloescht > 0 && `${a.geloescht} in Lexware gelöscht`,
+      a.zugeordnet > 0 && `${a.zugeordnet} zugeordnet`,
+    ].filter(Boolean);
+    const fehler = a.fehler > 0 ? ` ${a.fehler} Beleg(e) konnten nicht geholt werden.` : '';
+    return (teile.length ? `Abgeglichen: ${teile.join(', ')}.` : 'Abgeglichen – keine Änderungen in Lexware.') + fehler;
+  });
 
   const inLexware = art => {
     const was = art === 'angebot' ? 'Angebot' : 'Auftragsbestätigung';
@@ -156,7 +167,11 @@ export default function VorgangDetail() {
       </div>
 
       <div className="card vd-card">
-        <div className="vd-card-h"><h3>Belege</h3><span className="vd-small">aus Lexware · nur lesen</span></div>
+        <div className="vd-card-h"><h3>Belege</h3><span className="vd-small">aus Lexware · nur lesen</span>
+          <span style={{ flex: 1 }} />
+          <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={abgleichen}
+            title="Belege des Kunden sofort aus Lexware holen (sonst alle 15 Minuten)">{busy === 'sync' ? 'Gleiche ab…' : '↻ Jetzt abgleichen'}</button>
+        </div>
         {v.belege.length === 0 ? <div className="vd-empty">Noch keine Belege.</div> : (
           <div className="vd-belege">
             {v.belege.map(b => (
@@ -224,7 +239,7 @@ const css = `
   .vd-note a,.vd-root .vd-card a{color:#6aa8f0;}
   .card{background:var(--bg1);border:1px solid var(--border);border-radius:9px;}
   .vd-card{margin-bottom:14px;}
-  .vd-card-h{display:flex;align-items:baseline;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);}
+  .vd-card-h{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);}
   .vd-card-h h3{margin:0;font-size:14px;color:var(--text1);}
   .vd-steps{list-style:none;margin:0;padding:18px 16px 14px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;}
   .vd-step{display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;position:relative;min-width:0;}

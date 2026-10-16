@@ -1,5 +1,6 @@
 /**
- * Vorgangsdetail Metallarbeiten (#368): laden, Fertigung setzen, Beleg loesen, abbrechen.
+ * Vorgangsdetail Metallarbeiten (#368): laden, Fertigung setzen, Beleg loesen, abbrechen;
+ * „Jetzt abgleichen“ (#386).
  *
  * Fertigung ist der einzige Schritt, den das Portal pflegt (Werkstatt), drei Stufen:
  *   geplant (beide NULL) → in_arbeit (fertigung_begonnen_am) → fertig (fertigung_am).
@@ -160,4 +161,16 @@ async function setzeFort(pool, id) {
   return ladeDetail(pool, v.id);
 }
 
-module.exports = { ladeDetail, setzeFertigung, loeseBeleg, brecheAb, setzeFort, STUFEN };
+/**
+ * „Jetzt abgleichen“ (#386): Belege des Kunden sofort aus Lexware holen, dann das Detail neu laden.
+ * sync: (kundeId) => Zaehler von syncKunde oder { uebersprungen: true } (metallSync.syncEinKunde).
+ * Ergebnis: { abgleich, detail }; laeuft gerade ein Abgleich → 409.
+ */
+async function gleicheAb(pool, id, sync) {
+  const v = await ladeVorgang(pool, id);
+  const abgleich = await sync(v.kunde_id);
+  if (abgleich.uebersprungen) throw fehler(409, 'Es läuft gerade ein Abgleich – bitte in einer Minute noch einmal versuchen');
+  return { abgleich, detail: await ladeDetail(pool, v.id) };
+}
+
+module.exports = { ladeDetail, setzeFertigung, loeseBeleg, brecheAb, setzeFort, gleicheAb, STUFEN };

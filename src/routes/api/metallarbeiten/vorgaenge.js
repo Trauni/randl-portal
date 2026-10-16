@@ -8,9 +8,10 @@ const metallAnlegen = require('../../../services/metallAnlegen');
 const metallVorgang = require('../../../services/metallVorgang');
 const metallAuftraege = require('../../../services/metallAuftraege');
 const metallDetail = require('../../../services/metallDetail');
+const metallSync = require('../../../services/metallSync');
 
 // Vorgaenge: Alle Auftraege mit Suche/Filter (#367), anlegen (#384), In Lexware anlegen (#365),
-// Detail mit Fertigung, Beleg loesen, Abbrechen (#368).
+// Detail mit Fertigung, Beleg loesen, Abbrechen (#368), Jetzt abgleichen (#386).
 const GATE = requireArea('metallarbeiten.vorgaenge');
 
 // Lokal, wie in kunden.js — keine geteilte Utility im Projekt
@@ -125,6 +126,11 @@ router.post('/:id(\\d+)/belege/:belegId(\\d+)/loesen', requireAuth, GATE,
 
 router.post('/:id(\\d+)/abbrechen', requireAuth, GATE,
   aktion('Abbrechen', (pool, req) => metallDetail.brecheAb(pool, req.params.id, req.body?.grund)));
+
+// „Jetzt abgleichen“ (#386): Belege des Kunden sofort aus Lexware holen
+router.post('/:id(\\d+)/abgleichen', requireAuth, GATE,
+  aktion('Abgleich', (pool, req) => metallDetail.gleicheAb(pool, req.params.id,
+    kundeId => metallSync.syncEinKunde({ pool, lexware }, kundeId))));
 
 router.post('/:id(\\d+)/fortsetzen', requireAuth, GATE,
   aktion('Fortsetzen', (pool, req) => metallDetail.setzeFort(pool, req.params.id)));
