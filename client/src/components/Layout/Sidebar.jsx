@@ -72,7 +72,9 @@ export default function Sidebar({ user }) {
 
   const showGashandel = can('gashandel');
   const showZeltverleih = can('zeltplanung');
-  const showMetallarbeiten = can('metallarbeiten.lieferantenauftrag');
+  const showLieferantenauftrag = can('metallarbeiten.lieferantenauftrag');
+  const showMetallVorgaenge = can('metallarbeiten.vorgaenge');
+  const showMetallarbeiten = showLieferantenauftrag || showMetallVorgaenge;
   const showHR        = can('hr.urlaubskalender') || can('hr.zeitauswertung') || can('hr.mitarbeiter');
   const showIT        = can('it');
   const showContent   = can('content');
@@ -134,7 +136,8 @@ export default function Sidebar({ user }) {
         {showMetallarbeiten&&<>
           {!collapsed && <div className="nav-section-label">Metallarbeiten</div>}
           {collapsed && <div className="nav-section-divider"/>}
-          <NavItem to="/metallarbeiten/lieferantenauftraege" icon="metall" label="Lieferantenaufträge" collapsed={collapsed}/>
+          {showMetallVorgaenge && <NavItem to="/metallarbeiten/vorgaenge" icon="orders" label="Vorgänge" collapsed={collapsed}/>}
+          {showLieferantenauftrag && <NavItem to="/metallarbeiten/lieferantenauftraege" icon="metall" label="Lieferantenaufträge" collapsed={collapsed}/>}
         </>}
 
         {showHR&&<>

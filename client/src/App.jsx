@@ -4,6 +4,7 @@ import Layout from './components/Layout/Layout'
 import Dashboard from './components/pages/Dashboard'
 import VacationRequest from './components/pages/VacationRequest'
 import Lieferantenauftrag from './components/pages/Lieferantenauftrag'
+import MetallVorgaenge from './components/pages/metall/Vorgaenge'
 import VacationCalendar from './components/pages/VacationCalendar'
 import Profile from './components/pages/Profile'
 import SystemDashboard from './components/pages/it/SystemDashboard'
@@ -53,6 +54,9 @@ function AppRoutes() {
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="urlaub" element={<VacationRequest />} />
         <Route path="metallarbeiten/lieferantenauftraege" element={<Lieferantenauftrag />} />
+        <Route path="metallarbeiten/vorgaenge" element={
+          hasArea('metallarbeiten.vorgaenge') ? <MetallVorgaenge /> : <Navigate to="/dashboard" replace />
+        } />
         <Route path="profil" element={<Profile />} />
         {/* HR-Sektion */}
         <Route path="hr/urlaubskalender" element={
