@@ -26,8 +26,16 @@ const frage = q => new Promise(r => rl.question(q, a => r(a.trim())));
 const UNWICHTIG = new Set(['note', 'version', 'updatedDate']);
 
 (async () => {
-const id = await frage('Kontakt-ID des TESTkontakts (UUID): ');
-if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error('Das ist keine UUID');
+const eingabe = await frage('Kontakt-ID (UUID) oder Belegnummer eines Testbelegs (z. B. AG0083): ');
+let id = eingabe;
+if (!/^[0-9a-f-]{36}$/i.test(eingabe)) {
+// Belegnummer → Kontakt des Belegs ueber die Belegliste
+const liste = await lexware.apiCall('GET', `/voucherlist?voucherType=any&voucherStatus=any&voucherNumber=${encodeURIComponent(eingabe)}`);
+const beleg = (liste?.content || [])[0];
+if (!beleg?.contactId) throw new Error(`Kein Beleg ${eingabe} mit Kontakt gefunden`);
+id = beleg.contactId;
+console.log(`Beleg ${beleg.voucherNumber} gehoert zu Kontakt-ID ${id}`);
+}
 
 const vorher = await lexware.getContact(id);
 console.log(`Kontakt: ${kontaktName(vorher)} · Kunde: ${vorher.roles?.customer ? 'ja' : 'nein'} · Notiz: ${(vorher.note || '').length} Zeichen · METALL schon drin: ${hatMerkmal(vorher.note) ? 'ja' : 'nein'}`);
