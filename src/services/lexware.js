@@ -18,7 +18,8 @@ const BASE_URL = 'https://api.lexware.io/v1';
 const ABSTAND_MS = 1000;
 const VERSUCHE_429 = 4;
 
-// Felder, die Lexware beim Lesen liefert, beim PUT aber nicht annimmt
+// Nur-Lesen-Felder, die beim PUT weggelassen werden (Test am Testkontakt 16.10.2026: PUT ok,
+// sonst keine Felder veraendert)
 const NUR_LESEN = ['organizationId', 'archived'];
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
