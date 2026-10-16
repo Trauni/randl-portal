@@ -390,6 +390,27 @@ async function syncAlle(deps) {
   }
 }
 
+/**
+ * Einen Metallkunden sofort abgleichen (Knopf „Jetzt abgleichen“, #386). Teilt die Sperre mit
+ * syncAlle, damit Zeitplan und Knopf nie gleichzeitig laufen (Lexware: max. 1 Anfrage/s).
+ * Ergebnis: Zaehler von syncKunde oder { uebersprungen: true }, wenn gerade ein Abgleich laeuft.
+ */
+async function syncEinKunde(deps, kundeId) {
+  if (laeuft) return { uebersprungen: true };
+  laeuft = true;
+  try {
+    const [[kunde]] = await deps.pool.execute('SELECT * FROM metall_kunde WHERE id = ? AND aktiv = 1', [kundeId]);
+    if (!kunde) {
+      const err = new Error('Metallkunde nicht gefunden oder nicht aktiv');
+      err.status = 409;
+      throw err;
+    }
+    return await syncKunde(deps, kunde);
+  } finally {
+    laeuft = false;
+  }
+}
+
 function standardDeps() {
   return { pool: require('../db').getPool(), lexware: require('./lexware') };
 }
@@ -416,7 +437,7 @@ function starteZeitplan() {
 module.exports = {
   ERSTABGLEICH_AB, REIHENFOLGE,
   ersteZeile, belegZeile, bezugZeilen, istGeaendert, findeGeloeschte, bestimmeZuordnung,
-  syncKunde, syncAlle, starteZeitplan, ladeDoppelteAb, speichereBeleg, AB_ZAEHLT,
+  syncKunde, syncAlle, syncEinKunde, starteZeitplan, standardDeps, ladeDoppelteAb, speichereBeleg, AB_ZAEHLT,
 };
 
 /*

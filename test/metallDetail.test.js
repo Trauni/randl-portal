@@ -185,3 +185,41 @@ test('brecheAb und setzeFort', async () => {
   await d.setzeFort(fort, 5);
   assert.ok(fort.calls.some(c => /SET abgebrochen_am = NULL, abbruch_grund = NULL/.test(c.sql)));
 });
+
+// ── Jetzt abgleichen (#386) ──
+
+test('gleicheAb: gleicht den Kunden des Vorgangs ab und liefert das neue Detail', async () => {
+  const aufrufe = [];
+  const r = await d.gleicheAb(fakePool({ vorgang: { ...V, kunde_id: 3 } }), 5, async k => { aufrufe.push(k); return { geholt: 2, neu: 1 }; });
+  assert.deepEqual(aufrufe, [3]);
+  assert.deepEqual(r.abgleich, { geholt: 2, neu: 1 });
+  assert.equal(r.detail.vorgangsnummer, 'V-26-0005');
+  await assert.rejects(d.gleicheAb(fakePool({ vorgang: V }), 5, async () => ({ uebersprungen: true })), e => e.status === 409);
+  await assert.rejects(d.gleicheAb(fakePool({}), 5, async () => ({})), e => e.status === 404);
+});
+
+test('syncEinKunde: teilt die Sperre mit syncAlle, inaktiver Kunde → 409', async () => {
+  const { syncEinKunde, syncAlle } = require('../src/services/metallSync');
+  let freigeben;
+  const warte = new Promise(r => { freigeben = r; });
+  const kunde = { id: 3, aktiv: 1, lexware_kontakt_id: 'k1' };
+  const deps = {
+    pool: {
+      async execute(sql) {
+        if (/FROM metall_kunde WHERE id = \?/.test(sql)) return [[kunde]];
+        return [[]];
+      },
+      async query() { return [[]]; },
+    },
+    lexware: { async listVouchers() { await warte; return []; } },
+  };
+  const erster = syncEinKunde(deps, 3);
+  assert.deepEqual(await syncEinKunde(deps, 3), { uebersprungen: true });
+  assert.deepEqual(await syncAlle(deps), { uebersprungen: true });
+  freigeben();
+  const s = await erster;
+  assert.equal(s.gelistet, 0);
+  // danach wieder frei; ohne aktiven Kunden 409
+  const ohne = { ...deps, pool: { ...deps.pool, async execute() { return [[]]; } } };
+  await assert.rejects(syncEinKunde(ohne, 3), e => e.status === 409);
+});
