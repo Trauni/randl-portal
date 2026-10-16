@@ -7,8 +7,10 @@ const lexware = require('../../../services/lexware');
 const metallAnlegen = require('../../../services/metallAnlegen');
 const metallVorgang = require('../../../services/metallVorgang');
 const metallAuftraege = require('../../../services/metallAuftraege');
+const metallDetail = require('../../../services/metallDetail');
 
-// Vorgaenge: Alle Auftraege mit Suche/Filter (#367), anlegen (#384), In Lexware anlegen (#365). Detail kommt mit #368.
+// Vorgaenge: Alle Auftraege mit Suche/Filter (#367), anlegen (#384), In Lexware anlegen (#365),
+// Detail mit Fertigung, Beleg loesen, Abbrechen (#368).
 const GATE = requireArea('metallarbeiten.vorgaenge');
 
 // Lokal, wie in kunden.js — keine geteilte Utility im Projekt
@@ -95,5 +97,36 @@ router.post('/:id/lexware', requireAuth, GATE, async (req, res) => {
     sendeFehler(res, err, 'In Lexware anlegen');
   }
 });
+
+// ── Detail (#368) ──
+
+// Aktion mit Mitarbeiter-ID ausfuehren und Ergebnis bzw. Fehler senden
+function aktion(was, fn) {
+  return async (req, res) => {
+    try {
+      const employeeId = await getEmployeeId(req.session.user.authentikUid);
+      res.json(await fn(db.getPool(), req, { employeeId }));
+    } catch (err) {
+      sendeFehler(res, err, was);
+    }
+  };
+}
+
+router.get('/:id(\\d+)', requireAuth, GATE,
+  aktion('Vorgang laden', (pool, req) => metallDetail.ladeDetail(pool, req.params.id)));
+
+// Fertigung: { stufe: geplant | in_arbeit | fertig }
+router.put('/:id(\\d+)/fertigung', requireAuth, GATE,
+  aktion('Fertigung setzen', (pool, req, opt) => metallDetail.setzeFertigung(pool, req.params.id, req.body?.stufe, opt)));
+
+// Beleg loesen → zurueck in „Belege zuordnen“
+router.post('/:id(\\d+)/belege/:belegId(\\d+)/loesen', requireAuth, GATE,
+  aktion('Beleg lösen', (pool, req, opt) => metallDetail.loeseBeleg(pool, req.params.id, req.params.belegId, opt)));
+
+router.post('/:id(\\d+)/abbrechen', requireAuth, GATE,
+  aktion('Abbrechen', (pool, req) => metallDetail.brecheAb(pool, req.params.id, req.body?.grund)));
+
+router.post('/:id(\\d+)/fortsetzen', requireAuth, GATE,
+  aktion('Fortsetzen', (pool, req) => metallDetail.setzeFort(pool, req.params.id)));
 
 module.exports = router;

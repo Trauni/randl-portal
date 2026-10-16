@@ -114,7 +114,8 @@ function findeGeloeschte(gespeichert, listenIds) {
 
 /**
  * Zuordnung eines Belegs bestimmen.
- *   beleg:   { belegart, zuordnung } (zuordnung der gespeicherten Zeile)
+ *   beleg:   { belegart, zuordnung, gesperrt_vorgang_id } (aus der gespeicherten Zeile;
+ *            gesperrt_vorgang_id = vom Buero geloest, dorthin nicht automatisch, #368)
  *   nachbarn: bekannte verknuepfte Belege [{ belegart, vorgang_id }]
  *   einleitung: Treffer aus der Einleitungszeile oder null:
  *               { vorgang_id, exakt, kunde_passt, angebot_beleg_id }
@@ -125,7 +126,18 @@ function findeGeloeschte(gespeichert, listenIds) {
  * Ergebnis: null (nichts aendern) oder
  *   { zuordnung, vorgang_id, vorschlag_vorgang_id, angebot_fuer_vorgang_id }
  */
-function bestimmeZuordnung({ beleg, nachbarn = [], einleitung = null, kandidaten = [], konkurrenz = 0 }) {
+function bestimmeZuordnung(eingabe) {
+  const z = bestimmeOhneSperre(eingabe);
+  // Vom Buero von diesem Vorgang geloest (#368): nicht wieder automatisch dorthin
+  const gesperrt = eingabe.beleg.gesperrt_vorgang_id;
+  if (!z || !gesperrt) return z;
+  if (z.vorgang_id === gesperrt || z.angebot_fuer_vorgang_id === gesperrt) {
+    return { zuordnung: 'offen', vorgang_id: null, vorschlag_vorgang_id: null, angebot_fuer_vorgang_id: null };
+  }
+  return z.vorschlag_vorgang_id === gesperrt ? { ...z, vorschlag_vorgang_id: null } : z;
+}
+
+function bestimmeOhneSperre({ beleg, nachbarn = [], einleitung = null, kandidaten = [], konkurrenz = 0 }) {
   if (FESTE_ZUORDNUNG.has(beleg.zuordnung)) return null;
 
   const treffer = einleitung && einleitung.kunde_passt ? einleitung : null;
@@ -329,7 +341,7 @@ async function syncKunde({ pool, lexware }, kunde) {
 
   // B) Offene Belege des Kunden zuordnen, AN → AB → LS → RE
   const [offene] = await pool.execute(
-    `SELECT id, lexware_id, belegart, zuordnung, einleitung_zeile FROM metall_beleg
+    `SELECT id, lexware_id, belegart, zuordnung, einleitung_zeile, gesperrt_vorgang_id FROM metall_beleg
      WHERE lexware_kontakt_id = ? AND zuordnung = 'offen'
      ORDER BY FIELD(belegart, ${REIHENFOLGE.map(() => '?').join(', ')}), belegdatum, id`,
     [kunde.lexware_kontakt_id, ...REIHENFOLGE]

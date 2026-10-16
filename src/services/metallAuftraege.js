@@ -1,7 +1,8 @@
 /**
  * Alle Auftraege Metallarbeiten (#367): Suche, Filter, Belegkette und Status pro Vorgang.
  *
- * Der Status wird nicht gespeichert, sondern aus den Belegen und fertigung_am berechnet
+ * Der Status wird nicht gespeichert, sondern aus den Belegen und der Fertigung berechnet
+ * (fertigung_begonnen_am = In Arbeit, fertigung_am = Fertig, #368)
  * (docs/db-schema.md): Anfrage → Angebot → Auftrag → Fertigung → Lieferung → Rechnung.
  * Stornierte und archivierte Belege zaehlen nicht (wie AB_ZAEHLT im Sync).
  *
@@ -56,7 +57,8 @@ function berechneStatus(v, kette) {
   }
   if (kette.LS.length) return s('abrechnung', 'Geliefert, Rechnung folgt');
   if (kette.AB.length) {
-    return v.fertigung_am ? s('lieferung', 'Bereit zur Lieferung') : s('fertigung', 'In Fertigung');
+    if (v.fertigung_am) return s('lieferung', 'Bereit zur Lieferung');
+    return v.fertigung_begonnen_am ? s('fertigung', 'In Fertigung') : s('geplant', 'Auftrag bestätigt');
   }
   const an = kette.AN[kette.AN.length - 1];
   if (an) {
@@ -69,9 +71,48 @@ function berechneStatus(v, kette) {
   return s('anfrage', 'Angebot folgt');
 }
 
+/** Fertigungsstufe aus den beiden Zeitpunkten: geplant | in_arbeit | fertig */
+const fertigungsStufe = v => (v.fertigung_am ? 'fertig' : v.fertigung_begonnen_am ? 'in_arbeit' : 'geplant');
+
+const RE_TEXT = { draft: 'Entwurf', open: 'offen', overdue: 'überfällig', paid: 'bezahlt', paidoff: 'ausgebucht' };
+const AN_TEXT = { draft: 'Entwurf', open: 'liegt vor', accepted: 'angenommen', rejected: 'abgelehnt' };
+
+/**
+ * Statusleiste Anfrage → Angebot → Auftrag → Fertigung → Lieferung → Rechnung (#368).
+ * Ergebnis: [{ schritt, zustand: done|current|todo|skip, info }]. Bei einer Nachbestellung
+ * ohne Angebot steht „Angebot: entfällt“, bei einer AB ohne Angebot „ohne Angebot“. Abgebrochen oder abgeschlossen: kein aktueller Schritt.
+ */
+function statusleiste(v, kette) {
+  const letzte = k => kette[k][kette[k].length - 1];
+  const an = letzte('AN');
+  // Nachbestellung ohne Angebot → „entfällt“; AB ohne Angebot (frei zugeordnet) → „ohne Angebot“
+  const ohneAn = !an && (!!v.vorlage_vorgang_id || kette.AB.length > 0);
+  const nr = d => d.nr || 'Entwurf';
+  const stufe = fertigungsStufe(v);
+  const reOffen = kette.RE.filter(r => !BEZAHLT.includes(r.status));
+  const schritte = [
+    { schritt: 'Anfrage', done: true, info: v.vorlage_vorgang_id ? 'Nachbestellung' : { anfrage: 'Kundenanfrage', annahme: 'Online-Annahme' }[v.herkunft] || 'Büro' },
+    { schritt: 'Angebot', skip: ohneAn, done: !!an && (kette.AB.length > 0 || an.status === 'accepted'),
+      info: ohneAn ? (v.vorlage_vorgang_id ? 'entfällt' : 'ohne Angebot') : an ? `${nr(an)} · ${AN_TEXT[an.status] || an.status}` : 'folgt' },
+    { schritt: 'Auftrag', done: kette.AB.length > 0, info: kette.AB.length ? kette.AB.map(nr).join(', ') : '–' },
+    { schritt: 'Fertigung', done: stufe === 'fertig' || kette.LS.length > 0,
+      info: stufe === 'fertig' || kette.LS.length ? 'fertig' : stufe === 'in_arbeit' ? 'in Arbeit' : 'geplant' },
+    { schritt: 'Lieferung', done: kette.LS.length > 0, info: kette.LS.length ? kette.LS.map(nr).join(', ') : '–' },
+    { schritt: 'Rechnung', done: kette.RE.length > 0 && reOffen.length === 0,
+      info: !kette.RE.length ? '–' : reOffen.length ? reOffen.map(r => `${nr(r)} ${RE_TEXT[r.status] || r.status}`).join(', ') : 'bezahlt' },
+  ];
+  const aktiv = !v.abgebrochen_am;
+  let gefunden = false;
+  return schritte.map(x => {
+    let zustand = x.skip ? 'skip' : x.done ? 'done' : 'todo';
+    if (zustand === 'todo' && aktiv && !gefunden) { zustand = 'current'; gefunden = true; }
+    return { schritt: x.schritt, zustand, info: x.info };
+  });
+}
+
 // Letzte Aenderung: Vorgang selbst, Fertigung/Abbruch und alle Belege
 function letzteAenderung(v, roh = []) {
-  const t = [v.erstellt_am, v.fertigung_am, v.abgebrochen_am, ...roh.flatMap(b => [b.belegdatum, b.lexware_geaendert_am])]
+  const t = [v.erstellt_am, v.fertigung_begonnen_am, v.fertigung_am, v.abgebrochen_am, ...roh.flatMap(b => [b.belegdatum, b.lexware_geaendert_am])]
     .map(zeit);
   const max = Math.max(0, ...t);
   return max ? new Date(max) : null;
@@ -101,7 +142,7 @@ function sucheSql(q) {
     params.push(m, m, m, m, m, m);
   }
   const sql = `SELECT v.id, v.vorgangsnummer, v.bezeichnung, v.kunden_bestellnr, v.herkunft, v.erstellt_am,
-            v.angebot_beleg_id, v.vorlage_vorgang_id, v.fertigung_am, v.abgebrochen_am,
+            v.angebot_beleg_id, v.vorlage_vorgang_id, v.fertigung_begonnen_am, v.fertigung_am, v.abgebrochen_am,
             k.id AS kunde_id, k.name AS kunde_name, k.kdnr, vl.vorgangsnummer AS vorlage_nr
      FROM metall_vorgang v
      JOIN metall_kunde k ON k.id = v.kunde_id
@@ -169,4 +210,7 @@ async function sucheVorgaenge(pool, filter = {}) {
   };
 }
 
-module.exports = { baueKette, berechneStatus, letzteAenderung, pruefeFilter, sucheSql, sucheVorgaenge, TREFFER_MAX };
+module.exports = {
+  baueKette, berechneStatus, statusleiste, fertigungsStufe, letzteAenderung, pruefeFilter, sucheSql, sucheVorgaenge,
+  zaehlt, TREFFER_MAX,
+};
