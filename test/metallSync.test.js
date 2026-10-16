@@ -113,6 +113,11 @@ test('bestimmeZuordnung: AB aus Angebot, genau ein offener Vorgang ohne AB → a
   assert.deepEqual(r, { zuordnung: 'auto', vorgang_id: 13, vorschlag_vorgang_id: null, angebot_fuer_vorgang_id: null });
 });
 
+test('bestimmeZuordnung: Angebot mehrfach umgewandelt → keine auto, Vorschlag für alle ABs', () => {
+  const r = s.bestimmeZuordnung({ beleg: AB_OFFEN, nachbarn: AUS_ANGEBOT, kandidaten: [13], konkurrenz: 1 });
+  assert.deepEqual(r, { zuordnung: 'offen', vorgang_id: null, vorschlag_vorgang_id: 13, angebot_fuer_vorgang_id: null });
+});
+
 test('bestimmeZuordnung: AB aus Angebot, genaue Einleitungszeile allein reicht nicht', () => {
   const r = s.bestimmeZuordnung({ beleg: AB_OFFEN, nachbarn: AUS_ANGEBOT, einleitung: V12, kandidaten: [12, 13] });
   assert.equal(r.zuordnung, 'offen');
