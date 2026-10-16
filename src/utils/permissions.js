@@ -26,6 +26,7 @@ const ALL_AREAS = [
   'zeltplanung',   // neu 14.08.2026 — Zeltplaner
   'metallarbeiten.lieferantenauftrag',
   'metallarbeiten.kunden', // neu 16.10.2026 — Metallkunden-Merker (#366)
+  'metallarbeiten.vorgaenge', // neu 16.10.2026 — Vorgaenge, In Lexware anlegen (#365)
 ];
 
 const ROLE_AREAS = {
@@ -36,9 +37,9 @@ const ROLE_AREAS = {
 
 const ACCESS_TAGS = {
   geschaeftsfuehrung: { label: 'Geschäftsführung', allow: ALL_AREAS },
-  backoffice:         { label: 'Backoffice',       allow: ['gashandel', 'gashandel.preise', 'it', 'content', 'hr.zeitauswertung', 'metallarbeiten.lieferantenauftrag', 'metallarbeiten.kunden'] },
+  backoffice:         { label: 'Backoffice',       allow: ['gashandel', 'gashandel.preise', 'it', 'content', 'hr.zeitauswertung', 'metallarbeiten.lieferantenauftrag', 'metallarbeiten.kunden', 'metallarbeiten.vorgaenge'] },
   gashandel:          { label: 'Gashandel',        allow: ['gashandel', 'gashandel.preise'] }, // Preise ändern auch für Gruppe Gashandel (#328)
-  metallarbeiten:     { label: 'Metallarbeiten',   allow: [ 'metallarbeiten.lieferantenauftrag', 'metallarbeiten.kunden'] },
+  metallarbeiten:     { label: 'Metallarbeiten',   allow: [ 'metallarbeiten.lieferantenauftrag', 'metallarbeiten.kunden', 'metallarbeiten.vorgaenge'] },
   zeltverleih:        { label: 'Zeltverleih',      allow: ['zeltplanung'] },   // neu 14.08.2026 — Zeltplaner
 };
 

@@ -151,6 +151,7 @@ app.use('/api/zeltverleih',    requireArea('zeltplanung'), zeltverleihRouter);  
 app.use('/api/metallarbeiten/lieferanten', require('./src/routes/api/metallarbeiten/lieferanten'));
 app.use('/api/metallarbeiten/lieferantenauftraege', require('./src/routes/api/metallarbeiten/lieferantenauftraege'));
 app.use('/api/metallarbeiten/kunden', require('./src/routes/api/metallarbeiten/kunden'));   // neu 16.10.2026 — Metallkunden-Merker (#366)
+app.use('/api/metallarbeiten/vorgaenge', require('./src/routes/api/metallarbeiten/vorgaenge'));   // neu 16.10.2026 — In Lexware anlegen (#365)
 
 
 // Versionsanzeige (#334): einmal beim Start ermitteln

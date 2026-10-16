@@ -383,7 +383,7 @@ function starteZeitplan() {
 module.exports = {
   ERSTABGLEICH_AB, REIHENFOLGE,
   ersteZeile, belegZeile, bezugZeilen, istGeaendert, abfrageAb, bestimmeZuordnung,
-  syncKunde, syncAlle, starteZeitplan, ladeDoppelteAb,
+  syncKunde, syncAlle, starteZeitplan, ladeDoppelteAb, speichereBeleg, AB_ZAEHLT,
 };
 
 /*
