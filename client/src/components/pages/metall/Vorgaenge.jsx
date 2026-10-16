@@ -179,16 +179,19 @@ export default function Vorgaenge() {
                 </div>
                 {offen && !v.ab_nr && (
                   <div className="mv-item-actions">
-                    {!v.angebot_nr && !v.vorlage_nr && (
-                      <button className="btn btn-ghost" disabled={!!lexBusy} onClick={() => inLexware(v, 'angebot')}>
+                    {/* Neuer Vorgang beginnt immer mit einem Angebot (Konzept Entscheidung 2);
+                        AB nur aus dem Angebot oder bei einer Nachbestellung */}
+                    {!v.angebot_nr && !v.vorlage_nr ? (
+                      <button className="btn btn-primary" disabled={!!lexBusy} onClick={() => inLexware(v, 'angebot')}>
                         {lexBusy === `${v.id}-angebot` ? 'Wird angelegt…' : 'In Lexware: Angebot'}
                       </button>
+                    ) : (
+                      <button className="btn btn-primary" disabled={!!lexBusy}
+                        title={v.angebot_status === 'draft' ? 'Geht erst, wenn das Angebot in Lexware fertiggestellt ist' : ''}
+                        onClick={() => inLexware(v, 'ab')}>
+                        {lexBusy === `${v.id}-ab` ? 'Wird angelegt…' : v.angebot_nr ? 'In Lexware: AB aus Angebot' : 'In Lexware: AB (Nachbestellung)'}
+                      </button>
                     )}
-                    <button className="btn btn-primary" disabled={!!lexBusy || v.angebot_status === 'draft'}
-                      title={v.angebot_status === 'draft' ? 'Angebot erst in Lexware fertigstellen' : ''}
-                      onClick={() => inLexware(v, 'ab')}>
-                      {lexBusy === `${v.id}-ab` ? 'Wird angelegt…' : v.angebot_nr ? 'In Lexware: AB aus Angebot' : 'In Lexware: AB'}
-                    </button>
                   </div>
                 )}
               </div>
