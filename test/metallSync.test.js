@@ -100,9 +100,52 @@ test('bestimmeZuordnung: zwei verschiedene Vorgänge → offen ohne Vorschlag', 
   assert.deepEqual(r, { zuordnung: 'offen', vorgang_id: null, vorschlag_vorgang_id: null, angebot_fuer_vorgang_id: null });
 });
 
-test('bestimmeZuordnung: aus Angebot umgewandelte AB → offen mit Vorschlag (#364)', () => {
-  const r = s.bestimmeZuordnung({ beleg: { belegart: 'orderconfirmation', zuordnung: 'offen' }, nachbarn: [{ belegart: 'quotation', vorgang_id: null }], einleitung: V12 });
+const AB_OFFEN = { belegart: 'orderconfirmation', zuordnung: 'offen' };
+const AUS_ANGEBOT = [{ id: 50, belegart: 'quotation', vorgang_id: null }];
+
+test('bestimmeZuordnung: AB aus Angebot ohne Kandidat → offen, Vorschlag aus Einleitung (#364)', () => {
+  const r = s.bestimmeZuordnung({ beleg: AB_OFFEN, nachbarn: AUS_ANGEBOT, einleitung: V12 });
   assert.deepEqual(r, { zuordnung: 'offen', vorgang_id: null, vorschlag_vorgang_id: 12, angebot_fuer_vorgang_id: null });
+});
+
+test('bestimmeZuordnung: AB aus Angebot, genau ein offener Vorgang ohne AB → auto (#364)', () => {
+  const r = s.bestimmeZuordnung({ beleg: AB_OFFEN, nachbarn: AUS_ANGEBOT, einleitung: V12, kandidaten: [13] });
+  assert.deepEqual(r, { zuordnung: 'auto', vorgang_id: 13, vorschlag_vorgang_id: null, angebot_fuer_vorgang_id: null });
+});
+
+test('bestimmeZuordnung: AB aus Angebot, genaue Einleitungszeile allein reicht nicht', () => {
+  const r = s.bestimmeZuordnung({ beleg: AB_OFFEN, nachbarn: AUS_ANGEBOT, einleitung: V12, kandidaten: [12, 13] });
+  assert.equal(r.zuordnung, 'offen');
+  assert.equal(r.vorgang_id, null);
+});
+
+test('bestimmeZuordnung: AB aus Angebot, mehrere Kandidaten → Vorschlag Einleitung, sonst ältester', () => {
+  const mitEinleitung = s.bestimmeZuordnung({ beleg: AB_OFFEN, nachbarn: AUS_ANGEBOT, einleitung: V12, kandidaten: [11, 12] });
+  assert.equal(mitEinleitung.vorschlag_vorgang_id, 12);
+  // Einleitung zeigt auf einen Vorgang, der schon eine AB hat → ältester Kandidat
+  const einleitungBelegt = s.bestimmeZuordnung({ beleg: AB_OFFEN, nachbarn: AUS_ANGEBOT, einleitung: V12, kandidaten: [13, 14] });
+  assert.equal(einleitungBelegt.vorschlag_vorgang_id, 13);
+  const ohne = s.bestimmeZuordnung({ beleg: AB_OFFEN, nachbarn: AUS_ANGEBOT, kandidaten: [13, 14] });
+  assert.equal(ohne.vorschlag_vorgang_id, 13);
+});
+
+test('bestimmeZuordnung: Verknüpfung zu AB/LS schlägt die Angebotsregel', () => {
+  const r = s.bestimmeZuordnung({ beleg: AB_OFFEN, nachbarn: [...AUS_ANGEBOT, { belegart: 'deliverynote', vorgang_id: 7 }], kandidaten: [13] });
+  assert.equal(r.zuordnung, 'verknuepfung');
+  assert.equal(r.vorgang_id, 7);
+});
+
+test('bestimmeZuordnung: freie AB ohne Nummer, ein Kandidat → nur Vorschlag, nie auto', () => {
+  assert.deepEqual(s.bestimmeZuordnung({ beleg: AB_OFFEN, kandidaten: [13] }),
+    { zuordnung: 'offen', vorgang_id: null, vorschlag_vorgang_id: 13, angebot_fuer_vorgang_id: null });
+  assert.equal(s.bestimmeZuordnung({ beleg: AB_OFFEN, kandidaten: [13, 14] }).vorschlag_vorgang_id, null);
+  // Vorschlag aus der Einleitung geht vor
+  assert.equal(s.bestimmeZuordnung({ beleg: AB_OFFEN, einleitung: { ...V12, exakt: false }, kandidaten: [13] }).vorschlag_vorgang_id, 12);
+});
+
+test('bestimmeZuordnung: Kandidaten wirken nur bei AB', () => {
+  const r = s.bestimmeZuordnung({ beleg: { belegart: 'invoice', zuordnung: 'offen' }, nachbarn: AUS_ANGEBOT, kandidaten: [13] });
+  assert.deepEqual(r, { zuordnung: 'offen', vorgang_id: null, vorschlag_vorgang_id: null, angebot_fuer_vorgang_id: null });
 });
 
 test('bestimmeZuordnung: freie AB/LS/RE mit genauer Einleitungszeile → einleitung', () => {
