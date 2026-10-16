@@ -21,7 +21,6 @@
 
 const { einleitungZeile, setzeEinleitung } = require('./metallVorgang');
 const { belegZeile, bezugZeilen, speichereBeleg, AB_ZAEHLT } = require('./metallSync');
-const { datum } = require('./lexware');
 
 const ABLAUF_TAGE = 30;
 const STEUERSATZ = 19;
@@ -31,6 +30,19 @@ const EINHEIT = 'Stück';
 const POSITION_FELDER = ['type', 'id', 'name', 'description', 'quantity', 'unitName', 'discountPercentage'];
 
 // ── Reine Funktionen ──────────────────────────────────────────────────────────
+
+/**
+ * Datum fuer Lexware-Belege: lokaler Tagesbeginn mit Zeitzone, wie Lexware es selbst
+ * liefert (2026-10-16T00:00:00.000+02:00). Nur 'YYYY-MM-DD' lehnt Lexware mit 400 ab
+ * (Probelauf 16.10.2026).
+ */
+function belegDatum(d) {
+  const zwei = n => String(n).padStart(2, '0');
+  const versatz = -d.getTimezoneOffset();
+  const vz = versatz >= 0 ? '+' : '-';
+  const abs = Math.abs(versatz);
+  return `${d.getFullYear()}-${zwei(d.getMonth() + 1)}-${zwei(d.getDate())}T00:00:00.000${vz}${zwei(Math.floor(abs / 60))}:${zwei(abs % 60)}`;
+}
 
 function betreff(typ, vorgang) {
   return `${typ === 'quotation' ? 'Angebot' : 'Auftragsbestätigung'} · ${vorgang.vorgangsnummer}`;
@@ -68,8 +80,8 @@ function angebotEntwurf({ vorgang, kontaktId, jetzt = new Date() }) {
   const ablauf = new Date(jetzt);
   ablauf.setDate(ablauf.getDate() + ABLAUF_TAGE);
   return {
-    voucherDate: datum(jetzt),
-    expirationDate: datum(ablauf),
+    voucherDate: belegDatum(jetzt),
+    expirationDate: belegDatum(ablauf),
     address: { contactId: kontaktId },
     lineItems: [platzhalterPosition(vorgang)],
     totalPrice: { currency: 'EUR' },
@@ -84,7 +96,7 @@ function abEntwurf({ vorgang, kontaktId, quelle = null, jetzt = new Date() }) {
   const taxConditions = quelle?.taxConditions ? { ...quelle.taxConditions } : { taxType: 'net' };
   const positionen = uebernimmPositionen(quelle, taxConditions.taxType);
   const p = {
-    voucherDate: datum(jetzt),
+    voucherDate: belegDatum(jetzt),
     address: { contactId: kontaktId },
     lineItems: positionen.length ? positionen : [platzhalterPosition(vorgang)],
     totalPrice: { currency: quelle?.totalPrice?.currency || 'EUR' },
@@ -202,7 +214,7 @@ async function inLexwareAnlegen(deps, vorgangId, { art, employeeId = null, jetzt
 }
 
 module.exports = {
-  betreff, platzhalterPosition, uebernimmPositionen, angebotEntwurf, abEntwurf,
+  belegDatum, betreff, platzhalterPosition, uebernimmPositionen, angebotEntwurf, abEntwurf,
   planeEntwurf, inLexwareAnlegen,
 };
 
