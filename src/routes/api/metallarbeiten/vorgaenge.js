@@ -5,8 +5,10 @@ const requireArea = require('../../../middleware/requireArea');
 const db = require('../../../db');
 const lexware = require('../../../services/lexware');
 const metallAnlegen = require('../../../services/metallAnlegen');
+const metallVorgang = require('../../../services/metallVorgang');
+const { AB_ZAEHLT } = require('../../../services/metallSync');
 
-// Vorgaenge (#365). Anlegen im Portal (POST /) kommt mit #384, die Ansichten mit #367/#368.
+// Vorgaenge: anlegen (#384), In Lexware anlegen (#365). Suche/Filter und Detail kommen mit #367/#368.
 const GATE = requireArea('metallarbeiten.vorgaenge');
 
 // Lokal, wie in kunden.js — keine geteilte Utility im Projekt
@@ -25,6 +27,73 @@ function sendeFehler(res, err, was) {
   console.error(`${was}:`, err);
   return res.status(500).json({ error: `${was} fehlgeschlagen` });
 }
+
+const LISTE_MAX = 100;
+
+// Juengste Vorgaenge mit Kunde, Angebot und juengster zaehlender AB (fuer die Buttons „In Lexware anlegen“)
+router.get('/', requireAuth, GATE, async (req, res) => {
+  const [rows] = await db.getPool().query(
+    `SELECT v.id, v.vorgangsnummer, v.bezeichnung, v.kunden_bestellnr, v.herkunft, v.erstellt_am,
+            v.abgebrochen_am, k.id AS kunde_id, k.name AS kunde_name, k.kdnr,
+            an.belegnummer AS angebot_nr, an.belegstatus AS angebot_status,
+            vl.vorgangsnummer AS vorlage_nr,
+            (SELECT COALESCE(a.belegnummer, 'Entwurf') FROM metall_beleg a
+              WHERE a.vorgang_id = v.id AND ${AB_ZAEHLT} ORDER BY a.belegdatum DESC, a.id DESC LIMIT 1) AS ab_nr
+     FROM metall_vorgang v
+     JOIN metall_kunde k ON k.id = v.kunde_id
+     LEFT JOIN metall_beleg an ON an.id = v.angebot_beleg_id
+     LEFT JOIN metall_vorgang vl ON vl.id = v.vorlage_vorgang_id
+     ORDER BY v.id DESC LIMIT ${LISTE_MAX}`
+  );
+  res.json(rows);
+});
+
+// Aktive Metallkunden fuer das Formular (eigener Bereich, unabhaengig von metallarbeiten.kunden)
+router.get('/kunden', requireAuth, GATE, async (req, res) => {
+  const [rows] = await db.getPool().execute('SELECT id, name, kdnr FROM metall_kunde WHERE aktiv = 1 ORDER BY name');
+  res.json(rows);
+});
+
+// Auswahl fuer das Formular: Angebote und fruehere Vorgaenge eines Kunden
+router.get('/auswahl', requireAuth, GATE, async (req, res) => {
+  const pool = db.getPool();
+  const [[kunde]] = await pool.execute('SELECT id, lexware_kontakt_id FROM metall_kunde WHERE id = ? AND aktiv = 1', [req.query.kunde_id || 0]);
+  if (!kunde) return res.status(404).json({ error: 'Metallkunde nicht gefunden' });
+  const [angebote] = await pool.execute(
+    `SELECT b.id, b.belegnummer, b.belegstatus, b.belegdatum, b.betrag_netto,
+            (SELECT COUNT(*) FROM metall_vorgang v WHERE v.angebot_beleg_id = b.id) AS vorgaenge
+     FROM metall_beleg b
+     WHERE b.lexware_kontakt_id = ? AND b.belegart = 'quotation' AND b.archiviert = 0
+       AND b.belegstatus NOT IN ('voided', 'rejected')
+     ORDER BY b.belegdatum DESC, b.id DESC LIMIT 50`,
+    [kunde.lexware_kontakt_id]
+  );
+  const [vorgaenge] = await pool.execute(
+    `SELECT id, vorgangsnummer, bezeichnung, erstellt_am FROM metall_vorgang
+     WHERE kunde_id = ? AND abgebrochen_am IS NULL ORDER BY id DESC LIMIT 50`,
+    [kunde.id]
+  );
+  res.json({ angebote, vorgaenge });
+});
+
+// Vorgang anlegen (Buero, Auftrag per Telefon/Mail)
+router.post('/', requireAuth, GATE, async (req, res) => {
+  const b = req.body || {};
+  try {
+    const employeeId = await getEmployeeId(req.session.user.authentikUid);
+    const vorgang = await metallVorgang.legeVorgangAn(db.getPool(), {
+      kundeId: b.kunde_id,
+      bezeichnung: b.bezeichnung,
+      kundenBestellnr: b.kunden_bestellnr,
+      angebotBelegId: b.angebot_beleg_id,
+      vorlageVorgangId: b.vorlage_vorgang_id,
+      herkunft: 'buero',
+    }, { employeeId });
+    res.status(201).json(vorgang);
+  } catch (err) {
+    sendeFehler(res, err, 'Vorgang anlegen');
+  }
+});
 
 // „In Lexware anlegen“: Entwurf (Angebot oder AB) anlegen und dem Vorgang zuordnen
 router.post('/:id/lexware', requireAuth, GATE, async (req, res) => {
