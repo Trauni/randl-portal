@@ -102,14 +102,14 @@ test('abEntwurf ohne Quelle: Platzhalter, net, nur Vorgangszeile', () => {
 
 // ── inLexwareAnlegen mit nachgebautem Pool und Lexware ──
 
-function fakeDeps({ vorgang, angebot = null, abVorhanden = null }) {
+function fakeDeps({ vorgang, angebot = null, abVorhanden = null, angebotStatus = 'accepted' }) {
   const calls = [];
   const pool = {
     async execute(sql, params) {
       calls.push({ sql, params });
       if (/FROM metall_vorgang v\s+JOIN metall_kunde/.test(sql)) return [[vorgang ? { ...vorgang, lexware_kontakt_id: 'k1' } : undefined]];
       if (/SELECT a\.belegnummer FROM metall_beleg a/.test(sql)) return [[abVorhanden || undefined]];
-      if (/SELECT lexware_id, belegnummer, belegstatus FROM metall_beleg/.test(sql)) return [[angebot || undefined]];
+      if (/SELECT lexware_id, belegnummer FROM metall_beleg/.test(sql)) return [[angebot || undefined]];
       if (/^INSERT INTO metall_beleg /.test(sql.trim())) return [{ affectedRows: 1 }];
       if (/SELECT id FROM metall_beleg WHERE lexware_id/.test(sql)) return [[{ id: 77 }]];
       return [{ affectedRows: 1 }];
@@ -119,7 +119,7 @@ function fakeDeps({ vorgang, angebot = null, abVorhanden = null }) {
   const lex = {
     gesendet: [],
     async getVoucher(typ, id) {
-      if (id === 'an-1') return ANGEBOT;
+      if (id === 'an-1') return { ...ANGEBOT, voucherStatus: angebotStatus };
       return { id, voucherStatus: 'draft', title: 'neu', introduction: 'x', address: { contactId: 'k1' }, relatedVouchers: id === 'neu-ab' ? [{ id: 'an-1', voucherType: 'quotation' }] : [] };
     },
     async createVoucher(typ, payload, opts) {
@@ -153,14 +153,22 @@ test('inLexwareAnlegen angebot: Vorgang bekommt angebot_beleg_id, Beleg ohne vor
   assert.deepEqual(calls.find(c => /SET angebot_beleg_id/.test(c.sql)).params, [77, 5]);
 });
 
-test('inLexwareAnlegen: Sperren vor jedem Lexware-Aufruf', async () => {
+test('inLexwareAnlegen: Angebot in Lexware schon fertig, DB noch Entwurf → AB geht', async () => {
+  const { deps, lex } = fakeDeps({ vorgang: { ...V, angebot_beleg_id: 9 }, angebot: { lexware_id: 'an-1', belegnummer: 'AG0084', belegstatus: 'draft' }, angebotStatus: 'open' });
+  await a.inLexwareAnlegen(deps, 5, { art: 'ab', jetzt: JETZT });
+  assert.equal(lex.gesendet.length, 1);
+});
+
+test('inLexwareAnlegen: Sperren vor jedem Lexware-Anlegen', async () => {
   const faelle = [
     [{ vorgang: null }, 'ab', 404],
     [{ vorgang: { ...V, abgebrochen_am: new Date() } }, 'ab', 400],
     [{ vorgang: V }, 'rechnung', 400],
     [{ vorgang: { ...V, angebot_beleg_id: 9 } }, 'angebot', 409],
     [{ vorgang: V, abVorhanden: { belegnummer: 'AB0100' } }, 'ab', 409],
-    [{ vorgang: { ...V, angebot_beleg_id: 9 }, angebot: { lexware_id: 'an-1', belegstatus: 'draft' } }, 'ab', 409],
+    [{ vorgang: { ...V, angebot_beleg_id: 9 }, angebot: { lexware_id: 'an-1', belegnummer: 'AG0084' }, angebotStatus: 'draft' }, 'ab', 409],
+    // neuer Vorgang ohne Angebot und ohne Vorlage: immer erst ein Angebot
+    [{ vorgang: { ...V, angebot_beleg_id: null, vorlage_vorgang_id: null } }, 'ab', 409],
   ];
   for (const [opt, art, status] of faelle) {
     const { deps, lex } = fakeDeps(opt);

@@ -6,9 +6,11 @@
  *   art 'angebot': Angebots-Entwurf mit Platzhalter-Position (Bezeichnung des Vorgangs),
  *                  danach metall_vorgang.angebot_beleg_id.
  *   art 'ab':      AB-Entwurf. Hat der Vorgang ein Angebot → AB aus dem Angebot
- *                  (precedingSalesVoucherId, Positionen uebernommen). Sonst bei einer
+ *                  (precedingSalesVoucherId, Positionen uebernommen). Bei einer
  *                  Wiederholung (vorlage_vorgang_id) die Positionen der letzten AB der
- *                  Vorlage, ohne Verknuepfung. Sonst Platzhalter-Position.
+ *                  Vorlage, ohne Verknuepfung (Platzhalter, falls die Vorlage keine hat).
+ *                  Ein neuer Vorgang ohne beides beginnt immer mit einem Angebot
+ *                  (Konzept Entscheidung 2) → AB wird abgelehnt.
  *
  * Einleitung: erste Zeile ist immer die Zeile des Vorgangs. Eine geerbte Vorgangszeile
  * (Mehrfachbestellung eines Angebots) wird ersetzt, der restliche Text bleibt.
@@ -136,11 +138,15 @@ async function ladeVorgang(pool, vorgangId) {
 /** Vorlage fuer die AB: { voucher, vorgaenger } oder null */
 async function ladeQuelle({ pool, lexware }, v) {
   if (v.angebot_beleg_id) {
-    const [[an]] = await pool.execute('SELECT lexware_id, belegnummer, belegstatus FROM metall_beleg WHERE id = ?', [v.angebot_beleg_id]);
+    const [[an]] = await pool.execute('SELECT lexware_id, belegnummer FROM metall_beleg WHERE id = ?', [v.angebot_beleg_id]);
     if (!an) throw fehler(409, 'Angebot des Vorgangs nicht gefunden');
-    // Entwuerfe lassen sich in Lexware nicht weiterfuehren
-    if (an.belegstatus === 'draft') throw fehler(409, 'Angebot ist noch ein Entwurf – erst in Lexware fertigstellen');
-    return { voucher: await lexware.getVoucher('quotation', an.lexware_id), vorgaenger: an.lexware_id };
+    // Status direkt aus Lexware, nicht aus der DB: die kennt ein eben fertiggestelltes
+    // Angebot erst nach dem naechsten Sync. Entwuerfe lassen sich nicht weiterfuehren.
+    const voucher = await lexware.getVoucher('quotation', an.lexware_id);
+    if (voucher.voucherStatus === 'draft') {
+      throw fehler(409, `Angebot${an.belegnummer ? ` ${an.belegnummer}` : ''} ist noch ein Entwurf – erst in Lexware fertigstellen`);
+    }
+    return { voucher, vorgaenger: an.lexware_id };
   }
   if (v.vorlage_vorgang_id) {
     const [[ab]] = await pool.execute(
@@ -169,6 +175,9 @@ async function planeEntwurf(deps, vorgangId, { art, jetzt = new Date() }) {
 
   const [[ab]] = await pool.execute(`SELECT a.belegnummer FROM metall_beleg a WHERE a.vorgang_id = ? AND ${AB_ZAEHLT} LIMIT 1`, [v.id]);
   if (ab) throw fehler(409, `Vorgang hat schon eine AB (${ab.belegnummer || 'Entwurf'})`);
+  if (!v.angebot_beleg_id && !v.vorlage_vorgang_id) {
+    throw fehler(409, 'Neuer Vorgang: zuerst ein Angebot anlegen, die AB entsteht daraus');
+  }
   const quelle = await ladeQuelle(deps, v);
   return {
     vorgang: v,
