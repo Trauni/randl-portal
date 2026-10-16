@@ -19,6 +19,19 @@ const ANGEBOT = {
   ],
 };
 
+// Erwartung mit der Zeitzone der Testumgebung rechnen (Server: Europe/Berlin)
+function erwartet(jahr, monat, tag) {
+  const d = new Date(jahr, monat - 1, tag);
+  const v = -d.getTimezoneOffset();
+  const z = n => String(n).padStart(2, '0');
+  return `${jahr}-${z(monat)}-${z(tag)}T00:00:00.000${v >= 0 ? '+' : '-'}${z(Math.floor(Math.abs(v) / 60))}:${z(Math.abs(v) % 60)}`;
+}
+
+test('belegDatum: Tagesbeginn mit Zeitzone, nie nur YYYY-MM-DD', () => {
+  assert.equal(a.belegDatum(JETZT), erwartet(2026, 10, 16));
+  assert.match(a.belegDatum(JETZT), /^\d{4}-\d{2}-\d{2}T00:00:00\.000[+-]\d{2}:\d{2}$/);
+});
+
 test('betreff: Belegart · Vorgangsnummer', () => {
   assert.equal(a.betreff('quotation', V), 'Angebot · V-26-0012');
   assert.equal(a.betreff('orderconfirmation', V), 'Auftragsbestätigung · V-26-0012');
@@ -27,8 +40,8 @@ test('betreff: Belegart · Vorgangsnummer', () => {
 test('angebotEntwurf: Platzhalter-Position, Ablauf in 30 Tagen, Vorgangszeile', () => {
   const p = a.angebotEntwurf({ vorgang: V, kontaktId: 'k1', jetzt: JETZT });
   assert.deepEqual(p, {
-    voucherDate: '2026-10-16',
-    expirationDate: '2026-11-15',
+    voucherDate: erwartet(2026, 10, 16),
+    expirationDate: erwartet(2026, 11, 15),
     address: { contactId: 'k1' },
     lineItems: [{ type: 'custom', name: 'Geländer Terrasse', quantity: 1, unitName: 'Stück',
       unitPrice: { currency: 'EUR', netAmount: 0, taxRatePercentage: 19 } }],
