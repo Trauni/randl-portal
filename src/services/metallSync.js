@@ -12,13 +12,19 @@
  * Zuordnung (bestimmeZuordnung):
  *   - Schon zugeordnet (api, verknuepfung, einleitung, auto, manuell, ignoriert) → bleibt.
  *   - AB/LS/RE mit verknuepftem AB/LS/RE, der genau einen Vorgang hat → 'verknuepfung'.
- *   - AB, die aus einem Angebot umgewandelt wurde → bleibt offen, mit Vorschlag aus dem
- *     Einleitungstext. Das Angebot kann zu mehreren Vorgaengen gehoeren und die AB erbt
- *     dessen Einleitungszeile; die Regel "genau ein offener Vorgang ohne AB" ist #364.
+ *   - AB, die aus einem Angebot umgewandelt wurde (#364): Das Angebot kann zu mehreren
+ *     Vorgaengen gehoeren und die AB erbt dessen Einleitungszeile, die zaehlt deshalb nicht.
+ *     Gibt es zum Angebot genau einen offenen Vorgang ohne AB → 'auto', sonst offen mit
+ *     Vorschlag (Einleitung, wenn noch ohne AB, sonst der aelteste Kandidat).
  *   - Sonst Vorgangsnummer genau in der ersten Zeile des Einleitungstexts, Vorgang gehoert
  *     zum selben Kunden → 'einleitung'. Angebote haengen dann ueber
  *     metall_vorgang.angebot_beleg_id am Vorgang (nur wenn dort noch keins steht).
- *   - Alles andere → 'offen' (Eingang "Belege zuordnen"), ggf. mit Vorschlag.
+ *   - Alles andere → 'offen' (Eingang "Belege zuordnen"), ggf. mit Vorschlag. Eine freie AB
+ *     (ohne Verknuepfung, ohne Nummer) bekommt den Vorschlag, wenn der Kunde genau einen
+ *     offenen Vorgang ohne AB hat – automatisch zugeordnet wird sie nicht.
+ *
+ * Zaehlende AB: nicht archiviert, nicht storniert (docs/lexware-api.md). Zwei zaehlende ABs
+ * im selben Vorgang → Hinweis "doppelte AB pruefen" (ladeDoppelteAb, stat.doppelte_ab).
  *
  * Der Sync-Stand braucht keine eigene Tabelle: juengstes lexware_geaendert_am der Belege
  * des Kunden minus PUFFER_TAGE.
@@ -31,6 +37,8 @@ const PUFFER_TAGE = 1;
 const REIHENFOLGE = ['quotation', 'orderconfirmation', 'deliverynote', 'invoice'];
 const FESTE_ZUORDNUNG = new Set(['api', 'verknuepfung', 'einleitung', 'auto', 'manuell', 'ignoriert']);
 const EINLEITUNG_MAX = 255; // metall_beleg.einleitung_zeile
+// AB, die fuer den Vorgang zaehlt (Alias a)
+const AB_ZAEHLT = "a.belegart = 'orderconfirmation' AND a.archiviert = 0 AND a.belegstatus <> 'voided'";
 
 // ── Reine Funktionen ──────────────────────────────────────────────────────────
 
@@ -100,10 +108,12 @@ function abfrageAb(juengsteAenderung) {
  *   nachbarn: bekannte verknuepfte Belege [{ belegart, vorgang_id }]
  *   einleitung: Treffer aus der Einleitungszeile oder null:
  *               { vorgang_id, exakt, kunde_passt, angebot_beleg_id }
+ *   kandidaten: nur fuer AB – offene Vorgaenge des Kunden ohne zaehlende AB [vorgang_id],
+ *               aelteste zuerst; bei AB aus Angebot nur die Vorgaenge dieses Angebots
  * Ergebnis: null (nichts aendern) oder
  *   { zuordnung, vorgang_id, vorschlag_vorgang_id, angebot_fuer_vorgang_id }
  */
-function bestimmeZuordnung({ beleg, nachbarn = [], einleitung = null }) {
+function bestimmeZuordnung({ beleg, nachbarn = [], einleitung = null, kandidaten = [] }) {
   if (FESTE_ZUORDNUNG.has(beleg.zuordnung)) return null;
 
   const treffer = einleitung && einleitung.kunde_passt ? einleitung : null;
@@ -123,12 +133,21 @@ function bestimmeZuordnung({ beleg, nachbarn = [], einleitung = null }) {
   }
   if (vorgaenge.length > 1) return { ...offen, vorschlag_vorgang_id: null }; // widerspruechlich
 
-  // Aus einem Angebot umgewandelte AB: Einleitungszeile ist geerbt → nur Vorschlag (#364)
-  if (beleg.belegart === 'orderconfirmation' && nachbarn.some(n => n.belegart === 'quotation')) return offen;
+  const istAb = beleg.belegart === 'orderconfirmation';
+
+  // Aus einem Angebot umgewandelte AB: Einleitungszeile ist geerbt, zaehlt nur als Vorschlag
+  if (istAb && nachbarn.some(n => n.belegart === 'quotation')) {
+    if (kandidaten.length === 1) {
+      return { zuordnung: 'auto', vorgang_id: kandidaten[0], vorschlag_vorgang_id: null, angebot_fuer_vorgang_id: null };
+    }
+    const besser = kandidaten.includes(vorschlag) ? vorschlag : (kandidaten[0] ?? vorschlag);
+    return { ...offen, vorschlag_vorgang_id: besser };
+  }
 
   if (treffer?.exakt) {
     return { zuordnung: 'einleitung', vorgang_id: treffer.vorgang_id, vorschlag_vorgang_id: null, angebot_fuer_vorgang_id: null };
   }
+  if (istAb && !vorschlag && kandidaten.length === 1) return { ...offen, vorschlag_vorgang_id: kandidaten[0] };
   return offen;
 }
 
@@ -185,6 +204,37 @@ async function ladeEinleitung(pool, beleg, kundeId) {
   return { vorgang_id: v.id, exakt: gelesen.exakt, kunde_passt: v.kunde_id === kundeId, angebot_beleg_id: v.angebot_beleg_id };
 }
 
+/**
+ * Kandidaten fuer eine AB: offene Vorgaenge des Kunden ohne zaehlende AB (die AB selbst
+ * ausgenommen). Haengt die AB an Angeboten, nur die Vorgaenge dieser Angebote.
+ */
+async function ladeKandidaten(pool, beleg, kundeId, nachbarn) {
+  const angebote = nachbarn.filter(n => n.belegart === 'quotation').map(n => n.id);
+  const [rows] = await pool.query(
+    `SELECT v.id FROM metall_vorgang v
+     WHERE v.kunde_id = ? AND v.abgebrochen_am IS NULL
+       ${angebote.length ? 'AND v.angebot_beleg_id IN (?)' : ''}
+       AND NOT EXISTS (SELECT 1 FROM metall_beleg a WHERE a.vorgang_id = v.id AND a.id <> ? AND ${AB_ZAEHLT})
+     ORDER BY v.id`,
+    angebote.length ? [kundeId, angebote, beleg.id] : [kundeId, beleg.id]
+  );
+  return rows.map(r => r.id);
+}
+
+/** Vorgaenge des Kunden mit mehr als einer zaehlenden AB → Hinweis "doppelte AB pruefen" */
+async function ladeDoppelteAb(pool, kundeId) {
+  const [rows] = await pool.execute(
+    `SELECT v.id, v.vorgangsnummer, COUNT(*) AS anzahl,
+            GROUP_CONCAT(COALESCE(a.belegnummer, 'Entwurf') ORDER BY a.belegdatum, a.id SEPARATOR ', ') AS abs
+     FROM metall_vorgang v JOIN metall_beleg a ON a.vorgang_id = v.id AND ${AB_ZAEHLT}
+     WHERE v.kunde_id = ? AND v.abgebrochen_am IS NULL
+     GROUP BY v.id, v.vorgangsnummer HAVING COUNT(*) > 1
+     ORDER BY v.id`,
+    [kundeId]
+  );
+  return rows;
+}
+
 async function wendeZuordnungAn(pool, belegId, z) {
   await pool.execute(
     `UPDATE metall_beleg SET zuordnung = ?, vorgang_id = ?, vorschlag_vorgang_id = ?,
@@ -207,7 +257,7 @@ async function wendeZuordnungAn(pool, belegId, z) {
  * Ergebnis: Zaehler fuer das Log.
  */
 async function syncKunde({ pool, lexware }, kunde) {
-  const stat = { gelistet: 0, geholt: 0, neu: 0, zugeordnet: 0, offen: 0, fehler: 0 };
+  const stat = { gelistet: 0, geholt: 0, neu: 0, zugeordnet: 0, offen: 0, fehler: 0, doppelte_ab: 0 };
 
   // A) Belege holen und speichern
   const [[{ juengste }]] = await pool.execute(
@@ -246,15 +296,20 @@ async function syncKunde({ pool, lexware }, kunde) {
     [kunde.lexware_kontakt_id, ...REIHENFOLGE]
   );
   for (const beleg of offene) {
+    const nachbarn = await ladeNachbarn(pool, beleg);
     const z = bestimmeZuordnung({
       beleg,
-      nachbarn: await ladeNachbarn(pool, beleg),
+      nachbarn,
       einleitung: await ladeEinleitung(pool, beleg, kunde.id),
+      kandidaten: beleg.belegart === 'orderconfirmation' ? await ladeKandidaten(pool, beleg, kunde.id, nachbarn) : [],
     });
     if (!z) continue;
     await wendeZuordnungAn(pool, beleg.id, z);
     if (z.zuordnung === 'offen') stat.offen++; else stat.zugeordnet++;
   }
+
+  // C) Hinweis doppelte AB
+  stat.doppelte_ab = (await ladeDoppelteAb(pool, kunde.id)).length;
   return stat;
 }
 
@@ -264,7 +319,7 @@ let laeuft = false;
 async function syncAlle(deps) {
   if (laeuft) return { uebersprungen: true };
   laeuft = true;
-  const summe = { kunden: 0, gelistet: 0, geholt: 0, neu: 0, zugeordnet: 0, offen: 0, fehler: 0 };
+  const summe = { kunden: 0, gelistet: 0, geholt: 0, neu: 0, zugeordnet: 0, offen: 0, fehler: 0, doppelte_ab: 0 };
   try {
     const [kunden] = await deps.pool.execute('SELECT * FROM metall_kunde WHERE aktiv = 1 ORDER BY id');
     for (const kunde of kunden) {
@@ -309,7 +364,7 @@ function starteZeitplan() {
 module.exports = {
   ERSTABGLEICH_AB, REIHENFOLGE,
   ersteZeile, belegZeile, bezugZeilen, istGeaendert, abfrageAb, bestimmeZuordnung,
-  syncKunde, syncAlle, starteZeitplan,
+  syncKunde, syncAlle, starteZeitplan, ladeDoppelteAb,
 };
 
 /*
@@ -341,6 +396,11 @@ if (require.main === module) {
           [arg]
         );
         console.table(belege);
+        const doppelt = await ladeDoppelteAb(deps.pool, kunde.id);
+        if (doppelt.length) {
+          console.log('Doppelte AB pruefen:');
+          console.table(doppelt.map(d => ({ vorgang: d.vorgangsnummer, anzahl: d.anzahl, abs: d.abs })));
+        }
       } else if (befehl === 'vergleich' && arg) {
         // Diagnose: Aenderungsdatum laut Belegliste vs. gespeichert, und was istGeaendert sagt
         const liste = await deps.lexware.listVouchers({ contactId: arg, voucherDateFrom: ERSTABGLEICH_AB });
