@@ -3,9 +3,13 @@
  * und den Vorgaengen zuordnen (#363).
  *
  * Ablauf pro aktivem Metallkunden (metall_kunde.aktiv = 1):
- *   A) Belegliste seit dem letzten Stand holen (erstes Mal: Belege ab ERSTABGLEICH_AB),
+ *   A) Ganze Belegliste des Kunden ab ERSTABGLEICH_AB holen (eine Seite = 250 Belege),
  *      jeden geaenderten Beleg einzeln lesen (nur dort stehen Einleitungstext und
  *      relatedVouchers), in metall_beleg + metall_beleg_bezug speichern.
+ *   A2) In Lexware geloeschte Belege entfernen (#370): was in der DB steht, aber nicht mehr
+ *      in der Liste. Ausgenommen sind Belege der letzten GELOESCHT_KARENZ_MIN Minuten (eben
+ *      vom Portal angelegt) und – als Sicherung gegen eine unvollstaendige Liste – alles,
+ *      wenn auf einmal mehr als die Haelfte (und mehr als GELOESCHT_MAX_OHNE_PRUEFUNG) fehlt.
  *   B) Alle noch offenen Belege des Kunden zuordnen, in der Reihenfolge AN → AB → LS → RE,
  *      damit ein LS seine gerade zugeordnete AB schon sieht.
  *
@@ -27,14 +31,15 @@
  * Zaehlende AB: nicht archiviert, nicht storniert (docs/lexware-api.md). Zwei zaehlende ABs
  * im selben Vorgang → Hinweis "doppelte AB pruefen" (ladeDoppelteAb, stat.doppelte_ab).
  *
- * Der Sync-Stand braucht keine eigene Tabelle: juengstes lexware_geaendert_am der Belege
- * des Kunden minus PUFFER_TAGE.
+ * Frueher holte der Sync nur die seit dem letzten Stand geaenderten Belege; daran waren
+ * Loeschungen nicht zu erkennen. Webhooks (#383) koennen das spaeter ersetzen.
  */
 
 const { leseEinleitung } = require('./metallVorgang');
 
 const ERSTABGLEICH_AB = '2025-01-01'; // Entscheidung 16.10.2026
-const PUFFER_TAGE = 1;
+const GELOESCHT_KARENZ_MIN = 10;
+const GELOESCHT_MAX_OHNE_PRUEFUNG = 3;
 const REIHENFOLGE = ['quotation', 'orderconfirmation', 'deliverynote', 'invoice'];
 const FESTE_ZUORDNUNG = new Set(['api', 'verknuepfung', 'einleitung', 'auto', 'manuell', 'ignoriert']);
 const EINLEITUNG_MAX = 255; // metall_beleg.einleitung_zeile
@@ -95,12 +100,16 @@ function istGeaendert(listenEintrag, bestehend) {
   return Math.abs(neu - alt) > 1000;
 }
 
-/** Ab wann fragt der Sync? Erstabgleich nach Belegdatum, sonst nach Aenderungsdatum */
-function abfrageAb(juengsteAenderung) {
-  if (!juengsteAenderung) return { voucherDateFrom: ERSTABGLEICH_AB };
-  const d = new Date(juengsteAenderung);
-  d.setDate(d.getDate() - PUFFER_TAGE);
-  return { updatedDateFrom: d };
+/**
+ * In Lexware geloeschte Belege bestimmen.
+ *   gespeichert: Belege des Kunden aus der DB, ohne die eben angelegten [{ id, lexware_id, ... }]
+ *   listenIds:   Set der Lexware-IDs aus der aktuellen Belegliste
+ * Ergebnis: { geloescht: [...], verdacht } — verdacht = zu viele auf einmal, nichts loeschen
+ */
+function findeGeloeschte(gespeichert, listenIds) {
+  const fehlend = gespeichert.filter(b => !listenIds.has(b.lexware_id));
+  const verdacht = fehlend.length > GELOESCHT_MAX_OHNE_PRUEFUNG && fehlend.length * 2 > gespeichert.length;
+  return { geloescht: verdacht ? [] : fehlend, verdacht };
 }
 
 /**
@@ -275,14 +284,10 @@ async function wendeZuordnungAn(pool, belegId, z) {
  * Ergebnis: Zaehler fuer das Log.
  */
 async function syncKunde({ pool, lexware }, kunde) {
-  const stat = { gelistet: 0, geholt: 0, neu: 0, zugeordnet: 0, offen: 0, fehler: 0, doppelte_ab: 0 };
+  const stat = { gelistet: 0, geholt: 0, neu: 0, geloescht: 0, zugeordnet: 0, offen: 0, fehler: 0, doppelte_ab: 0 };
 
   // A) Belege holen und speichern
-  const [[{ juengste }]] = await pool.execute(
-    'SELECT MAX(lexware_geaendert_am) AS juengste FROM metall_beleg WHERE lexware_kontakt_id = ?',
-    [kunde.lexware_kontakt_id]
-  );
-  const liste = (await lexware.listVouchers({ contactId: kunde.lexware_kontakt_id, ...abfrageAb(juengste) }))
+  const liste = (await lexware.listVouchers({ contactId: kunde.lexware_kontakt_id, voucherDateFrom: ERSTABGLEICH_AB }))
     .filter(e => REIHENFOLGE.includes(e.voucherType));
   stat.gelistet = liste.length;
 
@@ -304,6 +309,22 @@ async function syncKunde({ pool, lexware }, kunde) {
       stat.fehler++;
       console.error(`[Metall-Sync] Beleg ${eintrag.voucherNumber || eintrag.id}:`, err.message);
     }
+  }
+
+  // A2) In Lexware geloeschte Belege entfernen (Bezuege per CASCADE, angebot_beleg_id → NULL)
+  const [gespeichert] = await pool.execute(
+    `SELECT id, lexware_id, belegnummer, zuordnung, vorgang_id FROM metall_beleg
+     WHERE lexware_kontakt_id = ? AND (belegdatum IS NULL OR belegdatum >= ?)
+       AND erstellt_am < NOW() - INTERVAL ${GELOESCHT_KARENZ_MIN} MINUTE`,
+    [kunde.lexware_kontakt_id, ERSTABGLEICH_AB]
+  );
+  const { geloescht, verdacht } = findeGeloeschte(gespeichert, new Set(liste.map(e => e.id)));
+  if (verdacht) {
+    console.warn(`[Metall-Sync] Kunde ${kunde.kdnr || kunde.id}: viele Belege fehlen in der Lexware-Liste – nichts geloescht, bitte pruefen`);
+  } else if (geloescht.length) {
+    await pool.query('DELETE FROM metall_beleg WHERE id IN (?)', [geloescht.map(b => b.id)]);
+    stat.geloescht = geloescht.length;
+    console.log(`[Metall-Sync] In Lexware geloescht, entfernt: ${geloescht.map(b => `${b.belegnummer || b.lexware_id} (${b.zuordnung})`).join(', ')}`);
   }
 
   // B) Offene Belege des Kunden zuordnen, AN → AB → LS → RE
@@ -338,7 +359,7 @@ let laeuft = false;
 async function syncAlle(deps) {
   if (laeuft) return { uebersprungen: true };
   laeuft = true;
-  const summe = { kunden: 0, gelistet: 0, geholt: 0, neu: 0, zugeordnet: 0, offen: 0, fehler: 0, doppelte_ab: 0 };
+  const summe = { kunden: 0, gelistet: 0, geholt: 0, neu: 0, geloescht: 0, zugeordnet: 0, offen: 0, fehler: 0, doppelte_ab: 0 };
   try {
     const [kunden] = await deps.pool.execute('SELECT * FROM metall_kunde WHERE aktiv = 1 ORDER BY id');
     for (const kunde of kunden) {
@@ -372,7 +393,7 @@ function starteZeitplan() {
     try {
       const r = await syncAlle(standardDeps());
       if (r.uebersprungen) return console.log('[Metall-Sync] voriger Durchgang laeuft noch, uebersprungen');
-      if (r.geholt || r.zugeordnet || r.fehler) console.log('[Metall-Sync]', JSON.stringify(r));
+      if (r.geholt || r.geloescht || r.zugeordnet || r.fehler) console.log('[Metall-Sync]', JSON.stringify(r));
     } catch (err) {
       console.error('[Metall-Sync] Durchgang fehlgeschlagen:', err.message);
     }
@@ -382,7 +403,7 @@ function starteZeitplan() {
 
 module.exports = {
   ERSTABGLEICH_AB, REIHENFOLGE,
-  ersteZeile, belegZeile, bezugZeilen, istGeaendert, abfrageAb, bestimmeZuordnung,
+  ersteZeile, belegZeile, bezugZeilen, istGeaendert, findeGeloeschte, bestimmeZuordnung,
   syncKunde, syncAlle, starteZeitplan, ladeDoppelteAb, speichereBeleg, AB_ZAEHLT,
 };
 
