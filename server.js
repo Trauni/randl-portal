@@ -241,8 +241,10 @@ internalApp.post('/internal/customers/:id/push-ser', async (req, res) => {
     res.status(500).json({ error: 'SER Push fehlgeschlagen: ' + err.message });
   }
 });
+// Metall-Kundenbereich (#373): Vorgaenge, Belege, PDFs – eigenes Secret INTERNAL_METALL_SECRET
+internalApp.use('/internal/metall', require('./src/routes/internal/metall'));
 const INTERNAL_PORT = process.env.INTERNAL_PORT || 3338;
 const INTERNAL_BIND_IP = process.env.INTERNAL_BIND_IP || '172.19.0.1';
 internalApp.listen(INTERNAL_PORT, INTERNAL_BIND_IP, () => {
-  console.log(`✓ Interner SER-Push-Listener läuft auf ${INTERNAL_BIND_IP}:${INTERNAL_PORT}`);
+  console.log(`✓ Interner Listener (SER-Push, Metall) läuft auf ${INTERNAL_BIND_IP}:${INTERNAL_PORT}`);
 });
