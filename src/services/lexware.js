@@ -102,10 +102,12 @@ function createClient({
       try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
 
       if (!res.ok) {
-        // Die eigentliche Ursache (z. B. bei 400/406) steht nur in IssueList
-        const issues = (data?.IssueList || [])
-          .map(i => [i.i18nKey, i.source, i.type].filter(Boolean).join(' / '))
-          .filter(Boolean);
+        // Die eigentliche Ursache (z. B. bei 400/406) steht in IssueList (aelteres Format)
+        // oder in details (neueres Format, z. B. POST /order-confirmations)
+        const issues = [
+          ...(data?.IssueList || []).map(i => [i.i18nKey, i.source, i.type].filter(Boolean).join(' / ')),
+          ...(data?.details || []).map(d => [d.field, d.violation, d.message].filter(Boolean).join(' / ')),
+        ].filter(Boolean);
         const msg = [data?.message || data?.error || `HTTP ${res.status}`, ...issues].join(' – ');
         throw new LexwareError(`Lexware ${method} ${path} (${res.status}): ${msg}`, res.status);
       }

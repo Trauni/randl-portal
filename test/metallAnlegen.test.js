@@ -76,6 +76,13 @@ test('abEntwurf aus Angebot: geerbte Vorgangszeile ersetzt, Rest der Einleitung 
   assert.deepEqual(p.totalPrice, { currency: 'EUR' });
   assert.equal(p.paymentConditions.paymentTermDuration, 14);
   assert.equal(p.expirationDate, undefined);
+  assert.deepEqual(p.shippingConditions, { shippingType: 'none' });
+});
+
+test('abEntwurf: Versandbedingungen der Vorlage-AB werden übernommen', () => {
+  const vorlage = { ...ANGEBOT, shippingConditions: { shippingType: 'delivery', shippingDate: '2026-10-20T00:00:00.000+02:00' } };
+  const p = a.abEntwurf({ vorgang: V, kontaktId: 'k1', quelle: vorlage, jetzt: JETZT });
+  assert.deepEqual(p.shippingConditions, vorlage.shippingConditions);
 });
 
 test('abEntwurf: Einleitung ohne Vorgangszeile → Zeile vorangestellt', () => {
