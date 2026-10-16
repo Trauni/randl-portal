@@ -105,6 +105,9 @@ function abEntwurf({ vorgang, kontaktId, quelle = null, jetzt = new Date() }) {
     introduction: setzeEinleitung(quelle?.introduction, vorgangsZeile(vorgang)),
   };
   if (quelle?.paymentConditions) p.paymentConditions = { ...quelle.paymentConditions };
+  // Pflicht bei der AB (406 ohne, Probelauf 16.10.2026). Das Angebot hat keine; das
+  // Lieferdatum traegt das Buero in Lexware ein.
+  p.shippingConditions = quelle?.shippingConditions ? { ...quelle.shippingConditions } : { shippingType: 'none' };
   return p;
 }
 

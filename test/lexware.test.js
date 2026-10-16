@@ -63,6 +63,11 @@ test('apiCall: Fehlertext enthält IssueList', async () => {
   await assert.rejects(() => c.apiCall('PUT', '/contacts/k1', {}), /406.*Not Acceptable – invalid_value \/ note \/ validation_failure/);
 });
 
+test('apiCall: Fehlertext enthält details (neueres Format)', async () => {
+  const { c } = client([{ status: 406, body: { message: 'Validation failed for request.', details: [{ violation: 'NOTNULL', field: 'shippingConditions', message: 'darf nicht leer sein' }] } }]);
+  await assert.rejects(() => c.apiCall('POST', '/order-confirmations', {}), /406.*Validation failed for request\. – shippingConditions \/ NOTNULL \/ darf nicht leer sein/);
+});
+
 test('Drosselung: zwischen zwei Anfragen liegt der Abstand', async () => {
   const { c, pausen } = client([{ status: 200, body: {} }, { status: 200, body: {} }], { abstandMs: 1000 });
   await Promise.all([c.apiCall('GET', '/a'), c.apiCall('GET', '/b')]);
