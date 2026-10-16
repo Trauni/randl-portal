@@ -1,5 +1,5 @@
-import { NavLink, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { roleFromGroups, tagsFromGroups, hasArea } from '../../utils/permissions';
 
 const Icon = ({ d, size=15 }) => (
@@ -33,11 +33,13 @@ const ICONS = {
   expand:     'M13 5l7 7-7 7M5 5l7 7-7 7',
 };
 
-function NavItem({ to, icon, label, collapsed }) {
+// count: optionale Zahl (z. B. offene Belege), wird nur ab 1 angezeigt
+function NavItem({ to, icon, label, collapsed, count }) {
   return (
-    <NavLink to={to} className={({isActive})=>`nav-item${isActive?' nav-item--active':''}${collapsed?' nav-item--collapsed':''}`} title={collapsed ? label : undefined}>
+    <NavLink to={to} className={({isActive})=>`nav-item${isActive?' nav-item--active':''}${collapsed?' nav-item--collapsed':''}`} title={collapsed ? (count ? `${label} (${count})` : label) : undefined}>
       <span className="nav-icon"><Icon d={ICONS[icon]||ICONS.dashboard}/></span>
       {!collapsed && <span className="nav-label">{label}</span>}
+      {!collapsed && count > 0 && <span className="nav-count">{count}</span>}
     </NavLink>
   );
 }
@@ -75,6 +77,20 @@ export default function Sidebar({ user }) {
   const showLieferantenauftrag = can('metallarbeiten.lieferantenauftrag');
   const showMetallVorgaenge = can('metallarbeiten.vorgaenge');
   const showMetallarbeiten = showLieferantenauftrag || showMetallVorgaenge;
+
+  // Offene Belege fuer „Belege zuordnen“ (#370): beim Seitenwechsel, nach einer Aktion
+  // auf der Seite (Event) und alle 5 Minuten
+  const location = useLocation();
+  const [offeneBelege, setOffeneBelege] = useState(0);
+  useEffect(() => {
+    if (!showMetallVorgaenge) return undefined;
+    const lade = () => fetch('/api/metallarbeiten/zuordnen/anzahl')
+      .then(r => (r.ok ? r.json() : { offen: 0 })).then(d => setOffeneBelege(d.offen || 0)).catch(() => {});
+    lade();
+    window.addEventListener('metall-zuordnen-geaendert', lade);
+    const takt = setInterval(lade, 5 * 60 * 1000);
+    return () => { window.removeEventListener('metall-zuordnen-geaendert', lade); clearInterval(takt); };
+  }, [showMetallVorgaenge, location.pathname]);
   const showHR        = can('hr.urlaubskalender') || can('hr.zeitauswertung') || can('hr.mitarbeiter');
   const showIT        = can('it');
   const showContent   = can('content');
@@ -137,6 +153,7 @@ export default function Sidebar({ user }) {
           {!collapsed && <div className="nav-section-label">Metallarbeiten</div>}
           {collapsed && <div className="nav-section-divider"/>}
           {showMetallVorgaenge && <NavItem to="/metallarbeiten/vorgaenge" icon="orders" label="Vorgänge" collapsed={collapsed}/>}
+          {showMetallVorgaenge && <NavItem to="/metallarbeiten/zuordnen" icon="documents" label="Belege zuordnen" count={offeneBelege} collapsed={collapsed}/>}
           {showLieferantenauftrag && <NavItem to="/metallarbeiten/lieferantenauftraege" icon="metall" label="Lieferantenaufträge" collapsed={collapsed}/>}
         </>}
 
@@ -203,6 +220,7 @@ export default function Sidebar({ user }) {
         .nav-badge{font-size:9px;font-weight:600;background:var(--bg3);color:var(--text3);padding:1px 5px;border-radius:8px;flex-shrink:0;}
         .nav-icon{width:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
         .nav-label{flex:1;overflow:hidden;text-overflow:ellipsis;}
+        .nav-count{font-size:10px;font-weight:700;background:var(--r);color:#fff;min-width:18px;padding:1px 6px;border-radius:9px;text-align:center;flex-shrink:0;box-sizing:border-box;}
         .nav-section-label{padding:14px 16px 4px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);display:flex;align-items:center;justify-content:space-between;gap:6px;}
         .nav-section-tag{font-size:9.5px;font-weight:500;background:var(--bg3);color:var(--text3);padding:1px 6px;border-radius:10px;text-transform:none;letter-spacing:0;white-space:nowrap;flex-shrink:0;}
         .nav-section-divider{height:1px;background:var(--border);margin:6px 8px;}
