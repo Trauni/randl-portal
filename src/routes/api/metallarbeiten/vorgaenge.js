@@ -6,9 +6,9 @@ const db = require('../../../db');
 const lexware = require('../../../services/lexware');
 const metallAnlegen = require('../../../services/metallAnlegen');
 const metallVorgang = require('../../../services/metallVorgang');
-const { AB_ZAEHLT } = require('../../../services/metallSync');
+const metallAuftraege = require('../../../services/metallAuftraege');
 
-// Vorgaenge: anlegen (#384), In Lexware anlegen (#365). Suche/Filter und Detail kommen mit #367/#368.
+// Vorgaenge: Alle Auftraege mit Suche/Filter (#367), anlegen (#384), In Lexware anlegen (#365). Detail kommt mit #368.
 const GATE = requireArea('metallarbeiten.vorgaenge');
 
 // Lokal, wie in kunden.js — keine geteilte Utility im Projekt
@@ -28,24 +28,13 @@ function sendeFehler(res, err, was) {
   return res.status(500).json({ error: `${was} fehlgeschlagen` });
 }
 
-const LISTE_MAX = 100;
-
-// Juengste Vorgaenge mit Kunde, Angebot und juengster zaehlender AB (fuer die Buttons „In Lexware anlegen“)
+// Alle Auftraege (#367): Suche ?q=, Belegart ?art=AN|AB|LS|RE, Status ?status=laufend|abgeschlossen|abgebrochen
 router.get('/', requireAuth, GATE, async (req, res) => {
-  const [rows] = await db.getPool().query(
-    `SELECT v.id, v.vorgangsnummer, v.bezeichnung, v.kunden_bestellnr, v.herkunft, v.erstellt_am,
-            v.abgebrochen_am, k.id AS kunde_id, k.name AS kunde_name, k.kdnr,
-            an.belegnummer AS angebot_nr, an.belegstatus AS angebot_status,
-            vl.vorgangsnummer AS vorlage_nr,
-            (SELECT COALESCE(a.belegnummer, 'Entwurf') FROM metall_beleg a
-              WHERE a.vorgang_id = v.id AND ${AB_ZAEHLT} ORDER BY a.belegdatum DESC, a.id DESC LIMIT 1) AS ab_nr
-     FROM metall_vorgang v
-     JOIN metall_kunde k ON k.id = v.kunde_id
-     LEFT JOIN metall_beleg an ON an.id = v.angebot_beleg_id
-     LEFT JOIN metall_vorgang vl ON vl.id = v.vorlage_vorgang_id
-     ORDER BY v.id DESC LIMIT ${LISTE_MAX}`
-  );
-  res.json(rows);
+  try {
+    res.json(await metallAuftraege.sucheVorgaenge(db.getPool(), req.query));
+  } catch (err) {
+    sendeFehler(res, err, 'Vorgänge laden');
+  }
 });
 
 // Aktive Metallkunden fuer das Formular (eigener Bereich, unabhaengig von metallarbeiten.kunden)

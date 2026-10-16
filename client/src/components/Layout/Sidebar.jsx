@@ -152,7 +152,7 @@ export default function Sidebar({ user }) {
         {showMetallarbeiten&&<>
           {!collapsed && <div className="nav-section-label">Metallarbeiten</div>}
           {collapsed && <div className="nav-section-divider"/>}
-          {showMetallVorgaenge && <NavItem to="/metallarbeiten/vorgaenge" icon="orders" label="Vorgänge" collapsed={collapsed}/>}
+          {showMetallVorgaenge && <NavItem to="/metallarbeiten/vorgaenge" icon="orders" label="Alle Aufträge" collapsed={collapsed}/>}
           {showMetallVorgaenge && <NavItem to="/metallarbeiten/zuordnen" icon="documents" label="Belege zuordnen" count={offeneBelege} collapsed={collapsed}/>}
           {showLieferantenauftrag && <NavItem to="/metallarbeiten/lieferantenauftraege" icon="metall" label="Lieferantenaufträge" collapsed={collapsed}/>}
         </>}
