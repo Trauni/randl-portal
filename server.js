@@ -150,6 +150,7 @@ app.use('/api/hr/rentman',     requireArea('hr.mitarbeiter'), hrRentmanRouter);
 app.use('/api/zeltverleih',    requireArea('zeltplanung'), zeltverleihRouter);   // neu 14.08.2026 — Zeltplaner
 app.use('/api/metallarbeiten/lieferanten', require('./src/routes/api/metallarbeiten/lieferanten'));
 app.use('/api/metallarbeiten/lieferantenauftraege', require('./src/routes/api/metallarbeiten/lieferantenauftraege'));
+app.use('/api/metallarbeiten/kunden', require('./src/routes/api/metallarbeiten/kunden'));   // neu 16.10.2026 — Metallkunden-Merker (#366)
 
 
 // Versionsanzeige (#334): einmal beim Start ermitteln

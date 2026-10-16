@@ -108,11 +108,12 @@ function createClient({
   /**
    * Notiz eines Kontakts aendern, ohne den Rest anzufassen.
    * aendern(alteNotiz) → neue Notiz; gibt sie dieselbe zurueck, wird nichts geschrieben.
+   * aktuell: schon gelesener Kontakt (spart eine Anfrage); nach 409 wird neu gelesen.
    * Ergebnis: { geaendert, note, version }
    */
-  async function updateContactNote(id, aendern) {
+  async function updateContactNote(id, aendern, { aktuell } = {}) {
     for (let versuch = 1; ; versuch++) {
-      const current = await getContact(id);
+      const current = versuch === 1 && aktuell ? aktuell : await getContact(id);
       const alt = current.note || '';
       const neu = aendern(alt);
       if (neu === alt) return { geaendert: false, note: alt, version: current.version };
