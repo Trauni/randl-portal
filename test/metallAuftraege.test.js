@@ -40,7 +40,8 @@ test('berechneStatus: Weg Anfrage → Abgeschlossen', () => {
   assert.equal(st(v, beleg(1, 'quotation', 'accepted')).code, 'auftrag');
   assert.equal(st(v, beleg(1, 'quotation', 'rejected')).code, 'angebot_abgelehnt');
   const ab = beleg(2, 'orderconfirmation', 'open');
-  assert.equal(st(v, null, [ab]).code, 'fertigung');
+  assert.equal(st(v, null, [ab]).code, 'geplant');
+  assert.equal(st({ fertigung_begonnen_am: new Date() }, null, [ab]).code, 'fertigung');
   assert.equal(st({ fertigung_am: new Date() }, null, [ab]).code, 'lieferung');
   const ls = beleg(3, 'deliverynote', 'open');
   assert.equal(st(v, null, [ab, ls]).code, 'abrechnung');
@@ -110,7 +111,7 @@ test('sucheVorgaenge: Kette, Status, Felder für die Buttons, Sortierung nach le
   assert.equal(v1.angebot_nr, 'QU10');
   assert.equal(v1.angebot_status, 'accepted');
   assert.equal(v1.ab_nr, 'Entwurf');
-  assert.equal(v1.status.code, 'fertigung');
+  assert.equal(v1.status.code, 'geplant');
   assert.equal(v2.status.gruppe, 'abgeschlossen');
   assert.equal(v3.an_entfaellt, true);
   assert.equal(v3.ab_nr, null);

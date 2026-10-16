@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 // Alle Auftraege Metallarbeiten: Suche, Filter und Belegkette pro Zeile (#367), Vorgang anlegen
-// (Auftrag per Telefon/Mail, #384) und den ersten Beleg „In Lexware anlegen“ (#365). Detail kommt mit #368.
+// (Auftrag per Telefon/Mail, #384) und den ersten Beleg „In Lexware anlegen“ (#365). Klick → Detail (#368).
 
 const fmt = d => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
 const STATUS = { draft: 'Entwurf', open: 'offen', accepted: 'angenommen', rejected: 'abgelehnt', voided: 'storniert' };
@@ -51,6 +52,7 @@ async function json(r) {
 }
 
 export default function Vorgaenge() {
+  const navigate = useNavigate();
   const [vorgaenge, setVorgaenge] = useState([]);
   const [info, setInfo] = useState({ gesamt: 0, mehr: false });
   const [q, setQ] = useState('');
@@ -234,7 +236,9 @@ export default function Vorgaenge() {
             const offen = !v.abgebrochen_am;
             return (
               <div key={v.id} className="mv-item">
-                <div className="mv-row">
+                <div className="mv-row mv-click" role="link" tabIndex={0}
+                  onClick={() => navigate(`/metallarbeiten/vorgaenge/${v.id}`)}
+                  onKeyDown={e => e.key === 'Enter' && navigate(`/metallarbeiten/vorgaenge/${v.id}`)}>
                   <span className="mv-c-nr">
                     <span className="mv-nr"><Hl text={v.vorgangsnummer} q={suche} /></span>
                     {v.kunden_bestellnr && <span className="mv-small">Bestellnr. <Hl text={v.kunden_bestellnr} q={suche} /></span>}
@@ -307,6 +311,8 @@ export default function Vorgaenge() {
         .mv-item{border-bottom:1px solid var(--border);}
         .mv-item:last-child{border-bottom:none;}
         .mv-item:hover{background:var(--bg2);}
+        .mv-click{cursor:pointer;}
+        .mv-click:focus-visible{outline:2px solid var(--r);outline-offset:-2px;}
         .mv-c-nr,.mv-c-kunde{display:flex;flex-direction:column;gap:2px;min-width:0;font-size:13px;color:var(--text1);}
         .mv-nr{font-size:12px;color:var(--text1);font-family:'DM Mono',monospace;}
         .mv-small{font-size:11px;color:var(--text3);}
