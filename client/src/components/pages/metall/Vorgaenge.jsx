@@ -1,10 +1,47 @@
 import { useState, useEffect } from 'react';
 
-// Vorgaenge Metallarbeiten (#384): Vorgang anlegen (Auftrag per Telefon/Mail) und den
-// ersten Beleg „In Lexware anlegen“ (#365). Suche/Filter und Detail kommen mit #367/#368.
+// Alle Auftraege Metallarbeiten: Suche, Filter und Belegkette pro Zeile (#367), Vorgang anlegen
+// (Auftrag per Telefon/Mail, #384) und den ersten Beleg „In Lexware anlegen“ (#365). Detail kommt mit #368.
 
 const fmt = d => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
 const STATUS = { draft: 'Entwurf', open: 'offen', accepted: 'angenommen', rejected: 'abgelehnt', voided: 'storniert' };
+const ARTEN = [['alle', 'Alle'], ['AN', 'Angebote'], ['AB', 'Auftragsbestätigungen'], ['LS', 'Lieferscheine'], ['RE', 'Rechnungen']];
+const KETTE = [['AN', 'Angebot'], ['AB', 'Auftragsbestätigung'], ['LS', 'Lieferschein'], ['RE', 'Rechnung']];
+const RE_STATUS = { ...STATUS, paid: 'bezahlt', paidoff: 'ausgebucht', overdue: 'überfällig' };
+
+// Treffer markieren (erste Fundstelle, ohne Gross/Klein)
+function Hl({ text, q }) {
+  const t = String(text ?? '');
+  const i = q ? t.toLowerCase().indexOf(q.toLowerCase()) : -1;
+  if (i < 0) return t;
+  return <>{t.slice(0, i)}<mark>{t.slice(i, i + q.length)}</mark>{t.slice(i + q.length)}</>;
+}
+
+// AN → AB → LS → RE; Nummern im Tooltip, bei mehreren LS/RE die Anzahl
+function Kette({ v, q }) {
+  const ql = q.toLowerCase();
+  return (
+    <div className="mv-chain">
+      {KETTE.map(([k, name], i) => {
+        const docs = v.kette[k];
+        const hit = ql && docs.some(d => (d.nr || '').toLowerCase().includes(ql));
+        const skip = k === 'AN' && v.an_entfaellt;
+        const title = docs.length
+          ? docs.map(d => `${name} ${d.nr || 'Entwurf'} · ${RE_STATUS[d.status] || d.status}`).join('\n')
+          : `${name} ${skip ? 'entfällt (Nachbestellung)' : 'fehlt'}`;
+        return (
+          <span key={k} className="mv-chain-step">
+            {i > 0 && <i />}
+            <span className={hit ? 'hit' : docs.length ? 'on' : skip ? 'skip' : ''} title={title}>
+              {k}{docs.length > 1 ? <sup>{docs.length}</sup> : null}
+            </span>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 const leer = () => ({ kunde_id: '', bezeichnung: '', kunden_bestellnr: '', grundlage: 'neu', angebot_beleg_id: '', vorlage_vorgang_id: '' });
 
 async function json(r) {
@@ -15,6 +52,11 @@ async function json(r) {
 
 export default function Vorgaenge() {
   const [vorgaenge, setVorgaenge] = useState([]);
+  const [info, setInfo] = useState({ gesamt: 0, mehr: false });
+  const [q, setQ] = useState('');
+  const [suche, setSuche] = useState(''); // verzoegert, damit nicht jeder Tastendruck laedt
+  const [art, setArt] = useState('alle');
+  const [status, setStatus] = useState('laufend');
   const [kunden, setKunden] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -30,13 +72,21 @@ export default function Vorgaenge() {
   const load = async () => {
     try {
       setLoading(true);
-      setVorgaenge(await json(await fetch('/api/metallarbeiten/vorgaenge')));
+      const p = new URLSearchParams({ q: suche, art, status });
+      const r = await json(await fetch(`/api/metallarbeiten/vorgaenge?${p}`));
+      setVorgaenge(r.treffer); setInfo({ gesamt: r.gesamt, mehr: r.mehr });
     } catch (e) { setError(`Laden fehlgeschlagen: ${e.message}`); }
     finally { setLoading(false); }
   };
 
   useEffect(() => {
-    load();
+    const t = setTimeout(() => setSuche(q.trim()), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  useEffect(() => { load(); }, [suche, art, status]);
+
+  useEffect(() => {
     fetch('/api/metallarbeiten/vorgaenge/kunden').then(json).then(setKunden).catch(() => setKunden([]));
   }, []);
 
@@ -91,7 +141,7 @@ export default function Vorgaenge() {
   return (
     <div className="mv-root">
       <div className="mv-hdr">
-        <div><h1 className="mv-title">Vorgänge</h1><p className="mv-sub">Metallarbeiten — Aufträge per Telefon oder Mail anlegen</p></div>
+        <div><h1 className="mv-title">Alle Aufträge</h1><p className="mv-sub">Metallarbeiten — Vorgänge mit Belegkette aus Lexware</p></div>
         <button className="btn btn-primary" onClick={() => { setShowForm(v => !v); setError(''); }}>
           {showForm ? 'Abbrechen' : '+ Neuer Vorgang'}
         </button>
@@ -156,26 +206,48 @@ export default function Vorgaenge() {
         </div>
       )}
 
-      {loading ? <div className="mv-loading"><div className="spinner" />Lade Vorgänge…</div>
-        : vorgaenge.length === 0 ? <div className="mv-empty">Noch keine Vorgänge vorhanden.</div>
-        : <div className="mv-list">
+      <div className="mv-search">
+        <input className="mv-inp mv-q" type="search" value={q} onChange={e => setQ(e.target.value)} aria-label="Suche"
+          placeholder="Belegnummer, Vorgang, Bestellnr., Kunde, Bezeichnung …" />
+        <select className="mv-inp mv-status" value={status} onChange={e => setStatus(e.target.value)} aria-label="Status">
+          <option value="laufend">Laufend</option>
+          <option value="abgeschlossen">Abgeschlossen</option>
+          <option value="abgebrochen">Abgebrochen</option>
+          <option value="alle">Alle Status</option>
+        </select>
+      </div>
+      <div className="mv-chips" role="group" aria-label="Belegart">
+        {ARTEN.map(([k, l]) => <button key={k} aria-pressed={art === k} onClick={() => setArt(k)}>{l}</button>)}
+      </div>
+      <div className="mv-count">
+        {loading ? 'Lade …' : `${info.gesamt} ${info.gesamt === 1 ? 'Vorgang' : 'Vorgänge'}${suche ? ` für „${suche}“` : ''}`}
+        {!loading && info.mehr && ' · nur die neuesten angezeigt, bitte Suche eingrenzen'}
+      </div>
+
+      {loading && vorgaenge.length === 0 ? <div className="mv-loading"><div className="spinner" />Lade Vorgänge…</div>
+        : vorgaenge.length === 0 ? <div className="mv-empty">{suche || art !== 'alle' || status !== 'alle'
+          ? 'Kein Vorgang gefunden. Nicht zugeordnete Belege stehen unter „Belege zuordnen“.'
+          : 'Noch keine Vorgänge vorhanden.'}</div>
+        : <div className="mv-table">
+          <div className="mv-row mv-head"><span>Vorgang</span><span>Kunde</span><span>Bezeichnung</span><span>Belegkette</span><span>Status</span><span>Aktualisiert</span></div>
           {vorgaenge.map(v => {
             const offen = !v.abgebrochen_am;
             return (
-              <div key={v.id} className="card mv-item">
-                <div className="mv-item-main">
-                  <div className="mv-item-info">
-                    <span className="mv-nr">{v.vorgangsnummer}{v.kunden_bestellnr ? ` · Bestellnr. ${v.kunden_bestellnr}` : ''}</span>
-                    <span className="mv-bez">{v.bezeichnung}</span>
-                    <span className="mv-kunde">{v.kunde_name}</span>
-                  </div>
-                  <div className="mv-item-meta">
-                    {v.angebot_nr && <span className="mv-doc">AN {v.angebot_nr}</span>}
-                    {v.vorlage_nr && <span className="mv-doc">Nachbestellung von {v.vorlage_nr}</span>}
-                    {v.ab_nr && <span className="mv-doc mv-doc--ab">AB {v.ab_nr}</span>}
-                    {!offen && <span className="mv-doc">abgebrochen</span>}
-                    <span className="mv-date">{fmt(v.erstellt_am)}</span>
-                  </div>
+              <div key={v.id} className="mv-item">
+                <div className="mv-row">
+                  <span className="mv-c-nr">
+                    <span className="mv-nr"><Hl text={v.vorgangsnummer} q={suche} /></span>
+                    {v.kunden_bestellnr && <span className="mv-small">Bestellnr. <Hl text={v.kunden_bestellnr} q={suche} /></span>}
+                    {v.vorlage_nr && <span className="mv-small">Nachbestellung von {v.vorlage_nr}</span>}
+                  </span>
+                  <span className="mv-c-kunde">
+                    <span><Hl text={v.kunde_name} q={suche} /></span>
+                    {v.kdnr && <span className="mv-small">KdNr <Hl text={v.kdnr} q={suche} /></span>}
+                  </span>
+                  <span className="mv-bez"><Hl text={v.bezeichnung} q={suche} /></span>
+                  <Kette v={v} q={suche} />
+                  <span><span className={`mv-chip mv-chip--${v.status.ton}`}>{v.status.text}</span></span>
+                  <span className="mv-date">{fmt(v.aktualisiert)}</span>
                 </div>
                 {offen && !v.ab_nr && (
                   <div className="mv-item-actions">
@@ -200,7 +272,7 @@ export default function Vorgaenge() {
         </div>}
 
       <style>{`
-        .mv-root{padding:18px;max-width:860px;}
+        .mv-root{padding:18px;max-width:1180px;}
         .mv-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;gap:12px;}
         .mv-title{font-size:20px;font-weight:700;color:var(--text1);margin:0 0 4px;}
         .mv-sub{font-size:13px;color:var(--text3);margin:0;}
@@ -221,18 +293,44 @@ export default function Vorgaenge() {
         .mv-hint{font-size:11px;color:var(--text3);margin:-2px 0 6px;}
         .mv-radio{display:flex;flex-wrap:wrap;gap:16px;font-size:13px;color:var(--text2);margin-bottom:8px;}
         .mv-radio label{display:flex;align-items:center;gap:6px;cursor:pointer;}
-        .mv-list{display:flex;flex-direction:column;gap:10px;}
-        .mv-item{padding:14px 16px;}
-        .mv-item-main{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;}
-        .mv-item-info{display:flex;flex-direction:column;gap:3px;min-width:0;}
-        .mv-nr{font-size:12px;color:var(--text3);font-family:'DM Mono',monospace;}
-        .mv-bez{font-size:14px;font-weight:600;color:var(--text1);}
-        .mv-kunde{font-size:12px;color:var(--text2);}
-        .mv-item-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
-        .mv-doc{font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--text2);}
-        .mv-doc--ab{color:#2ebd7a;border-color:#2ebd7a44;background:#0d2318;}
+        .mv-search{display:flex;gap:10px;flex-wrap:wrap;}
+        .mv-search .mv-inp{margin-bottom:10px;}
+        .mv-q{flex:1 1 280px;width:auto;font-size:14px;padding:9px 12px;}
+        .mv-status{flex:1 0 170px;max-width:220px;width:auto;}
+        .mv-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
+        .mv-chips button{padding:5px 12px;border-radius:14px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;background:var(--bg2);border:1px solid var(--border);color:var(--text2);}
+        .mv-chips button[aria-pressed="true"]{background:var(--r);border-color:var(--r);color:#fff;}
+        .mv-count{font-size:12px;color:var(--text3);margin-bottom:10px;}
+        .mv-table{background:var(--bg1);border:1px solid var(--border);border-radius:9px;overflow:hidden;}
+        .mv-row{display:grid;grid-template-columns:130px minmax(0,1.1fr) minmax(0,1.5fr) 150px 185px 95px;gap:12px;align-items:center;padding:11px 14px;}
+        .mv-head{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;background:var(--bg2);border-bottom:1px solid var(--border);}
+        .mv-item{border-bottom:1px solid var(--border);}
+        .mv-item:last-child{border-bottom:none;}
+        .mv-item:hover{background:var(--bg2);}
+        .mv-c-nr,.mv-c-kunde{display:flex;flex-direction:column;gap:2px;min-width:0;font-size:13px;color:var(--text1);}
+        .mv-nr{font-size:12px;color:var(--text1);font-family:'DM Mono',monospace;}
+        .mv-small{font-size:11px;color:var(--text3);}
+        .mv-bez{font-size:13px;font-weight:600;color:var(--text1);min-width:0;overflow-wrap:anywhere;}
+        .mv-row mark{background:#f5c54266;color:inherit;border-radius:2px;padding:0 1px;}
+        .mv-chain{display:flex;align-items:center;}
+        .mv-chain-step{display:flex;align-items:center;}
+        .mv-chain-step i{display:block;width:8px;height:1px;background:var(--border);}
+        .mv-chain-step span{font-size:10px;font-weight:700;font-family:'DM Mono',monospace;padding:3px 5px;border-radius:5px;border:1px dashed var(--border);color:var(--text3);cursor:default;}
+        .mv-chain-step span.on{border-style:solid;border-color:#2ebd7a66;background:#0d2318;color:#2ebd7a;}
+        .mv-chain-step span.hit{border-style:solid;border-color:#f5c542;background:#f5c54233;color:var(--text1);}
+        .mv-chain-step span.skip{opacity:.45;text-decoration:line-through;}
+        .mv-chain-step sup{font-size:8px;margin-left:1px;}
+        .mv-chip{display:inline-block;white-space:nowrap;font-size:11px;font-weight:600;padding:3px 9px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--text2);}
+        .mv-chip--ok{color:#2ebd7a;border-color:#2ebd7a44;background:#0d2318;}
+        .mv-chip--warn{color:#f5a742;border-color:#f5a74244;background:#2b1f0d;}
+        .mv-chip--rot{color:var(--red2);border-color:var(--red2);background:#3a1515;}
         .mv-date{font-size:12px;color:var(--text3);}
-        .mv-item-actions{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
+        @media (max-width:900px){
+          .mv-head{display:none;}
+          .mv-row{grid-template-columns:1fr auto;gap:6px 12px;}
+          .mv-bez{grid-column:1 / -1;}
+        }
+        .mv-item-actions{margin:0 14px;padding:8px 0 11px;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
         .btn{padding:7px 14px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;border:none;font-family:inherit;transition:background .15s;text-decoration:none;display:inline-flex;align-items:center;}
         .btn-primary{background:var(--r);color:#fff;}
         .btn-primary:hover:not(:disabled){background:var(--r2);}
