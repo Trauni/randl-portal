@@ -74,12 +74,16 @@ function bezugZeilen(voucher) {
     .map(r => ({ bezug_lexware_id: r.id, bezug_belegart: r.voucherType || null }));
 }
 
-/** Muss der Beleg neu gelesen werden? Vergleich auf Sekunden (DATETIME ohne Bruchteile) */
+/**
+ * Muss der Beleg neu gelesen werden? Verglichen wird mit dem Aenderungsdatum aus der
+ * Belegliste, das beim letzten Holen gespeichert wurde. Bis 1 s Abweichung gilt als
+ * gleich (DATETIME ohne Sekundenbruchteile).
+ */
 function istGeaendert(listenEintrag, bestehend) {
   if (!bestehend?.lexware_geaendert_am || !listenEintrag.updatedDate) return true;
-  const neu = Math.floor(new Date(listenEintrag.updatedDate).getTime() / 1000);
-  const alt = Math.floor(new Date(bestehend.lexware_geaendert_am).getTime() / 1000);
-  return neu !== alt;
+  const neu = new Date(listenEintrag.updatedDate).getTime();
+  const alt = new Date(bestehend.lexware_geaendert_am).getTime();
+  return Math.abs(neu - alt) > 1000;
 }
 
 /** Ab wann fragt der Sync? Erstabgleich nach Belegdatum, sonst nach Aenderungsdatum */
@@ -223,6 +227,8 @@ async function syncKunde({ pool, lexware }, kunde) {
       const voucher = await lexware.getVoucher(eintrag.voucherType, eintrag.id);
       const zeile = belegZeile(voucher, eintrag.voucherType);
       zeile.lexware_kontakt_id = zeile.lexware_kontakt_id || kunde.lexware_kontakt_id; // Adresse ohne contactId
+      // Aenderungsdatum aus der Liste speichern: damit vergleicht der naechste Lauf
+      if (eintrag.updatedDate) zeile.lexware_geaendert_am = new Date(eintrag.updatedDate);
       const { neu } = await speichereBeleg(pool, zeile, bezugZeilen(voucher));
       stat.geholt++;
       if (neu) stat.neu++;
@@ -309,6 +315,7 @@ module.exports = {
 /*
  * CLI (im Portal-Ordner, liest die .env; Umgebungsvariablen der Shell haben Vorrang):
  *   node src/services/metallSync.js kunde <lexware_kontakt_id>   einen Metallkunden abgleichen
+ *   node src/services/metallSync.js vergleich <lexware_kontakt_id>  Diagnose Aenderungsdatum Liste/DB
  *   node src/services/metallSync.js alle                         alle aktiven Metallkunden
  * Danach Uebersicht der Belege des Kunden: Nummer, Art, Status, Zuordnung, Vorgang.
  */
@@ -329,14 +336,26 @@ if (require.main === module) {
            FROM metall_beleg b
            LEFT JOIN metall_vorgang v ON v.id = b.vorgang_id
            LEFT JOIN metall_vorgang vs ON vs.id = b.vorschlag_vorgang_id
-           WHERE b.lexware_kontakt_id = ? ORDER BY b.belegdatum, b.id`,
+           WHERE b.lexware_kontakt_id = ?
+           ORDER BY b.belegdatum, FIELD(b.belegart, 'quotation', 'orderconfirmation', 'deliverynote', 'invoice'), b.belegnummer`,
           [arg]
         );
         console.table(belege);
+      } else if (befehl === 'vergleich' && arg) {
+        // Diagnose: Aenderungsdatum laut Belegliste vs. gespeichert, und was istGeaendert sagt
+        const liste = await deps.lexware.listVouchers({ contactId: arg, voucherDateFrom: ERSTABGLEICH_AB });
+        const [rows] = await deps.pool.execute('SELECT lexware_id, lexware_geaendert_am FROM metall_beleg WHERE lexware_kontakt_id = ?', [arg]);
+        const gespeichert = new Map(rows.map(r => [r.lexware_id, r]));
+        console.table(liste.map(e => ({
+          beleg: e.voucherNumber,
+          liste: e.updatedDate,
+          gespeichert: gespeichert.get(e.id)?.lexware_geaendert_am?.toISOString?.() ?? null,
+          neu_holen: istGeaendert(e, gespeichert.get(e.id)),
+        })));
       } else if (befehl === 'alle') {
         console.log(JSON.stringify(await syncAlle(deps)));
       } else {
-        console.log('Aufruf: kunde <lexware_kontakt_id> | alle');
+        console.log('Aufruf: kunde <lexware_kontakt_id> | vergleich <lexware_kontakt_id> | alle');
       }
       process.exit(0);
     } catch (err) {

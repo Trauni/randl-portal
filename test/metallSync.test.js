@@ -51,10 +51,11 @@ test('bezugZeilen: doppelte Verweise nur einmal', () => {
   assert.deepEqual(s.bezugZeilen({}), []);
 });
 
-test('istGeaendert: neu, gleich auf die Sekunde, geändert', () => {
+test('istGeaendert: neu, gleich bis 1 s (auch gerundet), geändert', () => {
   const eintrag = { updatedDate: '2026-10-16T10:22:33.456+02:00' };
   assert.equal(s.istGeaendert(eintrag, undefined), true);
   assert.equal(s.istGeaendert(eintrag, { lexware_geaendert_am: new Date('2026-10-16T08:22:33Z') }), false);
+  assert.equal(s.istGeaendert(eintrag, { lexware_geaendert_am: new Date('2026-10-16T08:22:34Z') }), false);
   assert.equal(s.istGeaendert(eintrag, { lexware_geaendert_am: new Date('2026-10-16T08:22:30Z') }), true);
   assert.equal(s.istGeaendert({}, { lexware_geaendert_am: new Date() }), true);
 });
