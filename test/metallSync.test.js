@@ -60,11 +60,19 @@ test('istGeaendert: neu, gleich bis 1 s (auch gerundet), geändert', () => {
   assert.equal(s.istGeaendert({}, { lexware_geaendert_am: new Date() }), true);
 });
 
-test('abfrageAb: Erstabgleich ab 2025, sonst Änderungsdatum minus 1 Tag', () => {
-  assert.deepEqual(s.abfrageAb(null), { voucherDateFrom: '2025-01-01' });
-  const r = s.abfrageAb(new Date(2026, 9, 16, 12, 0));
-  assert.equal(r.updatedDateFrom.getDate(), 15);
-  assert.equal(r.voucherDateFrom, undefined);
+test('findeGeloeschte: was nicht mehr in der Lexware-Liste steht', () => {
+  const db = [{ id: 1, lexware_id: 'a' }, { id: 2, lexware_id: 'b' }, { id: 3, lexware_id: 'c' }];
+  assert.deepEqual(s.findeGeloeschte(db, new Set(['a', 'b', 'c', 'neu'])), { geloescht: [], verdacht: false });
+  assert.deepEqual(s.findeGeloeschte(db, new Set(['a'])).geloescht.map(b => b.id), [2, 3]);
+  // bis 3 fehlende immer, auch wenn es alle sind (z. B. Testkontakt)
+  assert.equal(s.findeGeloeschte(db, new Set()).geloescht.length, 3);
+});
+
+test('findeGeloeschte: mehr als die Hälfte und mehr als 3 fehlen → Verdacht, nichts löschen', () => {
+  const db = Array.from({ length: 8 }, (_, i) => ({ id: i, lexware_id: `x${i}` }));
+  assert.deepEqual(s.findeGeloeschte(db, new Set(['x0', 'x1', 'x2'])), { geloescht: [], verdacht: true });
+  // 4 von 8 fehlen: genau die Hälfte → noch kein Verdacht
+  assert.equal(s.findeGeloeschte(db, new Set(['x0', 'x1', 'x2', 'x3'])).geloescht.length, 4);
 });
 
 // ── Zuordnung ──
