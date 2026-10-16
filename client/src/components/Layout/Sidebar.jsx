@@ -76,7 +76,8 @@ export default function Sidebar({ user }) {
   const showZeltverleih = can('zeltplanung');
   const showLieferantenauftrag = can('metallarbeiten.lieferantenauftrag');
   const showMetallVorgaenge = can('metallarbeiten.vorgaenge');
-  const showMetallarbeiten = showLieferantenauftrag || showMetallVorgaenge;
+  const showMetallkunden = can('metallarbeiten.kunden');
+  const showMetallarbeiten = showLieferantenauftrag || showMetallVorgaenge || showMetallkunden;
 
   // Offene Belege fuer „Belege zuordnen“ (#370): beim Seitenwechsel, nach einer Aktion
   // auf der Seite (Event) und alle 5 Minuten
@@ -154,6 +155,7 @@ export default function Sidebar({ user }) {
           {collapsed && <div className="nav-section-divider"/>}
           {showMetallVorgaenge && <NavItem to="/metallarbeiten/vorgaenge" icon="orders" label="Alle Aufträge" collapsed={collapsed}/>}
           {showMetallVorgaenge && <NavItem to="/metallarbeiten/zuordnen" icon="documents" label="Belege zuordnen" count={offeneBelege} collapsed={collapsed}/>}
+          {showMetallkunden && <NavItem to="/metallarbeiten/kunden" icon="employees" label="Metallkunden" collapsed={collapsed}/>}
           {showLieferantenauftrag && <NavItem to="/metallarbeiten/lieferantenauftraege" icon="metall" label="Lieferantenaufträge" collapsed={collapsed}/>}
         </>}
 

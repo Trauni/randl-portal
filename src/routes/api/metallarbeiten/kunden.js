@@ -5,8 +5,14 @@ const requireArea = require('../../../middleware/requireArea');
 const db = require('../../../db');
 const lexware = require('../../../services/lexware');
 const metallKunde = require('../../../services/metallKunde');
+const metallKonto = require('../../../services/metallKonto');
+const { shopFetch } = require('../finance/shopClient');
+const path = require('path');
+const { generateZugangsbrief } = require('../../../utils/generateZugangsbrief');
 
-// Metallkunden-Merker (#366). Die Uebersicht mit Portalstatus kommt mit #369.
+const BRIEFPAPIER = path.join(__dirname, '../../../assets/lieferantenauftrag-briefpapier.pdf');
+
+// Metallkunden-Merker (#366), Uebersicht mit Portalzugang (#369; Konten in der gas-db ueber die Gas-Shop-Admin-API).
 const GATE = requireArea('metallarbeiten.kunden');
 
 // Lokal, wie in lieferantenauftraege.js — keine geteilte Utility im Projekt
@@ -21,7 +27,11 @@ function deps() {
 
 // Lexware-Fehler als 502 (bzw. 503 ohne Schluessel), eigene 400er durchreichen
 function sendeFehler(res, err, was) {
-  if (err.status === 400) return res.status(400).json({ error: err.message });
+  if ([400, 404, 409].includes(err.status)) return res.status(err.status).json({ error: err.message });
+  if (err.name === 'ShopError') {
+    console.error(`${was}:`, err.message);
+    return res.status(err.status).json({ error: 'Gas-Shop (Kundenkonten) derzeit nicht erreichbar', detail: err.message });
+  }
   if (err.name === 'LexwareError') {
     console.error(`${was}:`, err.message);
     return res.status(err.status === 0 ? 503 : 502).json({ error: 'Lexware derzeit nicht erreichbar', detail: err.message });
@@ -30,10 +40,13 @@ function sendeFehler(res, err, was) {
   return res.status(500).json({ error: `${was} fehlgeschlagen` });
 }
 
-// Aktive Metallkunden
+// Aktive Metallkunden mit Portalzugang, laufenden Vorgaengen und offenen Belegen
 router.get('/', requireAuth, GATE, async (req, res) => {
-  const [rows] = await db.getPool().execute('SELECT * FROM metall_kunde WHERE aktiv = 1 ORDER BY name');
-  res.json(rows);
+  try {
+    res.json(await metallKonto.ladeUebersicht({ pool: db.getPool(), fetcher: shopFetch }));
+  } catch (err) {
+    sendeFehler(res, err, 'Metallkunden laden');
+  }
 });
 
 // Lexware-Kunden suchen, mit Hinweis, ob schon Metallkunde
@@ -48,11 +61,14 @@ router.get('/suche', requireAuth, GATE, async (req, res) => {
       );
       rows.forEach(r => aktiv.add(r.lexware_kontakt_id));
     }
+    // Gaskunden kennzeichnen (Kontakte aus der gas-db erscheinen nur ueber die Suche); ohne Gas-Shop ohne Kennzeichen
+    const konten = await metallKonto.ladeKonten(shopFetch, ids).catch(() => new Map());
     res.json(treffer.map(c => ({
       lexware_kontakt_id: c.id,
       name: metallKunde.kontaktName(c),
       kdnr: metallKunde.kontaktKdnr(c),
       ist_metallkunde: aktiv.has(c.id),
+      gaskunde: !!konten.get(c.id)?.gas,
     })));
   } catch (err) {
     sendeFehler(res, err, 'Kundensuche');
@@ -85,6 +101,47 @@ router.delete('/:id', requireAuth, GATE, async (req, res) => {
   const ok = await metallKunde.entferneMerker(deps(), req.params.id);
   if (!ok) return res.status(404).json({ error: 'Nicht gefunden' });
   res.json({ ok: true });
+});
+
+// ── Portalzugang (#369) ──
+
+async function ladeKunde(id) {
+  const [[kunde]] = await db.getPool().execute('SELECT * FROM metall_kunde WHERE id = ? AND aktiv = 1', [id]);
+  if (!kunde) {
+    const err = new Error('Metallkunde nicht gefunden');
+    err.status = 404;
+    throw err;
+  }
+  return kunde;
+}
+
+// Aktion am Konto des Metallkunden (ueber dessen Lexware-Kontakt-ID)
+const konto = (was, fn) => async (req, res) => {
+  try {
+    const kunde = await ladeKunde(req.params.id);
+    res.json(await fn(shopFetch, kunde.lexware_kontakt_id));
+  } catch (err) {
+    sendeFehler(res, err, was);
+  }
+};
+
+router.post('/:id/zugang', requireAuth, GATE, konto('Zugang anlegen', metallKonto.legeAn));
+router.post('/:id/sperren', requireAuth, GATE, konto('Sperren', metallKonto.sperre));
+router.post('/:id/entsperren', requireAuth, GATE, konto('Entsperren', metallKonto.entsperre));
+router.post('/:id/reset-mail', requireAuth, GATE, konto('Reset-Mail', metallKonto.sendeReset));
+
+// Zugangsbrief als PDF
+router.get('/:id/zugangsbrief.pdf', requireAuth, GATE, async (req, res) => {
+  try {
+    const kunde = await ladeKunde(req.params.id);
+    const daten = await metallKonto.briefDaten(shopFetch, kunde.lexware_kontakt_id);
+    const pdf = await generateZugangsbrief({ daten, templatePath: BRIEFPAPIER });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="Zugangsbrief-${String(daten.kundennummer || kunde.id).replace(/[^\w-]/g, '')}.pdf"`);
+    res.send(Buffer.from(pdf));
+  } catch (err) {
+    sendeFehler(res, err, 'Zugangsbrief');
+  }
 });
 
 module.exports = router;
