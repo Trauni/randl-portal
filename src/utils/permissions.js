@@ -25,6 +25,7 @@ const ALL_AREAS = [
   'content',
   'zeltplanung',   // neu 14.08.2026 — Zeltplaner
   'metallarbeiten.lieferantenauftrag',
+  'metallarbeiten.kunden', // neu 16.10.2026 — Metallkunden-Merker (#366)
 ];
 
 const ROLE_AREAS = {
@@ -35,9 +36,9 @@ const ROLE_AREAS = {
 
 const ACCESS_TAGS = {
   geschaeftsfuehrung: { label: 'Geschäftsführung', allow: ALL_AREAS },
-  backoffice:         { label: 'Backoffice',       allow: ['gashandel', 'gashandel.preise', 'it', 'content', 'hr.zeitauswertung', 'metallarbeiten.lieferantenauftrag'] },
+  backoffice:         { label: 'Backoffice',       allow: ['gashandel', 'gashandel.preise', 'it', 'content', 'hr.zeitauswertung', 'metallarbeiten.lieferantenauftrag', 'metallarbeiten.kunden'] },
   gashandel:          { label: 'Gashandel',        allow: ['gashandel', 'gashandel.preise'] }, // Preise ändern auch für Gruppe Gashandel (#328)
-  metallarbeiten:     { label: 'Metallarbeiten',   allow: [ 'metallarbeiten.lieferantenauftrag'] },
+  metallarbeiten:     { label: 'Metallarbeiten',   allow: [ 'metallarbeiten.lieferantenauftrag', 'metallarbeiten.kunden'] },
   zeltverleih:        { label: 'Zeltverleih',      allow: ['zeltplanung'] },   // neu 14.08.2026 — Zeltplaner
 };
 
