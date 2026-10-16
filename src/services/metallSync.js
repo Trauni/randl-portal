@@ -277,8 +277,71 @@ async function syncAlle(deps) {
   }
 }
 
+function standardDeps() {
+  return { pool: require('../db').getPool(), lexware: require('./lexware') };
+}
+
+/**
+ * Zeitplan im Portal-Prozess (PM2 fork, eine Instanz → laeuft genau einmal).
+ * Nur aktiv mit METALL_SYNC_AKTIV=1 in der .env; Takt ueber METALL_SYNC_CRON.
+ */
+function starteZeitplan() {
+  const cron = require('node-cron');
+  const takt = process.env.METALL_SYNC_CRON || '*/15 * * * *';
+  cron.schedule(takt, async () => {
+    try {
+      const r = await syncAlle(standardDeps());
+      if (r.uebersprungen) return console.log('[Metall-Sync] voriger Durchgang laeuft noch, uebersprungen');
+      if (r.geholt || r.zugeordnet || r.fehler) console.log('[Metall-Sync]', JSON.stringify(r));
+    } catch (err) {
+      console.error('[Metall-Sync] Durchgang fehlgeschlagen:', err.message);
+    }
+  });
+  console.log(`[Metall-Sync] Zeitplan aktiv (${takt})`);
+}
+
 module.exports = {
   ERSTABGLEICH_AB, REIHENFOLGE,
   ersteZeile, belegZeile, bezugZeilen, istGeaendert, abfrageAb, bestimmeZuordnung,
-  syncKunde, syncAlle,
+  syncKunde, syncAlle, starteZeitplan,
 };
+
+/*
+ * CLI (im Portal-Ordner, liest die .env; Umgebungsvariablen der Shell haben Vorrang):
+ *   node src/services/metallSync.js kunde <lexware_kontakt_id>   einen Metallkunden abgleichen
+ *   node src/services/metallSync.js alle                         alle aktiven Metallkunden
+ * Danach Uebersicht der Belege des Kunden: Nummer, Art, Status, Zuordnung, Vorgang.
+ */
+if (require.main === module) {
+  require('dotenv').config();
+  const [, , befehl, arg] = process.argv;
+  (async () => {
+    const deps = standardDeps();
+    try {
+      if (befehl === 'kunde' && arg) {
+        const [[kunde]] = await deps.pool.execute('SELECT * FROM metall_kunde WHERE lexware_kontakt_id = ?', [arg]);
+        if (!kunde) throw new Error('Kein Metallkunde mit dieser Lexware-Kontakt-ID (erst Merker setzen)');
+        console.log(JSON.stringify(await syncKunde(deps, kunde)));
+        const [belege] = await deps.pool.execute(
+          `SELECT b.belegnummer, b.belegart, b.belegstatus, b.archiviert, b.zuordnung,
+                  v.vorgangsnummer, vs.vorgangsnummer AS vorschlag,
+                  (SELECT COUNT(*) FROM metall_beleg_bezug z WHERE z.beleg_id = b.id) AS bezuege
+           FROM metall_beleg b
+           LEFT JOIN metall_vorgang v ON v.id = b.vorgang_id
+           LEFT JOIN metall_vorgang vs ON vs.id = b.vorschlag_vorgang_id
+           WHERE b.lexware_kontakt_id = ? ORDER BY b.belegdatum, b.id`,
+          [arg]
+        );
+        console.table(belege);
+      } else if (befehl === 'alle') {
+        console.log(JSON.stringify(await syncAlle(deps)));
+      } else {
+        console.log('Aufruf: kunde <lexware_kontakt_id> | alle');
+      }
+      process.exit(0);
+    } catch (err) {
+      console.error(err.message);
+      process.exit(1);
+    }
+  })();
+}
