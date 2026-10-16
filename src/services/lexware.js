@@ -189,7 +189,18 @@ function createClient({
     return apiCall('GET', `/${belegPfad(typ)}/${encodeURIComponent(id)}/file`, null, { binary: true, accept: 'application/pdf' });
   }
 
-  return { apiCall, getContact, searchContacts, updateContactNote, listVouchers, getVoucher, getVoucherFile };
+  /**
+   * Beleg anlegen (#365). Ohne ?finalize legt Lexware einen Entwurf an.
+   * vorgaenger: Lexware-ID des vorhergehenden Belegs (precedingSalesVoucherId), z. B. die AB
+   * aus einem Angebot; Lexware setzt dann relatedVouchers. Ungueltiger Uebergang → 406.
+   * Ergebnis laut Lexware: { id, resourceUri, createdDate, updatedDate, version }
+   */
+  function createVoucher(typ, payload, { vorgaenger } = {}) {
+    const q = vorgaenger ? `?precedingSalesVoucherId=${encodeURIComponent(vorgaenger)}` : '';
+    return apiCall('POST', `/${belegPfad(typ)}${q}`, payload);
+  }
+
+  return { apiCall, getContact, searchContacts, updateContactNote, listVouchers, getVoucher, getVoucherFile, createVoucher };
 }
 
 module.exports = { ...createClient(), createClient, LexwareError, BASE_URL, BELEG_PFADE, datum };
