@@ -110,11 +110,12 @@ async function detail(pool, lexwareId, vorgangsnummer) {
   const [eintrag] = await ladeVorgaenge(pool, kunde.id, vorgangsnummer);
   if (!eintrag) throw fehler(404, 'Vorgang nicht gefunden');
   const [dateien] = await pool.execute(
-    `SELECT id, art, dateiname, mime_typ, groesse_bytes, beschreibung, hochgeladen_am
+    `SELECT id, art, dateiname, mime_typ, groesse_bytes, beschreibung, hochgeladen_am, vorschau_pfad IS NOT NULL AS vorschau
      FROM metall_datei WHERE vorgang_id = ? AND fuer_kunde_sichtbar = 1 AND geloescht_am IS NULL
      ORDER BY hochgeladen_am, id`,
     [eintrag.v.id]
   );
+  for (const d of dateien) d.vorschau = !!d.vorschau;
   const reihenfolge = ['quotation', 'orderconfirmation', 'deliverynote', 'invoice'];
   const belege = [...eintrag.zeigen]
     .sort((a, b) => reihenfolge.indexOf(a.belegart) - reihenfolge.indexOf(b.belegart) || new Date(a.belegdatum || 0) - new Date(b.belegdatum || 0) || a.id - b.id)
