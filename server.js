@@ -153,6 +153,7 @@ app.use('/api/metallarbeiten/lieferantenauftraege', require('./src/routes/api/me
 app.use('/api/metallarbeiten/kunden', require('./src/routes/api/metallarbeiten/kunden'));   // neu 16.10.2026 — Metallkunden-Merker (#366)
 app.use('/api/metallarbeiten/vorgaenge', require('./src/routes/api/metallarbeiten/vorgaenge'));   // neu 16.10.2026 — In Lexware anlegen (#365)
 app.use('/api/metallarbeiten/zuordnen', require('./src/routes/api/metallarbeiten/zuordnen'));   // neu 16.10.2026 — Belege zuordnen (#370)
+app.use('/api/metallarbeiten/eingang', require('./src/routes/api/metallarbeiten/eingang'));   // neu 17.10.2026 — Eingang Kundenanfragen (#371)
 
 
 // Versionsanzeige (#334): einmal beim Start ermitteln

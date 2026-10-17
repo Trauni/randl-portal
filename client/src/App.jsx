@@ -6,6 +6,7 @@ import VacationRequest from './components/pages/VacationRequest'
 import Lieferantenauftrag from './components/pages/Lieferantenauftrag'
 import MetallVorgaenge from './components/pages/metall/Vorgaenge'
 import MetallZuordnen from './components/pages/metall/Zuordnen'
+import MetallEingang from './components/pages/metall/Eingang'
 import MetallVorgangDetail from './components/pages/metall/VorgangDetail'
 import Metallkunden from './components/pages/metall/Metallkunden'
 import VacationCalendar from './components/pages/VacationCalendar'
@@ -65,6 +66,9 @@ function AppRoutes() {
         } />
         <Route path="metallarbeiten/kunden" element={
           hasArea('metallarbeiten.kunden') ? <Metallkunden /> : <Navigate to="/dashboard" replace />
+        } />
+        <Route path="metallarbeiten/eingang" element={
+          hasArea('metallarbeiten.vorgaenge') ? <MetallEingang /> : <Navigate to="/dashboard" replace />
         } />
         <Route path="metallarbeiten/zuordnen" element={
           hasArea('metallarbeiten.vorgaenge') ? <MetallZuordnen /> : <Navigate to="/dashboard" replace />
