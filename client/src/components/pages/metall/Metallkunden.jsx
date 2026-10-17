@@ -43,6 +43,11 @@ export default function Metallkunden() {
     finally { setBusy(null); }
   };
 
+  // Kundenmails (#377): Fertigung begonnen/fertig, neue Fotos – pro Metallkunde abschaltbar
+  const mails = k => tu(`k-${k.id}`, async () => json(await fetch(`/api/metallarbeiten/kunden/${k.id}/kundenmails`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ an: !k.kundenmails }),
+  })), `Kundenmails für ${k.name} ${k.kundenmails ? 'aus' : 'an'}.`);
+
   const suchen = async e => {
     e?.preventDefault();
     if (q.trim().length < 2) { setError('Bitte mindestens 2 Zeichen eingeben'); return; }
@@ -131,6 +136,11 @@ export default function Metallkunden() {
                   <span className={`mk-chip mk-chip--${ton}`}>{text}</span>
                   {z?.status === 'aktiv' && z.erster_login_am && <span className="mk-small mk-block">seit {new Date(z.erster_login_am).toLocaleDateString('de-DE')}</span>}
                   {z && z.status !== 'keiner' && !z.email && <span className="mk-small mk-block mk-warn">keine E-Mail</span>}
+                  {z && ['erstlogin', 'aktiv'].includes(z.status) && (
+                    <label className="mk-small mk-block mk-mails" title="Mails bei Fertigung und neuen Fotos (nur mit Link)">
+                      <input type="checkbox" checked={!!k.kundenmails} disabled={!!busy} onChange={() => mails(k)} /> Kundenmails
+                    </label>
+                  )}
                 </span>
                 <span className="mk-num">{k.vorgaenge_laufend}<span className="mk-m"> laufend</span></span>
                 <span className="mk-acts">
@@ -148,6 +158,8 @@ export default function Metallkunden() {
 
       <style>{`
         .mk-root{padding:18px;max-width:1180px;}
+        .mk-mails{display:inline-flex;align-items:center;gap:5px;cursor:pointer;margin-top:3px;}
+        .mk-mails input{accent-color:#2ebd7a;}
         .mk-hdr{margin-bottom:14px;}
         .mk-title{font-size:20px;font-weight:700;color:var(--text1);margin:0 0 4px;}
         .mk-sub{font-size:13px;color:var(--text3);margin:0;max-width:80ch;}

@@ -47,7 +47,8 @@ function annahmeMoeglich(v, kette, angenommenAm) {
   const an = kette.AN[kette.AN.length - 1];
   if (v.abgebrochen_am || !an || !['open', 'accepted'].includes(an.status)) return null;
   if (kette.AB.length) return 'erneut';
-  return angenommenAm ? null : 'ja';
+  // Schon angenommen – online hier oder über den Knopf in der Lexware-Mail (Status accepted, #377)
+  return angenommenAm || an.status === 'accepted' ? null : 'ja';
 }
 
 const belegZeile = b => ({

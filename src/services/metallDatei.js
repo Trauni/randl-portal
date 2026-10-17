@@ -230,6 +230,8 @@ async function setzeSichtbar(pool, id, sichtbar, { employeeId = null } = {}) {
     'UPDATE metall_datei SET fuer_kunde_sichtbar = ?, sichtbar_geaendert_von = ?, sichtbar_geaendert_am = NOW() WHERE id = ? AND geloescht_am IS NULL',
     [sichtbar ? 1 : 0, employeeId, d.id]
   );
+  // Kundenmail „Neue Fotos“ (#377), nur bei neuer Freigabe einer Datei aus dem Büro
+  if (sichtbar && !d.fuer_kunde_sichtbar && d.quelle !== 'kunde') await require('./metallBenachrichtigung').vormerkeDateien(pool, d.vorgang_id);
   return { id: d.id, fuer_kunde_sichtbar: sichtbar };
 }
 

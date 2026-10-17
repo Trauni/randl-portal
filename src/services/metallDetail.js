@@ -122,6 +122,8 @@ async function setzeFertigung(pool, id, stufe, { employeeId = null } = {}) {
     fertig: 'fertigung_begonnen_am = COALESCE(fertigung_begonnen_am, NOW()), fertigung_am = COALESCE(fertigung_am, NOW())',
   }[stufe];
   await pool.execute(`UPDATE metall_vorgang SET ${set}, fertigung_von = ? WHERE id = ?`, [employeeId, v.id]);
+  // Kundenmail (#377): nur bei echter Änderung; „geplant“ nimmt vorgemerkte Mails zurück
+  if (fertigungsStufe(v) !== stufe) await require('./metallBenachrichtigung').vormerkeFertigung(pool, v.id, stufe);
   return ladeDetail(pool, v.id);
 }
 
