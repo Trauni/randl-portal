@@ -96,6 +96,14 @@ router.post('/:id/notiz', requireAuth, GATE, async (req, res) => {
   res.json({ ...kunde, ...notiz });
 });
 
+// Kundenmails (#377) für diesen Metallkunden an/aus: { an: true|false }
+router.put('/:id/kundenmails', requireAuth, GATE, async (req, res) => {
+  if (typeof req.body?.an !== 'boolean') return res.status(400).json({ error: 'an muss true oder false sein' });
+  const [r] = await db.getPool().execute('UPDATE metall_kunde SET kundenmails = ? WHERE id = ?', [req.body.an ? 1 : 0, req.params.id]);
+  if (!r.affectedRows) return res.status(404).json({ error: 'Nicht gefunden' });
+  res.json({ id: Number(req.params.id), kundenmails: req.body.an });
+});
+
 // Merker entfernen: nur aktiv = 0, METALL bleibt in der Lexware-Notiz stehen
 router.delete('/:id', requireAuth, GATE, async (req, res) => {
   const ok = await metallKunde.entferneMerker(deps(), req.params.id);

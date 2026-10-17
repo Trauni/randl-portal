@@ -218,6 +218,8 @@ app.listen(PORT, '127.0.0.1', () => {
 
 // Metall-Sync (#363): Lexware-Belege der Metallkunden, nur mit METALL_SYNC_AKTIV=1
 if (process.env.METALL_SYNC_AKTIV === '1') require('./src/services/metallSync').starteZeitplan();
+// Kundenmails Fertigung/neue Fotos (#377), nur mit METALL_KUNDENMAILS_AKTIV=1
+require('./src/services/metallBenachrichtigung').starteZeitplan();
 
 // ── F29 Schritt 3: Interner Listener fuer Service-zu-Service-Aufrufe ─────────
 // Komplett separate Express-Instanz, NUR die eine Route. Gebunden an die

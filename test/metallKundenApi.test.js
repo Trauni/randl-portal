@@ -146,3 +146,8 @@ test('detail: mit AB → erneut bestellen, Entwurf/abgelehnt → nicht', async (
   pool = fakePool({ vorgaenge: [V(1)], belege: [] });
   assert.equal((await api.detail(pool, 'lex', 'V-26-0001')).annahme_moeglich, null);
 });
+
+test('detail: in Lexware angenommen (Knopf in der Lexware-Mail) → kein zweites Annehmen (#377)', async () => {
+  const pool = fakePool({ vorgaenge: [V(1, { angebot_beleg_id: 11 })], belege: [beleg(11, 'quotation', 'accepted')] });
+  assert.equal((await api.detail(pool, 'lex', 'V-26-0001')).annahme_moeglich, null);
+});
