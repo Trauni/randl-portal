@@ -27,10 +27,27 @@ function fehler(status, message) {
 /** Fuer Kunden sichtbar: fertig, nicht storniert, nicht archiviert, mit Nummer */
 const sichtbar = b => !!b && !b.archiviert && b.belegstatus !== 'voided' && b.belegstatus !== 'draft' && !!b.belegnummer;
 
-/** Status aus Kundensicht: abgebrochen → „Storniert“, sonst wie im Portal */
-function kundenStatus(v, kette) {
+/**
+ * Status aus Kundensicht: abgebrochen → „Storniert“; online angenommen und noch keine AB →
+ * „Angenommen, AB folgt“ (#376); sonst wie im Portal.
+ */
+function kundenStatus(v, kette, angenommenAm = null) {
   if (v.abgebrochen_am) return { code: 'storniert', text: 'Storniert', gruppe: 'abgeschlossen', ton: 'neutral' };
+  if (angenommenAm && !kette.AB.length && !kette.LS.length && !kette.RE.length) {
+    return { code: 'angenommen', text: 'Angenommen, AB folgt', gruppe: 'laufend', ton: 'warn' };
+  }
   return berechneStatus(v, kette);
+}
+
+/**
+ * Darf der Kunde das Angebot online annehmen (#376)? 'ja' (Angebot liegt vor, noch keine AB,
+ * noch nicht angenommen), 'erneut' (Vorgang hat schon eine AB → neuer Auftrag), sonst null.
+ */
+function annahmeMoeglich(v, kette, angenommenAm) {
+  const an = kette.AN[kette.AN.length - 1];
+  if (v.abgebrochen_am || !an || !['open', 'accepted'].includes(an.status)) return null;
+  if (kette.AB.length) return 'erneut';
+  return angenommenAm ? null : 'ja';
 }
 
 const belegZeile = b => ({
@@ -71,23 +88,29 @@ async function ladeVorgaenge(pool, kundeId, vorgangsnummer = null) {
     anIds.length ? [ids, anIds] : [ids]
   );
   const byId = new Map(belege.map(b => [b.id, b]));
+  const [annahmen] = await pool.query(
+    'SELECT vorgang_id, MAX(angenommen_am) AS angenommen_am FROM metall_annahme WHERE vorgang_id IN (?) GROUP BY vorgang_id',
+    [ids]
+  );
+  const angenommen = new Map(annahmen.map(a => [a.vorgang_id, a.angenommen_am]));
   return vorgaenge.map(v => {
     const angebot = v.angebot_beleg_id ? byId.get(v.angebot_beleg_id) : undefined;
     const eigene = belege.filter(b => b.vorgang_id === v.id && b.belegart !== 'quotation');
     const zeigen = [angebot, ...eigene].filter(sichtbar);
     const kette = baueKette(zeigen.find(b => b.belegart === 'quotation'), zeigen.filter(b => b.belegart !== 'quotation'));
-    return { v, kette, zeigen };
+    return { v, kette, zeigen, angenommenAm: angenommen.get(v.id) || null };
   });
 }
 
-function vorgangZeile({ v, kette, zeigen }) {
+function vorgangZeile({ v, kette, zeigen, angenommenAm }) {
   return {
     vorgangsnummer: v.vorgangsnummer,
     bezeichnung: v.bezeichnung,
     kunden_bestellnr: v.kunden_bestellnr,
     erstellt_am: v.erstellt_am,
     nachbestellung_von: v.vorlage_nr || null,
-    status: kundenStatus(v, kette),
+    status: kundenStatus(v, kette, angenommenAm),
+    angenommen_am: angenommenAm,
     statusleiste: statusleiste(v, kette),
     fertigung: fertigungsStufe(v),
     kette: Object.fromEntries(Object.entries(kette).map(([k, docs]) => [k, docs.map(d => ({ id: d.id, nr: d.nr, datum: d.datum, status: d.status }))])),
@@ -120,7 +143,9 @@ async function detail(pool, lexwareId, vorgangsnummer) {
   const belege = [...eintrag.zeigen]
     .sort((a, b) => reihenfolge.indexOf(a.belegart) - reihenfolge.indexOf(b.belegart) || new Date(a.belegdatum || 0) - new Date(b.belegdatum || 0) || a.id - b.id)
     .map(belegZeile);
-  return { ...vorgangZeile(eintrag), belege, dateien };
+  const an = eintrag.kette.AN[eintrag.kette.AN.length - 1];
+  const annahme = annahmeMoeglich(eintrag.v, eintrag.kette, eintrag.angenommenAm);
+  return { ...vorgangZeile(eintrag), belege, dateien, annahme_moeglich: annahme, angebot_id: annahme ? an.id : null };
 }
 
 /**
@@ -143,4 +168,4 @@ async function belegPdf({ pool, lexware }, lexwareId, belegId) {
   return { pdf, dateiname: `${b.belegnummer.replace(/[^\w-]/g, '')}.pdf` };
 }
 
-module.exports = { sichtbar, kundenStatus, liste, detail, belegPdf };
+module.exports = { sichtbar, kundenStatus, annahmeMoeglich, liste, detail, belegPdf };

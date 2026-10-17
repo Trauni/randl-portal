@@ -75,6 +75,14 @@ async function ladeDetail(pool, id) {
     "SELECT COUNT(*) AS vorschlaege FROM metall_beleg WHERE zuordnung = 'offen' AND vorschlag_vorgang_id = ?", [v.id]
   );
 
+  // Online-Annahmen aus dem Kundenportal (#376), neueste zuerst
+  const [annahmen] = await pool.execute(
+    `SELECT id, angebot_belegnummer, angebot_betrag_brutto, angebot_pdf_sha256 IS NOT NULL AS mit_pruefsumme,
+            kunden_bestellnr, angenommen_am
+     FROM metall_annahme WHERE vorgang_id = ? ORDER BY angenommen_am DESC`,
+    [v.id]
+  );
+
   const ab = kette.AB[kette.AB.length - 1];
   return {
     ...v,
@@ -89,6 +97,7 @@ async function ladeDetail(pool, id) {
     angebot_vorgaenge: angebotVorgaenge,
     nachbestellungen,
     vorschlaege: Number(vorschlaege),
+    annahmen: annahmen.map(a => ({ ...a, mit_pruefsumme: !!a.mit_pruefsumme })),
   };
 }
 
