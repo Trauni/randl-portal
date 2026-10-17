@@ -89,6 +89,7 @@ function fakePool({ vorgang, belege = [], ab = 1, andere = 0, affected = 1 } = {
       if (/COUNT\(\*\) AS ab/.test(sql)) return [[{ ab }]];
       if (/COUNT\(\*\) AS andere/.test(sql)) return [[{ andere }]];
       if (/COUNT\(\*\) AS vorschlaege/.test(sql)) return [[{ vorschlaege: 2 }]];
+      if (/FROM metall_annahme WHERE vorgang_id/.test(sql)) return [[]];
       if (/SELECT id, vorgangsnummer/.test(sql)) return [[]];
       if (/^UPDATE metall_beleg/.test(sql.trim())) return [{ affectedRows: affected }];
       return [{ affectedRows: 1 }];

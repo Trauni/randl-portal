@@ -8,7 +8,7 @@ const beleg = (id, belegart, belegstatus, extra = {}) =>
 const V = (id, extra = {}) => ({ id, vorgangsnummer: `V-26-000${id}`, bezeichnung: `Teil ${id}`, kunden_bestellnr: null, herkunft: 'buero',
   erstellt_am: new Date(2026, 9, 1), angebot_beleg_id: null, vorlage_vorgang_id: null, fertigung_begonnen_am: null, fertigung_am: null, abgebrochen_am: null, ...extra });
 
-function fakePool({ kunde = { id: 3, name: 'Testfirma', kdnr: '10827' }, vorgaenge = [], belege = [], dateien = [], pdfBeleg } = {}) {
+function fakePool({ kunde = { id: 3, name: 'Testfirma', kdnr: '10827' }, vorgaenge = [], belege = [], dateien = [], pdfBeleg, annahmen = [] } = {}) {
   const calls = [];
   return {
     calls,
@@ -26,6 +26,7 @@ function fakePool({ kunde = { id: 3, name: 'Testfirma', kdnr: '10827' }, vorgaen
         return [nr ? vorgaenge.filter(v => v.vorgangsnummer === nr) : vorgaenge];
       }
       if (/FROM metall_beleg WHERE vorgang_id IN/.test(sql)) return [belege];
+      if (/FROM metall_annahme WHERE vorgang_id IN/.test(sql)) return [annahmen];
       throw new Error(`unerwartet: ${sql}`);
     },
   };
@@ -117,4 +118,31 @@ test('belegPdf: nur eigener, sichtbarer Beleg; Besitz wird per SQL mit kunde_id 
   await assert.rejects(api.belegPdf({ pool: fakePool(), lexware }, 'L1', 12), e => e.status === 404); // fremd
   await assert.rejects(api.belegPdf({ pool: fakePool(), lexware }, 'L1', 'abc'), e => e.status === 404);
   assert.equal(lexware.calls.length, 1);
+});
+
+// ── Online-Annahme (#376) ──
+
+test('detail: Angebot liegt vor → annahme_moeglich ja mit angebot_id', async () => {
+  const pool = fakePool({ vorgaenge: [V(1, { angebot_beleg_id: 11 })], belege: [beleg(11, 'quotation', 'open')] });
+  const d = await api.detail(pool, 'lex', 'V-26-0001');
+  assert.equal(d.annahme_moeglich, 'ja');
+  assert.equal(d.angebot_id, 11);
+});
+
+test('detail: schon angenommen → Status „Angenommen, AB folgt“, kein zweites Annehmen', async () => {
+  const pool = fakePool({ vorgaenge: [V(1, { angebot_beleg_id: 11 })], belege: [beleg(11, 'quotation', 'open')],
+    annahmen: [{ vorgang_id: 1, angenommen_am: new Date(2026, 9, 17) }] });
+  const d = await api.detail(pool, 'lex', 'V-26-0001');
+  assert.equal(d.annahme_moeglich, null);
+  assert.equal(d.status.code, 'angenommen');
+  assert.ok(d.angenommen_am);
+});
+
+test('detail: mit AB → erneut bestellen, Entwurf/abgelehnt → nicht', async () => {
+  let pool = fakePool({ vorgaenge: [V(1, { angebot_beleg_id: 11 })], belege: [beleg(11, 'quotation', 'accepted'), beleg(12, 'orderconfirmation', 'open', { vorgang_id: 1 })] });
+  assert.equal((await api.detail(pool, 'lex', 'V-26-0001')).annahme_moeglich, 'erneut');
+  pool = fakePool({ vorgaenge: [V(1, { angebot_beleg_id: 11 })], belege: [beleg(11, 'quotation', 'rejected')] });
+  assert.equal((await api.detail(pool, 'lex', 'V-26-0001')).annahme_moeglich, null);
+  pool = fakePool({ vorgaenge: [V(1)], belege: [] });
+  assert.equal((await api.detail(pool, 'lex', 'V-26-0001')).annahme_moeglich, null);
 });

@@ -7,6 +7,7 @@ import VorgangDateien from './VorgangDateien';
 // Alles außer der Fertigung kommt aus Lexware; „Jetzt abgleichen“ holt es sofort (#386).
 
 const fmt = d => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+const fmtZeit = d => d ? new Date(d).toLocaleString('de-DE', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
 const eur = n => n == null ? '' : Number(n).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
 const ART = { quotation: 'Angebot', orderconfirmation: 'Auftragsbestätigung', deliverynote: 'Lieferschein', invoice: 'Rechnung' };
 const BELEG_STATUS = { draft: 'Entwurf', open: 'offen', accepted: 'angenommen', rejected: 'abgelehnt', voided: 'storniert', paid: 'bezahlt', paidoff: 'ausgebucht', overdue: 'überfällig' };
@@ -133,6 +134,13 @@ export default function VorgangDetail() {
           ))}.</span>}
         </div>
       )}
+      {v.annahmen?.length > 0 && v.annahmen.map(a => (
+        <div key={a.id} className="vd-note vd-note--ok">
+          Online angenommen am {fmtZeit(a.angenommen_am)}: Angebot {a.angebot_belegnummer} über {eur(a.angebot_betrag_brutto)}
+          {a.kunden_bestellnr ? ` · Bestellnr. ${a.kunden_bestellnr}` : ''}{a.mit_pruefsumme ? '' : ' · ohne PDF-Prüfsumme'}
+          {!v.ab_nr && ' – jetzt die AB aus dem Angebot anlegen.'}
+        </div>
+      ))}
       {v.vorschlaege > 0 && (
         <div className="vd-note">
           {v.vorschlaege === 1 ? 'Ein offener Beleg schlägt' : `${v.vorschlaege} offene Belege schlagen`} diesen Vorgang vor – <Link to="/metallarbeiten/zuordnen">Belege zuordnen</Link>
@@ -238,6 +246,7 @@ const css = `
   .alert--error{background:#3a1515;border:1px solid var(--red2);color:var(--red2);}
   .alert--success{background:#0e2e1e;border:1px solid var(--green);color:var(--green);}
   .vd-note{display:block;font-size:13px;color:var(--text2);background:var(--bg1);border:1px solid var(--border);border-left:3px solid #4a8fe7;border-radius:7px;padding:9px 12px;margin-bottom:10px;}
+  .vd-note--ok{border-left-color:#2ebd7a;}
   .vd-note--warn{border-left-color:#f5a742;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
   .vd-note a,.vd-root .vd-card a{color:#6aa8f0;}
   .card{background:var(--bg1);border:1px solid var(--border);border-radius:9px;}
