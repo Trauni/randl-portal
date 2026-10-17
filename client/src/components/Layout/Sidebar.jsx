@@ -10,6 +10,7 @@ const Icon = ({ d, size=15 }) => (
 
 const ICONS = {
   dashboard:  'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z',
+  inbox:      'M22 12h-6l-2 3h-4l-2-3H2M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z',
   vacation:   'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M23 21v-2a4 4 0 0 1-3-3.87M16 3.13a4 4 0 0 1 0 7.75M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
   profile:    'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
   clock:      'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2',
@@ -79,18 +80,28 @@ export default function Sidebar({ user }) {
   const showMetallkunden = can('metallarbeiten.kunden');
   const showMetallarbeiten = showLieferantenauftrag || showMetallVorgaenge || showMetallkunden;
 
-  // Offene Belege fuer „Belege zuordnen“ (#370): beim Seitenwechsel, nach einer Aktion
-  // auf der Seite (Event) und alle 5 Minuten
+  // Zaehler fuer „Eingang“ (#371) und „Belege zuordnen“ (#370): beim Seitenwechsel, nach einer
+  // Aktion auf der Seite (Event) und alle 5 Minuten
   const location = useLocation();
   const [offeneBelege, setOffeneBelege] = useState(0);
+  const [neuImEingang, setNeuImEingang] = useState(0);
   useEffect(() => {
     if (!showMetallVorgaenge) return undefined;
-    const lade = () => fetch('/api/metallarbeiten/zuordnen/anzahl')
-      .then(r => (r.ok ? r.json() : { offen: 0 })).then(d => setOffeneBelege(d.offen || 0)).catch(() => {});
+    const lade = () => {
+      fetch('/api/metallarbeiten/zuordnen/anzahl')
+        .then(r => (r.ok ? r.json() : { offen: 0 })).then(d => setOffeneBelege(d.offen || 0)).catch(() => {});
+      fetch('/api/metallarbeiten/eingang/anzahl')
+        .then(r => (r.ok ? r.json() : { neu: 0 })).then(d => setNeuImEingang(d.neu || 0)).catch(() => {});
+    };
     lade();
     window.addEventListener('metall-zuordnen-geaendert', lade);
+    window.addEventListener('metall-eingang-geaendert', lade);
     const takt = setInterval(lade, 5 * 60 * 1000);
-    return () => { window.removeEventListener('metall-zuordnen-geaendert', lade); clearInterval(takt); };
+    return () => {
+      window.removeEventListener('metall-zuordnen-geaendert', lade);
+      window.removeEventListener('metall-eingang-geaendert', lade);
+      clearInterval(takt);
+    };
   }, [showMetallVorgaenge, location.pathname]);
   const showHR        = can('hr.urlaubskalender') || can('hr.zeitauswertung') || can('hr.mitarbeiter');
   const showIT        = can('it');
@@ -153,6 +164,7 @@ export default function Sidebar({ user }) {
         {showMetallarbeiten&&<>
           {!collapsed && <div className="nav-section-label">Metallarbeiten</div>}
           {collapsed && <div className="nav-section-divider"/>}
+          {showMetallVorgaenge && <NavItem to="/metallarbeiten/eingang" icon="inbox" label="Eingang" count={neuImEingang} collapsed={collapsed}/>}
           {showMetallVorgaenge && <NavItem to="/metallarbeiten/vorgaenge" icon="orders" label="Alle Aufträge" collapsed={collapsed}/>}
           {showMetallVorgaenge && <NavItem to="/metallarbeiten/zuordnen" icon="documents" label="Belege zuordnen" count={offeneBelege} collapsed={collapsed}/>}
           {showMetallkunden && <NavItem to="/metallarbeiten/kunden" icon="employees" label="Metallkunden" collapsed={collapsed}/>}
