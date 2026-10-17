@@ -12,6 +12,7 @@ import Notes from './components/Notes.jsx'
 import Zeiterfassung from './components/Zeiterfassung.jsx'
 import WidmannBestand from './components/WidmannBestand.jsx'
 import DeliveryRhythm from './components/DeliveryRhythm.jsx'
+import MetallFotos from './components/MetallFotos.jsx'
 
 // Bewusst kein react-router in Phase 1/2 -- wenige Ansichten, einfacher
 // State-Switch reicht und spart eine Abhaengigkeit. Bei Bedarf (mehr Ansichten
@@ -28,6 +29,7 @@ const VIEWS = {
   zeit: Zeiterfassung,
   'widmann-bestand': WidmannBestand,
   'lieferrhythmus': DeliveryRhythm,
+  'metall-fotos': MetallFotos,
 }
 
 function Shell() {

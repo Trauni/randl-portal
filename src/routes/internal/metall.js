@@ -9,6 +9,7 @@ const db = require('../../db');
 const lexware = require('../../services/lexware');
 const api = require('../../services/metallKundenApi');
 const eingang = require('../../services/metallEingang');
+const dateien = require('../../services/metallDatei');
 
 const router = express.Router();
 
@@ -52,6 +53,17 @@ router.get('/kunden/:lexwareId/belege/:belegId/pdf', async (req, res) => {
     res.setHeader('Content-Disposition', `inline; filename="${dateiname}"`);
     res.send(Buffer.from(pdf));
   } catch (err) { sende(res, err, 'Beleg-PDF'); }
+});
+
+// Freigegebene Datei bzw. Vorschau eines Vorgangs dieses Kunden (#372)
+router.get('/kunden/:lexwareId/dateien/:dateiId', async (req, res) => {
+  try {
+    const a = await dateien.oeffneFuerKunde(db.getPool(), req.params.lexwareId, req.params.dateiId, { vorschau: req.query.vorschau === '1' });
+    await dateien.sendeDatei(res, a);
+  } catch (err) {
+    if (res.headersSent) return res.end();
+    sende(res, err, 'Datei');
+  }
 });
 
 // Eingang (#371): Anfrage, Nachbestellung, Annahme oder Freischaltung melden → { id }

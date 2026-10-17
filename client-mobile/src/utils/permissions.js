@@ -7,7 +7,7 @@
 export const ALL_AREAS = [
   'dashboard', 'profil', 'urlaub.eigen', 'zeit.eigen', 'notizen',
   'gashandel', 'hr.urlaubskalender', 'hr.zeitauswertung', 'hr.mitarbeiter',
-  'it', 'content',
+  'it', 'content', 'metallarbeiten.vorgaenge',
 ]
 
 export const ROLE_AREAS = {
@@ -18,9 +18,9 @@ export const ROLE_AREAS = {
 
 export const ACCESS_TAGS = {
   geschaeftsfuehrung: { allow: ALL_AREAS },
-  backoffice:         { allow: ['gashandel', 'it', 'content', 'hr.zeitauswertung'] },
+  backoffice:         { allow: ['gashandel', 'it', 'content', 'hr.zeitauswertung', 'metallarbeiten.vorgaenge'] },
   gashandel:          { allow: ['gashandel', 'gashandel.preise'] }, // #328
-  metallarbeiten:     { allow: [] },
+  metallarbeiten:     { allow: ['metallarbeiten.vorgaenge'] }, // #372 Werkstattfotos
   zeltverleih:        { allow: [] },
 }
 

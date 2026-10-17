@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, ShoppingCart, UserPlus, QrCode, NotebookPen,
-  Plane, Clock, User, LogOut, ClipboardList, CalendarDays,
+  Plane, Clock, User, LogOut, ClipboardList, CalendarDays, Camera,
 } from 'lucide-react'
 
 const ITEMS = [
@@ -10,6 +10,7 @@ const ITEMS = [
   { key: 'kunden-qr', label: 'Kunden-QR-Code', area: 'gashandel', icon: QrCode },
   { key: 'widmann-bestand', label: 'Widmann zählen', area: 'gashandel', icon: ClipboardList },
   { key: 'lieferrhythmus', label: 'Lieferrhythmus', area: 'gashandel', icon: CalendarDays },
+  { key: 'metall-fotos', label: 'Metall: Fotos', area: 'metallarbeiten.vorgaenge', icon: Camera },
   { key: 'notizen', label: 'Notizen', area: 'notizen', icon: NotebookPen },
   { key: 'urlaub', label: 'Mein Urlaub', area: 'urlaub.eigen', icon: Plane },
   { key: 'zeit', label: 'Zeiterfassung', area: 'zeit.eigen', icon: Clock },

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import VorgangDateien from './VorgangDateien';
 
 // Vorgangsdetail Metallarbeiten (#368): Statusleiste, Fertigung (Geplant / In Arbeit / Fertig),
-// Belege mit „Lösen“ bei Fehlzuordnung, Mehrfachbestellung, Abbrechen/Fortsetzen.
+// Belege mit „Lösen“ bei Fehlzuordnung, Mehrfachbestellung, Abbrechen/Fortsetzen, Fotos & Dateien (#372).
 // Alles außer der Fertigung kommt aus Lexware; „Jetzt abgleichen“ holt es sofort (#386).
 
 const fmt = d => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
@@ -205,6 +206,8 @@ export default function VorgangDetail() {
           </div>
         )}
       </div>
+
+      <VorgangDateien vorgangId={v.id} />
 
       {offen && (
         <div className="vd-foot">
