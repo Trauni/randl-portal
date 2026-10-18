@@ -114,7 +114,7 @@ export default function Lieferantenauftrag() {
   return (
     <div className="la-root">
       <div className="la-hdr">
-        <div><h1 className="la-title">Lieferantenaufträge</h1><p className="la-sub">Metallarbeiten — Bestellungen an Lieferanten</p></div>
+        <div><h1 className="la-title">Lieferantenaufträge</h1><p className="la-sub">Maschinenbau — Bestellungen an Lieferanten</p></div>
         <button className="btn btn-primary" onClick={() => { setShowForm(v => !v); setError(''); }}>
           {showForm ? 'Abbrechen' : '+ Neuer Auftrag'}
         </button>

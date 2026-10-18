@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 
 const fmtZeit = d => d ? new Date(d).toLocaleString('de-DE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
 const eur = x => x == null ? '' : Number(x).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-const ART = { anfrage: 'Neue Anfrage', nachbestellung: 'Nachbestellung', annahme: 'Angebot angenommen', freischaltung: 'Freischaltung Metall' };
+const ART = { anfrage: 'Neue Anfrage', nachbestellung: 'Nachbestellung', annahme: 'Angebot angenommen', freischaltung: 'Freischaltung Maschinenbau' };
 const KURZ = { anfrage: 'AF', nachbestellung: 'NB', annahme: 'OK', freischaltung: 'FR' };
 const STATUS = { erledigt: 'erledigt', abgelehnt: 'abgelehnt', neu: 'neu' };
 
@@ -28,7 +28,7 @@ function MailHinweis({ e }) {
 }
 
 function Ziel({ e }) {
-  if (e.art === 'freischaltung') return <Link className="btn btn-primary" to="/metallarbeiten/kunden">Zu Metallkunden</Link>;
+  if (e.art === 'freischaltung') return <Link className="btn btn-primary" to="/metallarbeiten/kunden">Zu MB-Kunden</Link>;
   if (e.vorgang_id) return <Link className="btn btn-primary" to={`/metallarbeiten/vorgaenge/${e.vorgang_id}`}>Zum Vorgang</Link>;
   return null;
 }
@@ -68,7 +68,7 @@ export default function Eingang() {
   return (
     <div className="me-root">
       <div className="me-hdr">
-        <div><h1 className="me-title">Eingang</h1><p className="me-sub">Metallarbeiten — Anfragen, Nachbestellungen, Annahmen und Freischaltungen aus dem Kundenbereich</p></div>
+        <div><h1 className="me-title">Eingang</h1><p className="me-sub">Maschinenbau — Anfragen, Nachbestellungen, Annahmen und Freischaltungen aus dem Kundenbereich</p></div>
         <button className="btn btn-ghost" onClick={load} disabled={loading}>Neu laden</button>
       </div>
 

@@ -45,7 +45,7 @@ router.get('/', requireAuth, GATE, async (req, res) => {
   try {
     res.json(await metallKonto.ladeUebersicht({ pool: db.getPool(), fetcher: shopFetch }));
   } catch (err) {
-    sendeFehler(res, err, 'Metallkunden laden');
+    sendeFehler(res, err, 'MB-Kunden laden');
   }
 });
 
@@ -84,7 +84,7 @@ router.post('/', requireAuth, GATE, async (req, res) => {
     const kunde = await metallKunde.setzeMerker(deps(), { lexwareKontaktId: lexware_kontakt_id, employeeId });
     res.status(201).json(kunde);
   } catch (err) {
-    sendeFehler(res, err, 'Metallkunde setzen');
+    sendeFehler(res, err, 'MB-Kunde setzen');
   }
 });
 
@@ -116,7 +116,7 @@ router.delete('/:id', requireAuth, GATE, async (req, res) => {
 async function ladeKunde(id) {
   const [[kunde]] = await db.getPool().execute('SELECT * FROM metall_kunde WHERE id = ? AND aktiv = 1', [id]);
   if (!kunde) {
-    const err = new Error('Metallkunde nicht gefunden');
+    const err = new Error('MB-Kunde nicht gefunden');
     err.status = 404;
     throw err;
   }

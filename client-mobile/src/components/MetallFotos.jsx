@@ -97,7 +97,7 @@ export default function MetallFotos() {
   if (!vorgang) {
     return (
       <section>
-        <h2 className="section-title"><Camera size={17} />Metall: Fotos</h2>
+        <h2 className="section-title"><Camera size={17} />Maschinenbau: Fotos</h2>
         <div className="search-box">
           <Search size={16} />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Vorgang, Kunde, Bezeichnung …" inputMode="search" />

@@ -50,7 +50,7 @@ router.get('/kunden', requireAuth, GATE, async (req, res) => {
 router.get('/auswahl', requireAuth, GATE, async (req, res) => {
   const pool = db.getPool();
   const [[kunde]] = await pool.execute('SELECT id, lexware_kontakt_id FROM metall_kunde WHERE id = ? AND aktiv = 1', [req.query.kunde_id || 0]);
-  if (!kunde) return res.status(404).json({ error: 'Metallkunde nicht gefunden' });
+  if (!kunde) return res.status(404).json({ error: 'MB-Kunde nicht gefunden' });
   const [angebote] = await pool.execute(
     `SELECT b.id, b.belegnummer, b.belegstatus, b.belegdatum, b.betrag_netto,
             (SELECT COUNT(*) FROM metall_vorgang v WHERE v.angebot_beleg_id = b.id) AS vorgaenge

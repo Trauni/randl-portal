@@ -103,7 +103,7 @@ export default function Vorgaenge() {
   const setKunde = id => setForm(f => ({ ...f, kunde_id: id, angebot_beleg_id: '', vorlage_vorgang_id: '' }));
 
   const submit = async () => {
-    if (!form.kunde_id) { setError('Bitte einen Metallkunden wählen'); return; }
+    if (!form.kunde_id) { setError('Bitte einen MB-Kunden wählen'); return; }
     if (!form.bezeichnung.trim()) { setError('Bitte eine Bezeichnung eingeben'); return; }
     if (form.grundlage === 'angebot' && !form.angebot_beleg_id) { setError('Bitte ein Angebot wählen'); return; }
     if (form.grundlage === 'vorlage' && !form.vorlage_vorgang_id) { setError('Bitte den Vorgang wählen, der nachbestellt wird'); return; }
@@ -143,7 +143,7 @@ export default function Vorgaenge() {
   return (
     <div className="mv-root">
       <div className="mv-hdr">
-        <div><h1 className="mv-title">Alle Aufträge</h1><p className="mv-sub">Metallarbeiten — Vorgänge mit Belegkette aus Lexware</p></div>
+        <div><h1 className="mv-title">Alle Aufträge</h1><p className="mv-sub">Maschinenbau — Vorgänge mit Belegkette aus Lexware</p></div>
         <button className="btn btn-primary" onClick={() => { setShowForm(v => !v); setError(''); }}>
           {showForm ? 'Abbrechen' : '+ Neuer Vorgang'}
         </button>
@@ -156,12 +156,12 @@ export default function Vorgaenge() {
         <div className="card mv-form">
           <div className="mv-grid">
             <div className="mv-ff">
-              <label className="mv-lbl">Metallkunde</label>
+              <label className="mv-lbl">MB-Kunde</label>
               <select className="mv-inp" value={form.kunde_id} onChange={e => setKunde(e.target.value)}>
                 <option value="">– wählen –</option>
                 {kunden.map(k => <option key={k.id} value={k.id}>{k.name}{k.kdnr ? ` (${k.kdnr})` : ''}</option>)}
               </select>
-              {kunden.length === 0 && <div className="mv-hint">Noch keine Metallkunden – erst unter Metallkunden den Merker setzen.</div>}
+              {kunden.length === 0 && <div className="mv-hint">Noch keine MB-Kunden – erst unter MB-Kunden den Merker setzen.</div>}
             </div>
             <div className="mv-ff">
               <label className="mv-lbl">Bestellnr. des Kunden (optional)</label>

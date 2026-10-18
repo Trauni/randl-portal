@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 // „Belege zuordnen“ (#370): Belege, die der Sync nicht sicher zuordnen konnte.
-// Vorschlag bestaetigen, anderen Vorgang waehlen, neuen Vorgang anlegen oder „Kein Metallauftrag“.
+// Vorschlag bestaetigen, anderen Vorgang waehlen, neuen Vorgang anlegen oder „Kein Maschinenbau-Auftrag“.
 
 const fmt = d => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
 const eur = x => x == null ? '' : Number(x).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
@@ -76,7 +76,7 @@ export default function Zuordnen() {
   };
 
   const ignorieren = b => tue(b, () => post(`/api/metallarbeiten/zuordnen/${b.id}/ignorieren`),
-    () => `${b.belegnummer || 'Beleg'} als „Kein Metallauftrag“ markiert.`);
+    () => `${b.belegnummer || 'Beleg'} als „Kein Maschinenbau-Auftrag“ markiert.`);
 
   const zurueckholen = b => tue(b, () => post(`/api/metallarbeiten/zuordnen/${b.id}/zurueckholen`),
     () => `${b.belegnummer || 'Beleg'} ist wieder im Eingang.`);
@@ -84,7 +84,7 @@ export default function Zuordnen() {
   return (
     <div className="mz-root">
       <div className="mz-hdr">
-        <div><h1 className="mz-title">Belege zuordnen</h1><p className="mz-sub">Metallarbeiten — Belege aus Lexware, die der Abgleich nicht sicher einem Vorgang zuordnen konnte</p></div>
+        <div><h1 className="mz-title">Belege zuordnen</h1><p className="mz-sub">Maschinenbau — Belege aus Lexware, die der Abgleich nicht sicher einem Vorgang zuordnen konnte</p></div>
         <button className="btn btn-ghost" onClick={load} disabled={loading}>Neu laden</button>
       </div>
 
@@ -132,7 +132,7 @@ export default function Zuordnen() {
                   )}
                   <button className={`btn btn-ghost${auf === 'anderer' ? ' btn--on' : ''}`} disabled={gesperrt || !b.kunde_id} onClick={() => oeffne(b, 'anderer')}>Anderer Vorgang</button>
                   <button className={`btn btn-ghost${auf === 'neu' ? ' btn--on' : ''}`} disabled={gesperrt || !b.kunde_id} onClick={() => oeffne(b, 'neu')}>Neuer Vorgang</button>
-                  <button className="btn btn-ghost mz-ign" disabled={gesperrt} onClick={() => ignorieren(b)}>Kein Metallauftrag</button>
+                  <button className="btn btn-ghost mz-ign" disabled={gesperrt} onClick={() => ignorieren(b)}>Kein Maschinenbau-Auftrag</button>
                 </div>
 
                 {auf === 'anderer' && (
@@ -162,7 +162,7 @@ export default function Zuordnen() {
       {daten.ignoriert.length > 0 && (
         <div className="mz-ignoriert">
           <button className="mz-link" onClick={() => setZeigeIgnoriert(v => !v)}>
-            {zeigeIgnoriert ? '▾' : '▸'} Als „Kein Metallauftrag“ markiert (letzte 30 Tage): {daten.ignoriert.length}
+            {zeigeIgnoriert ? '▾' : '▸'} Als „Kein Maschinenbau-Auftrag“ markiert (letzte 30 Tage): {daten.ignoriert.length}
           </button>
           {zeigeIgnoriert && daten.ignoriert.map(b => (
             <div key={b.id} className="mz-ign-row">

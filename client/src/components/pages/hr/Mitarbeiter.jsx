@@ -4,7 +4,7 @@ const TAG_LABELS = [
   ['geschaeftsfuehrung', 'Geschäftsführung'],
   ['backoffice', 'Backoffice'],
   ['gashandel', 'Gashandel'],
-  ['metallarbeiten', 'Metallarbeiten'],
+  ['metallarbeiten', 'Maschinenbau'],
   ['zeltverleih', 'Zeltverleih'],
 ];
 const TAG_MAP = Object.fromEntries(TAG_LABELS);
