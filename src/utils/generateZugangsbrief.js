@@ -54,7 +54,7 @@ async function generateZugangsbrief({ daten, templatePath, datum = new Date() })
   const host = String(daten.login_url || '').replace(/^https?:\/\//, '');
   const absaetze = [
     'Guten Tag,',
-    'im Randl-Kundenportal sehen Sie Ihre Aufträge der Metallarbeiten mit Angeboten, Auftragsbestätigungen, Lieferscheinen und Rechnungen. Dort können Sie auch nachbestellen und neue Anfragen stellen.',
+    'im Randl-Kundenportal sehen Sie Ihre Aufträge im Maschinenbau mit Angeboten, Auftragsbestätigungen, Lieferscheinen und Rechnungen. Dort können Sie auch nachbestellen und neue Anfragen stellen.',
     daten.passwort_gesetzt
       ? `Sie haben bereits ein Passwort für Ihr Kundenkonto. Melden Sie sich unter ${host} mit Ihrer Kundennummer und diesem Passwort an. Haben Sie es vergessen, nutzen Sie dort „Passwort vergessen“.`
       : 'So melden Sie sich zum ersten Mal an:',
