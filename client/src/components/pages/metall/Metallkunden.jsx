@@ -63,22 +63,22 @@ export default function Metallkunden() {
     }));
     setTreffer(list => list && list.map(x => x.lexware_kontakt_id === t.lexware_kontakt_id ? { ...x, ist_metallkunde: true } : x));
     return r;
-  }, r => r.notiz_status === 'fehler' ? `${t.name} ist Metallkunde – die Lexware-Notiz konnte nicht geschrieben werden: ${r.notiz_fehler}` : `${t.name} ist jetzt Metallkunde.`);
+  }, r => r.notiz_status === 'fehler' ? `${t.name} ist MB-Kunde – die Lexware-Notiz konnte nicht geschrieben werden: ${r.notiz_fehler}` : `${t.name} ist jetzt MB-Kunde.`);
 
   const basis = k => `/api/metallarbeiten/kunden/${k.id}`;
   const zugang = k => tu(`z-${k.id}`, () => post(`${basis(k)}/zugang`), `Zugang für ${k.name} angelegt – jetzt den Zugangsbrief drucken.`);
   const sperren = k => {
-    if (!window.confirm(`Metall-Zugang für ${k.name} sperren?\n\nGas-Bestellungen sind davon nicht betroffen.`)) return;
-    tu(`s-${k.id}`, () => post(`${basis(k)}/sperren`), `Metall-Zugang für ${k.name} gesperrt.`);
+    if (!window.confirm(`Maschinenbau-Zugang für ${k.name} sperren?\n\nGas-Bestellungen sind davon nicht betroffen.`)) return;
+    tu(`s-${k.id}`, () => post(`${basis(k)}/sperren`), `Maschinenbau-Zugang für ${k.name} gesperrt.`);
   };
-  const entsperren = k => tu(`e-${k.id}`, () => post(`${basis(k)}/entsperren`), `Metall-Zugang für ${k.name} wieder offen.`);
+  const entsperren = k => tu(`e-${k.id}`, () => post(`${basis(k)}/entsperren`), `Maschinenbau-Zugang für ${k.name} wieder offen.`);
   const reset = k => {
     if (!window.confirm(`${k.name} einen Link für ein neues Passwort per E-Mail schicken?\n\nDas bisherige Passwort gilt weiter, bis der Kunde ein neues festlegt (gilt auch für Gas).`)) return;
     tu(`r-${k.id}`, () => post(`${basis(k)}/reset-mail`), r => `Link für ein neues Passwort an ${r.gesendet_an} geschickt (${r.gueltig_stunden} Stunden gültig).`);
   };
   const entfernen = k => {
-    if (!window.confirm(`${k.name} nicht mehr als Metallkunde führen?\n\n„METALL“ bleibt in der Lexware-Notiz stehen, ein Portalzugang bleibt bestehen.`)) return;
-    tu(`x-${k.id}`, () => post(basis(k), 'DELETE'), `${k.name} ist kein Metallkunde mehr.`);
+    if (!window.confirm(`${k.name} nicht mehr als MB-Kunde führen?\n\n„METALL“ bleibt in der Lexware-Notiz stehen, ein Portalzugang bleibt bestehen.`)) return;
+    tu(`x-${k.id}`, () => post(basis(k), 'DELETE'), `${k.name} ist kein MB-Kunde mehr.`);
   };
   const notiz = k => tu(`n-${k.id}`, () => post(`${basis(k)}/notiz`), 'Notiz neu geschrieben.');
 
@@ -87,14 +87,14 @@ export default function Metallkunden() {
   return (
     <div className="mk-root">
       <div className="mk-hdr">
-        <div><h1 className="mk-title">Metallkunden</h1>
-          <p className="mk-sub">Lexware-Kunden mit Merker „Metall“ und ihr Zugang zum Kundenportal. Gaskunden bleiben unter Gashandel; Kunden mit beiden Bereichen haben ein gemeinsames Konto.</p></div>
+        <div><h1 className="mk-title">MB-Kunden</h1>
+          <p className="mk-sub">Lexware-Kunden mit Merker „Maschinenbau“ (in Lexware: METALL) und ihr Zugang zum Kundenportal. Gaskunden bleiben unter Gashandel; Kunden mit beiden Bereichen haben ein gemeinsames Konto.</p></div>
       </div>
 
       {error && <div className="alert alert--error">{error}</div>}
       {success && <div className="alert alert--success">{success}</div>}
       {daten.konto_fehler && <div className="alert alert--warn">Portalzugänge gerade nicht abrufbar (Gas-Shop): {daten.konto_fehler}</div>}
-      <div className="mk-note">Die Anmeldung für Metallkunden wird mit dem Kundenbereich freigeschaltet. Zugangsbriefe erst danach verschicken.</div>
+      <div className="mk-note">Die Anmeldung für MB-Kunden wird mit dem Kundenbereich freigeschaltet. Zugangsbriefe erst danach verschicken.</div>
 
       <form className="card mk-search" onSubmit={suchen}>
         <input className="mk-inp" type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Lexware-Kunde suchen (Name oder Kundennummer) …" aria-label="Lexware-Kunde suchen" />
@@ -105,18 +105,18 @@ export default function Metallkunden() {
               <div key={t.lexware_kontakt_id} className="mk-t">
                 <span className="mk-nr">{t.kdnr || '–'}</span>
                 <span className="mk-name">{t.name}</span>
-                <span>{t.gaskunde && <span className="mk-chip">Gas</span>}{t.ist_metallkunde && <span className="mk-chip mk-chip--metall">Metall</span>}</span>
-                {t.ist_metallkunde ? <span className="mk-small">schon Metallkunde</span>
+                <span>{t.gaskunde && <span className="mk-chip">Gas</span>}{t.ist_metallkunde && <span className="mk-chip mk-chip--metall">MB</span>}</span>
+                {t.ist_metallkunde ? <span className="mk-small">schon MB-Kunde</span>
                   : <button type="button" className="btn btn-primary btn-sm" disabled={!!busy} onClick={() => markieren(t)}>
-                    {busy === `m-${t.lexware_kontakt_id}` ? '…' : 'Als Metallkunde führen'}</button>}
+                    {busy === `m-${t.lexware_kontakt_id}` ? '…' : 'Als MB-Kunde führen'}</button>}
               </div>
             ))}
           </div>
         )}
       </form>
 
-      {loading ? <div className="mk-loading"><div className="spinner" />Lade Metallkunden…</div>
-        : kunden.length === 0 ? <div className="mk-empty">Noch keine Metallkunden – oben einen Lexware-Kunden suchen und als Metallkunde führen.</div>
+      {loading ? <div className="mk-loading"><div className="spinner" />Lade MB-Kunden…</div>
+        : kunden.length === 0 ? <div className="mk-empty">Noch keine MB-Kunden – oben einen Lexware-Kunden suchen und als MB-Kunde führen.</div>
         : <div className="mk-table">
           <div className="mk-row mk-head"><span>KdNr</span><span>Kunde</span><span>Bereiche</span><span>Portalzugang</span><span>Laufend</span><span /></div>
           {kunden.map(k => {
@@ -131,7 +131,7 @@ export default function Metallkunden() {
                   {k.notiz_status === 'fehler' && <span className="mk-small mk-warn">Lexware-Notiz fehlt · <button className="mk-link" onClick={() => notiz(k)} disabled={!!busy}>erneut schreiben</button></span>}
                   {k.belege_offen > 0 && <span className="mk-small">{k.belege_offen} Beleg{k.belege_offen === 1 ? '' : 'e'} zuzuordnen</span>}
                 </span>
-                <span>{z?.gas && <span className="mk-chip">Gas</span>}<span className="mk-chip mk-chip--metall">Metall</span></span>
+                <span>{z?.gas && <span className="mk-chip">Gas</span>}<span className="mk-chip mk-chip--metall">MB</span></span>
                 <span>
                   <span className={`mk-chip mk-chip--${ton}`}>{text}</span>
                   {z?.status === 'aktiv' && z.erster_login_am && <span className="mk-small mk-block">seit {new Date(z.erster_login_am).toLocaleDateString('de-DE')}</span>}
@@ -149,7 +149,7 @@ export default function Metallkunden() {
                   {z?.status === 'aktiv' && <button className="btn btn-ghost btn-sm" disabled={!!busy || !z.email} title={z.email ? '' : 'Keine E-Mail-Adresse – Zugangsbrief nutzen'} onClick={() => reset(k)}>{b('r') ? '…' : 'Zugang zurücksetzen'}</button>}
                   {z && ['erstlogin', 'aktiv'].includes(z.status) && <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => sperren(k)}>{b('s') ? '…' : 'Sperren'}</button>}
                   {z?.status === 'gesperrt' && <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => entsperren(k)}>{b('e') ? '…' : 'Entsperren'}</button>}
-                  <button className="btn btn-ghost btn-sm mk-x" disabled={!!busy} title="Nicht mehr als Metallkunde führen" onClick={() => entfernen(k)}>✕</button>
+                  <button className="btn btn-ghost btn-sm mk-x" disabled={!!busy} title="Nicht mehr als MB-Kunde führen" onClick={() => entfernen(k)}>✕</button>
                 </span>
               </div>
             );

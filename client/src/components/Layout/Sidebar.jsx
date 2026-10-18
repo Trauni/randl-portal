@@ -112,7 +112,7 @@ export default function Sidebar({ user }) {
   const roleLabel   = tags.includes('geschaeftsfuehrung') ? 'Geschäftsführung'
                     : tags.includes('backoffice')         ? 'Backoffice'
                     : tags.includes('gashandel')          ? 'Gashandel'
-                    : tags.includes('metallarbeiten')     ? 'Metallarbeiten'
+                    : tags.includes('metallarbeiten')     ? 'Maschinenbau'
                     : tags.includes('zeltverleih')        ? 'Zeltverleih'
                     : role === 'freelancer'               ? 'Freelancer'
                     : role === 'extern'                   ? 'Extern'
@@ -162,12 +162,12 @@ export default function Sidebar({ user }) {
         </>}
 
         {showMetallarbeiten&&<>
-          {!collapsed && <div className="nav-section-label">Metallarbeiten</div>}
+          {!collapsed && <div className="nav-section-label">Maschinenbau</div>}
           {collapsed && <div className="nav-section-divider"/>}
           {showMetallVorgaenge && <NavItem to="/metallarbeiten/eingang" icon="inbox" label="Eingang" count={neuImEingang} collapsed={collapsed}/>}
           {showMetallVorgaenge && <NavItem to="/metallarbeiten/vorgaenge" icon="orders" label="Alle Aufträge" collapsed={collapsed}/>}
           {showMetallVorgaenge && <NavItem to="/metallarbeiten/zuordnen" icon="documents" label="Belege zuordnen" count={offeneBelege} collapsed={collapsed}/>}
-          {showMetallkunden && <NavItem to="/metallarbeiten/kunden" icon="employees" label="Metallkunden" collapsed={collapsed}/>}
+          {showMetallkunden && <NavItem to="/metallarbeiten/kunden" icon="employees" label="MB-Kunden" collapsed={collapsed}/>}
           {showLieferantenauftrag && <NavItem to="/metallarbeiten/lieferantenauftraege" icon="metall" label="Lieferantenaufträge" collapsed={collapsed}/>}
         </>}
 
