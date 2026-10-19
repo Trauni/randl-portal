@@ -87,9 +87,10 @@ router.get('/recipients', async (req, res) => {
   catch (err) { res.status(err.status || 500).json({ error: err.message }); }
 });
 
-// { wave, test_to? } – Vorlage, PDF und (gefilterte) Empfänger kommen von hier
+// { wave, test_to?, customer_id? } – Vorlage, PDF und (gefilterte) Empfänger kommen von hier;
+// mit customer_id geht die Mail nur an diesen einen Kunden (bereits angeschriebene überspringt das admin-backend)
 router.post('/send', async (req, res) => {
-  const { wave, test_to } = req.body || {};
+  const { wave, test_to, customer_id } = req.body || {};
   try {
     const t = template();
     const pdf = pdfInfo();
@@ -98,7 +99,12 @@ router.post('/send', async (req, res) => {
       subject: t.subject, html: t.html,
       attachment: pdf.exists ? { name: 'Anleitung-Gasshop.pdf', base64: fs.readFileSync(PDF).toString('base64') } : undefined,
     };
-    if (!test_to) body.customerIds = (await recipients(wave)).customers.map(c => c.id);
+    if (!test_to) {
+      const all = (await recipients(wave)).customers;
+      const list = customer_id != null ? all.filter(c => String(c.id) === String(customer_id)) : all;
+      if (customer_id != null && !list.length) return res.status(404).json({ error: 'Kunde nicht in dieser Welle' });
+      body.customerIds = list.map(c => c.id);
+    }
     const upstream = await shopFetch('/admin/info-mail/send', { method: 'POST', body: JSON.stringify(body) });
     res.status(upstream.status).json(await upstream.json().catch(() => ({})));
   } catch (err) { res.status(err.status || 500).json({ error: err.message }); }

@@ -208,11 +208,13 @@ export default function InfoMail() {
     setTpl(t => ({ ...t, pdf: d.pdf })); setInfo('Anleitung hochgeladen.');
   };
 
-  const send = async (test) => {
+  const send = async (test, one) => {
     setError(''); setInfo('');
     const open = (data?.customers || []).filter(c => !c.sent_at).length;
-    if (!test && !window.confirm(`Info-Mail (Welle ${wave}) jetzt an ${open} Kunden senden?\n\nBereits angeschriebene Kunden werden übersprungen.`)) return;
-    const r = await fetch('/api/finance/info-mail/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wave, test_to: test ? testTo : undefined }) });
+    if (one) {
+      if (!window.confirm(`Login- und Info-Mail jetzt an ${one.name} (${one.recipient}) senden?`)) return;
+    } else if (!test && !window.confirm(`Info-Mail (Welle ${wave}) jetzt an ${open} Kunden senden?\n\nBereits angeschriebene Kunden werden übersprungen.`)) return;
+    const r = await fetch('/api/finance/info-mail/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wave, test_to: test ? testTo : undefined, customer_id: one?.id }) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { setError(d.error || 'Versand fehlgeschlagen'); return; }
     if (test) { setInfo(`Testmail an ${d.sentTo} gesendet (Beispielkunde: ${d.sample}).`); return; }
@@ -315,6 +317,7 @@ export default function InfoMail() {
                   <th style={S.th}>{wave === 2 ? 'Anschrift' : 'E-Mail'}</th>
                   <th style={S.th}>First Login</th>
                   {wave !== 2 && <th style={S.th}>Angeschrieben</th>}
+                  {wave !== 2 && <th style={S.th}></th>}
                 </tr></thead>
                 <tbody>
                   {customers.map(c => (
@@ -324,9 +327,14 @@ export default function InfoMail() {
                       <td style={S.td}>{wave === 2 ? `${c.street || ''}, ${c.zip || ''} ${c.city || ''}` : c.recipient}</td>
                       <td style={S.td}>{c.first_login_at ? '✓ ' + new Date(c.first_login_at).toLocaleDateString('de-DE') : '✗'}</td>
                       {wave !== 2 && <td style={S.td}>{c.sent_at ? fmt(c.sent_at) : '—'}</td>}
+                      {wave !== 2 && (
+                        <td style={S.td}>
+                          {!c.sent_at && <button style={S.btn} disabled={running} onClick={() => send(false, c)}>Mail senden</button>}
+                        </td>
+                      )}
                     </tr>
                   ))}
-                  {!customers.length && <tr><td colSpan={5} style={{ ...S.td, textAlign: 'center', color: 'var(--text3)' }}>Keine Kunden in dieser Welle.</td></tr>}
+                  {!customers.length && <tr><td colSpan={6} style={{ ...S.td, textAlign: 'center', color: 'var(--text3)' }}>Keine Kunden in dieser Welle.</td></tr>}
                 </tbody>
               </table>
             </div>
