@@ -9,7 +9,7 @@ function Badge({ status }) {
   return <span style={{display:'inline-flex',alignItems:'center',padding:'2px 9px',borderRadius:10,fontSize:11,fontWeight:700,color:s.color,background:s.bg,border:`1px solid ${s.color}44`}}>{s.label}</span>;
 }
 const fmt = d => d ? new Date(d).toLocaleDateString('de-DE',{day:'2-digit',month:'short',year:'numeric'}) : '';
-const emptyPos = () => ({ stueckzahl: 1, bezeichnung: '', notiz: '' });
+const emptyPos = () => ({ stueckzahl: '', bezeichnung: '', notiz: '' });
 
 export default function Lieferantenauftrag() {
   const [auftraege, setAuftraege] = useState([]);
@@ -91,7 +91,7 @@ export default function Lieferantenauftrag() {
           lieferant_name: selected.name,
           empfaenger_zeilen: empfaenger.filter(Boolean),
           kopfhinweis,
-          positionen: gueltigePos,
+          positionen: gueltigePos.map(p => ({ ...p, stueckzahl: parseInt(p.stueckzahl)||1 })),
         }),
       });
       const data = await r.json();
@@ -170,7 +170,7 @@ export default function Lieferantenauftrag() {
             </div>
             {positionen.map((pos, i) => (
               <div className="la-pos-row" key={i}>
-                <input className="la-inp" type="number" min="1" value={pos.stueckzahl}
+                <input className="la-inp" type="number" min="1" value={pos.stueckzahl} placeholder="Stk"
                   onChange={e => updatePos(i, 'stueckzahl', e.target.value)} />
                 <input className="la-inp" value={pos.bezeichnung} placeholder="Artikelbezeichnung"
                   onChange={e => updatePos(i, 'bezeichnung', e.target.value)} />

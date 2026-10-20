@@ -129,7 +129,7 @@ export default function NewOrder({ user }) {
   }
 
   const addItem = (product) => {
-    const qty = Math.max(1, parseInt(qtyDraft[product.id] || '1', 10) || 1)
+    const qty = Math.max(1, parseInt(qtyDraft[product.id], 10) || 1)
     setItems((prev) => {
       const existing = prev.find((i) => i.productId === product.id)
       if (existing) {
@@ -299,7 +299,8 @@ export default function NewOrder({ user }) {
                     type="number"
                     min="1"
                     className="qty-input"
-                    value={qtyDraft[p.id] ?? 1}
+                    value={qtyDraft[p.id] ?? ''}
+                    placeholder="Menge"
                     onChange={(e) => setQtyDraft((prev) => ({ ...prev, [p.id]: e.target.value }))}
                   />
                   <button type="button" className="add-btn" onClick={() => addItem(p)}>
