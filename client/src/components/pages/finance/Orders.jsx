@@ -171,7 +171,7 @@ function EditOrderModal({ order, onClose, onSaved }) {
     try {
       const r = await fetch('/api/finance/orders/' + order.id, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items, delivery_note: note, delivery_address_id: addrId || null })
+        body: JSON.stringify({ items: items.map(it => ({ ...it, quantity: parseInt(it.quantity)||0, emptyReturn: parseInt(it.emptyReturn)||0 })), delivery_note: note, delivery_address_id: addrId || null })
       });
       const d = await r.json();
       if (d.error) throw new Error(d.error);
@@ -195,7 +195,7 @@ function EditOrderModal({ order, onClose, onSaved }) {
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr auto', gap:'.4rem', alignItems:'end' }}>
             <div>
               <div style={{ fontSize:'.65rem', color:'var(--text3)', marginBottom:'.15rem' }}>Menge</div>
-              <input type="number" min="0" value={item.quantity} onChange={e => setItem(i,'quantity',parseInt(e.target.value)||0)}
+              <input type="number" min="0" value={item.quantity} placeholder="0" onChange={e => setItem(i,'quantity',e.target.value)}
                 style={{ background:'var(--bg0)', border:'1px solid var(--border)', borderRadius:6, padding:'.3rem .5rem', color:'var(--text1)', fontSize:'.8rem', outline:'none', width:'100%' }}/>
             </div>
             <div>
@@ -205,7 +205,7 @@ function EditOrderModal({ order, onClose, onSaved }) {
             </div>
             <div>
               <div style={{ fontSize:'.65rem', color:'var(--text3)', marginBottom:'.15rem' }}>Leergut</div>
-              <input type="number" min="0" value={item.emptyReturn} onChange={e => setItem(i,'emptyReturn',parseInt(e.target.value)||0)}
+              <input type="number" min="0" value={item.emptyReturn} placeholder="0" onChange={e => setItem(i,'emptyReturn',e.target.value)}
                 style={{ background:'var(--bg0)', border:'1px solid var(--border)', borderRadius:6, padding:'.3rem .5rem', color:'var(--text1)', fontSize:'.8rem', outline:'none', width:'100%' }}/>
             </div>
             {items.length > 1 && <button onClick={() => setItems(prev => prev.filter((_,idx) => idx !== i))}
@@ -213,7 +213,7 @@ function EditOrderModal({ order, onClose, onSaved }) {
           </div>
         </div>
       ))}
-      <button onClick={() => setItems(p => [...p, { product_id:'', productName:'', articleNumber:'', quantity:1, unitPriceNet:0, emptyReturn:0 }])}
+      <button onClick={() => setItems(p => [...p, { product_id:'', productName:'', articleNumber:'', quantity:'', unitPriceNet:0, emptyReturn:'' }])}
         style={{ padding:'.3rem .7rem', borderRadius:7, fontSize:'.78rem', cursor:'pointer', background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text2)', marginBottom:'1rem' }}>+ Artikel</button>
       <div style={{ marginBottom:'1rem' }}>
         <div style={{ fontSize:'.68rem', color:'var(--text3)', marginBottom:'.2rem' }}>Lieferhinweis</div>
@@ -473,7 +473,7 @@ export default function Orders() {
       const addrStillExists = addresses.some(a => a.id === order.delivery_address_id);
       setReorderNotice(dropped > 0 ? `${dropped} Artikel nicht mehr verf\u00fcgbar und entfernt.` : '');
       setNewOrderAddresses(addresses);
-      setNewOrderInitialItems(validItems.length ? validItems : [{ productName:'', articleNumber:'', quantity:1, unitPriceNet:0, emptyReturn:0 }]);
+      setNewOrderInitialItems(validItems.length ? validItems : [{ productName:'', articleNumber:'', quantity:'', unitPriceNet:0, emptyReturn:'' }]);
       setNewOrderInitialAddressId(addrStillExists ? order.delivery_address_id : '');
       setNewOrderCustomer(customer);
     } catch (e) { setError('Erneut bestellen fehlgeschlagen: ' + e.message); }

@@ -408,7 +408,7 @@ function CustomerDetail({ customer: init, onClose, onRefresh }) {
 
 function NewOrderModal({ customer, deliveryAddresses = [], initialItems, initialDeliveryAddressId = '', notice = '', onClose, onSaved }) {
   const { user } = useAuth();
-  const [items,  setItems]  = useState(() => (initialItems && initialItems.length > 0) ? initialItems : [{ productName:'', articleNumber:'', quantity:1, unitPriceNet:0, emptyReturn:0 }]);
+  const [items,  setItems]  = useState(() => (initialItems && initialItems.length > 0) ? initialItems : [{ productName:'', articleNumber:'', quantity:'', unitPriceNet:0, emptyReturn:'' }]);
   const [note,   setNote]   = useState('');
   const [deliveryAddressId, setDeliveryAddressId] = useState(initialDeliveryAddressId);
   const [busy,   setBusy]   = useState(false);
@@ -449,12 +449,14 @@ function NewOrderModal({ customer, deliveryAddresses = [], initialItems, initial
   const setItem  = (i,k,v) => setItems(prev => prev.map((it,idx) => idx===i ? {...it,[k]:v} : it));
   const totalNet = items.reduce((s,i) => s+(parseFloat(i.unitPriceNet)||0)*(parseInt(i.quantity)||0),0);
   const submit = async () => {
+    const cleanItems = items.map(it => ({ ...it, quantity: parseInt(it.quantity)||0, emptyReturn: parseInt(it.emptyReturn)||0 }));
+    if (cleanItems.some(it => it.articleNumber && it.quantity < 1)) return setMsg('\u2717 Bitte bei jedem Artikel eine Menge eintragen');
     setBusy(true); setMsg('');
     try {
       const createdBy = user?.username || user?.fullName || 'Mitarbeiter';
       const r = await fetch('/api/finance/orders', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ customer_id:customer.id, customer_number:customer.customer_number, customer_name:customer.company_name||customer.name, customer_email:customer.email||'', items, total_net:totalNet, total_gross:Math.round(totalNet*1.19*100)/100, delivery_note:note, delivery_address_id: deliveryAddressId || null, status:'new', channel:'portal', created_by: createdBy })
+        body: JSON.stringify({ customer_id:customer.id, customer_number:customer.customer_number, customer_name:customer.company_name||customer.name, customer_email:customer.email||'', items:cleanItems, total_net:totalNet, total_gross:Math.round(totalNet*1.19*100)/100, delivery_note:note, delivery_address_id: deliveryAddressId || null, status:'new', channel:'portal', created_by: createdBy })
       });
       const d = await r.json();
       if (d.error) throw new Error(d.error);
@@ -484,16 +486,16 @@ function NewOrderModal({ customer, deliveryAddresses = [], initialItems, initial
                 onSelect={p => setItems(prev => prev.map((it,idx) => idx===i ? {...it, product_id:p.articleNumber, productName:p.name, articleNumber:p.articleNumber, unitPriceNet:p.price} : it))}/>
             </div>
             <div><div style={{ fontSize:'.68rem', color:'var(--text3)', marginBottom:'.2rem' }}>Menge</div>
-              <input type="number" min="0" value={item.quantity} onChange={e => setItem(i,'quantity',parseInt(e.target.value)||0)} style={{ background:'var(--bg0)', border:'1px solid var(--border)', borderRadius:6, padding:'.3rem .5rem', color:'var(--text1)', fontSize:'.8rem', outline:'none', width:'100%' }}/></div>
+              <input type="number" min="0" value={item.quantity} placeholder="0" onChange={e => setItem(i,'quantity',e.target.value)} style={{ background:'var(--bg0)', border:'1px solid var(--border)', borderRadius:6, padding:'.3rem .5rem', color:'var(--text1)', fontSize:'.8rem', outline:'none', width:'100%' }}/></div>
             <div><div style={{ fontSize:'.68rem', color:'var(--text3)', marginBottom:'.2rem' }}>Preis netto</div>
               <input type="number" step="0.01" value={item.unitPriceNet} onChange={e => setItem(i,'unitPriceNet',parseFloat(e.target.value)||0)} style={{ background:'var(--bg0)', border:'1px solid var(--border)', borderRadius:6, padding:'.3rem .5rem', color:'var(--text1)', fontSize:'.8rem', outline:'none', width:'100%' }}/></div>
             <div><div style={{ fontSize:'.68rem', color:'var(--text3)', marginBottom:'.2rem' }}>Leergut</div>
-              <input type="number" min="0" value={item.emptyReturn} onChange={e => setItem(i,'emptyReturn',parseInt(e.target.value)||0)} style={{ background:'var(--bg0)', border:'1px solid var(--border)', borderRadius:6, padding:'.3rem .5rem', color:'var(--text1)', fontSize:'.8rem', outline:'none', width:'100%' }}/></div>
+              <input type="number" min="0" value={item.emptyReturn} placeholder="0" onChange={e => setItem(i,'emptyReturn',e.target.value)} style={{ background:'var(--bg0)', border:'1px solid var(--border)', borderRadius:6, padding:'.3rem .5rem', color:'var(--text1)', fontSize:'.8rem', outline:'none', width:'100%' }}/></div>
             {items.length > 1 && <button onClick={() => setItems(prev => prev.filter((_,idx) => idx!==i))} style={{ background:'transparent', border:'1px solid rgba(224,80,80,.3)', borderRadius:6, color:'var(--red2)', cursor:'pointer', padding:'.3rem .5rem', fontSize:'.8rem' }}>✕</button>}
           </div>
         </div>
       ))}
-      <button onClick={() => setItems(p => [...p, { productName:'', articleNumber:'', quantity:1, unitPriceNet:0, emptyReturn:0 }])} style={{ padding:'.3rem .7rem', borderRadius:7, fontSize:'.78rem', cursor:'pointer', background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text2)', marginBottom:'1rem' }}>+ Artikel</button>
+      <button onClick={() => setItems(p => [...p, { productName:'', articleNumber:'', quantity:'', unitPriceNet:0, emptyReturn:'' }])} style={{ padding:'.3rem .7rem', borderRadius:7, fontSize:'.78rem', cursor:'pointer', background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text2)', marginBottom:'1rem' }}>+ Artikel</button>
       {deliveryAddresses.length > 0 && (
         <div style={{ marginBottom:'1rem' }}>
           <div style={{ fontSize:'.68rem', color:'var(--text3)', marginBottom:'.2rem' }}>Lieferadresse</div>

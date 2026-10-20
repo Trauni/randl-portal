@@ -18,7 +18,7 @@ function Modal({ title, children, onClose, wide }) {
 }
 
 function RecurringForm({ initial, onSave, onClose }) {
-  const [form, setForm] = useState(initial || { customer_name:'', customer_number:'', interval:'biweekly', notes:'', active:true, items:[{ productName:'', articleNumber:'', quantity:1, unitPriceNet:0, emptyReturn:0 }] });
+  const [form, setForm] = useState(initial || { customer_name:'', customer_number:'', interval:'biweekly', notes:'', active:true, items:[{ productName:'', articleNumber:'', quantity:'', unitPriceNet:0, emptyReturn:'' }] });
   const [busy, setBusy] = useState(false);
   const [msg,  setMsg]  = useState('');
 
@@ -32,7 +32,7 @@ function RecurringForm({ initial, onSave, onClose }) {
     if (!form.customer_name.trim()) return setMsg('✗ Kundenname erforderlich');
     setBusy(true); setMsg('');
     try {
-      await onSave(form);
+      await onSave({ ...form, items: form.items.map(it => ({ ...it, quantity: parseInt(it.quantity)||0, emptyReturn: parseInt(it.emptyReturn)||0 })) });
     } catch(e) { setMsg('✗ ' + e.message); setBusy(false); }
   };
 
@@ -80,7 +80,7 @@ function RecurringForm({ initial, onSave, onClose }) {
           </div>
           <div>
             <div style={{ fontSize:'.65rem', color:'var(--text3)', marginBottom:'.15rem' }}>Menge</div>
-            <input type="number" min="0" value={item.quantity} onChange={e => setItem(i,'quantity',parseInt(e.target.value)||0)}
+            <input type="number" min="0" value={item.quantity} placeholder="0" onChange={e => setItem(i,'quantity',e.target.value)}
               style={{ background:'var(--bg0)', border:'1px solid var(--border)', borderRadius:6, padding:'.3rem .4rem', color:'var(--text1)', fontSize:'.78rem', outline:'none', width:'100%' }}/>
           </div>
           <div>
@@ -90,7 +90,7 @@ function RecurringForm({ initial, onSave, onClose }) {
           </div>
           <div>
             <div style={{ fontSize:'.65rem', color:'var(--text3)', marginBottom:'.15rem' }}>Leergut</div>
-            <input type="number" min="0" value={item.emptyReturn} onChange={e => setItem(i,'emptyReturn',parseInt(e.target.value)||0)}
+            <input type="number" min="0" value={item.emptyReturn} placeholder="0" onChange={e => setItem(i,'emptyReturn',e.target.value)}
               style={{ background:'var(--bg0)', border:'1px solid var(--border)', borderRadius:6, padding:'.3rem .4rem', color:'var(--text1)', fontSize:'.78rem', outline:'none', width:'100%' }}/>
           </div>
           {form.items.length > 1 && <button onClick={() => setForm(p => ({ ...p, items: p.items.filter((_,idx) => idx!==i) }))}
@@ -99,7 +99,7 @@ function RecurringForm({ initial, onSave, onClose }) {
       </div>
     ))}
     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem' }}>
-      <button onClick={() => setForm(p => ({ ...p, items: [...p.items, { productName:'', articleNumber:'', quantity:1, unitPriceNet:0, emptyReturn:0 }] }))}
+      <button onClick={() => setForm(p => ({ ...p, items: [...p.items, { productName:'', articleNumber:'', quantity:'', unitPriceNet:0, emptyReturn:'' }] }))}
         style={{ padding:'.3rem .7rem', borderRadius:7, fontSize:'.78rem', cursor:'pointer', background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text2)' }}>+ Artikel</button>
       <span style={{ fontFamily:'DM Mono, monospace', fontSize:'.85rem', color:'var(--green)' }}>Gesamt netto: {totalNet.toFixed(2)} €</span>
     </div>
