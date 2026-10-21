@@ -6,6 +6,7 @@ const router      = express.Router();
 const fs           = require('fs').promises;
 const { exec: execCb } = require('child_process');
 const requireAuth  = require('../../../middleware/requireAuth');
+const updates      = require('../../../services/containerUpdates');
 
 const execAsync = (cmd, timeout = 15000) =>
   new Promise((resolve, reject) =>
@@ -94,12 +95,15 @@ async function dockerLogSizes() {
 // GET /api/it/maintenance/status
 router.get('/status', requireAuth, async (req, res) => {
   try {
-    const [sw, gasDb, disk, logs] = await Promise.all([
+    const [sw, gasDb, disk, logs, wt] = await Promise.all([
       latestBackupInfo(BACKUP_DIRS.shopware.dir, BACKUP_DIRS.shopware.pattern),
       latestBackupInfo(BACKUP_DIRS.gas_db.dir, BACKUP_DIRS.gas_db.pattern),
       diskInfo(),
       dockerLogSizes(),
+      updates.watchtowerStatus().catch(e => ({ vorhanden: false, fehler: e.message })),
     ]);
+    // Update-Pruefung aller Container (#396): nur Zaehler, Details auf der Docker-Seite
+    const u = updates.status();
     const certs = (await Promise.all(CERTS.map(c => certInfo(c.label, c.path)))).filter(Boolean);
 
     res.json({
@@ -111,6 +115,13 @@ router.get('/status', requireAuth, async (req, res) => {
       certificates: certs.map(c => ({ ...c, warn: c.days_left <= 21 })),
       disk,
       docker_log_sizes: logs,
+      watchtower: wt,
+      container_updates: {
+        geprueft_am: u.geprueft_am,
+        laeuft: u.laeuft,
+        neues_image: u.container.filter(c => c.status === 'update').map(c => c.name),
+        neue_version: u.container.filter(c => c.neue_version).map(c => ({ name: c.name, image: c.image, version: c.neue_version })),
+      },
     });
   } catch (err) {
     res.status(500).json({ error: String(err) });

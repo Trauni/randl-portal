@@ -9,6 +9,23 @@ function fmtBytes(bytes) {
   return b + ' B';
 }
 
+function fmtZeit(iso) {
+  return iso ? new Date(iso).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Berlin' }) : '–';
+}
+
+// Cron mit Sekunden (Watchtower): "0 15 10 * * *" -> "täglich 10:15 Uhr"
+function fmtZeitplan(wt) {
+  if (wt.zeitplan) {
+    const p = wt.zeitplan.trim().split(/\s+/);
+    if (p.length === 6 && p.slice(3).every(x => x === '*') && /^\d+$/.test(p[1]) && /^\d+$/.test(p[2])) {
+      return `täglich ${p[2].padStart(2, '0')}:${p[1].padStart(2, '0')} Uhr (UTC des Containers)`;
+    }
+    return wt.zeitplan;
+  }
+  if (wt.intervall_s) return `alle ${Math.round(wt.intervall_s / 60)} Minuten`;
+  return 'Standard (alle 24 h)';
+}
+
 const card = { background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: 20, marginBottom: 20 };
 const cardTitle = { fontWeight: 600, fontSize: 15, marginBottom: 14, color: '#111827' };
 const label = { color: '#6b7280', fontSize: 13 };
@@ -99,6 +116,99 @@ export default function Wartung() {
               </tbody>
             </table>
           </div>
+
+          {/* Watchtower (#396) */}
+          {data.watchtower && (
+            <div style={card}>
+              <div style={{ ...cardTitle, display: 'flex', justifyContent: 'space-between' }}>
+                <span>Watchtower — automatische Updates</span>
+                {data.watchtower.vorhanden && (
+                  <span style={{ fontSize: 13, color: data.watchtower.laeuft ? '#059669' : '#dc2626' }}>
+                    {data.watchtower.laeuft ? '● läuft' : '● gestoppt'}
+                  </span>
+                )}
+              </div>
+              {!data.watchtower.vorhanden ? (
+                <div style={label}>Kein Container „watchtower“ gefunden.</div>
+              ) : (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
+                    <div><div style={label}>Zeitplan</div><div style={{ fontSize: 13, color: '#111827' }}>{fmtZeitplan(data.watchtower)}</div></div>
+                    <div><div style={label}>Modus</div><div style={{ fontSize: 13, color: '#111827' }}>
+                      {data.watchtower.nur_melden ? 'meldet nur, installiert nichts' : 'installiert automatisch'}
+                    </div></div>
+                    <div><div style={label}>Ausgenommen</div><div style={{ fontSize: 13, color: '#111827' }}>Container mit Label <code>enable=false</code></div></div>
+                  </div>
+
+                  <div style={{ ...label, marginBottom: 4 }}>Letzte Läufe</div>
+                  {data.watchtower.laeufe.length === 0 ? (
+                    <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>Keine Läufe in den letzten 30 Tagen im Log.</div>
+                  ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 12 }}>
+                      <tbody>
+                        {data.watchtower.laeufe.map((l, i) => (
+                          <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                            <td style={{ padding: '5px 4px', color: '#111827' }}>{fmtZeit(l.time)}</td>
+                            <td style={{ padding: '5px 4px', color: '#6b7280' }}>{l.gescannt} geprüft</td>
+                            <td style={{ padding: '5px 4px', color: l.aktualisiert ? '#1d4ed8' : '#6b7280' }}>{l.aktualisiert} aktualisiert</td>
+                            <td style={{ padding: '5px 4px', textAlign: 'right', color: l.fehler ? '#dc2626' : '#059669' }}>{l.fehler ? `${l.fehler} Fehler ⚠` : 'ok'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+
+                  <div style={{ ...label, marginBottom: 4 }}>Automatisch aktualisiert (30 Tage)</div>
+                  {data.watchtower.updates.length === 0 ? (
+                    <div style={{ fontSize: 13, color: '#6b7280' }}>Keine Updates im Zeitraum.</div>
+                  ) : (
+                    <div style={{ fontFamily: 'monospace', fontSize: 12, color: '#374151', lineHeight: 1.7 }}>
+                      {data.watchtower.updates.map((u, i) => <div key={i}>{fmtZeit(u.time)} — {u.image}</div>)}
+                    </div>
+                  )}
+
+                  {data.watchtower.fehler.length > 0 && (
+                    <div style={{ marginTop: 12, fontSize: 12, color: '#dc2626', lineHeight: 1.6 }}>
+                      {data.watchtower.fehler.map((f, i) => <div key={i}>⚠ {fmtZeit(f.time)} — {f.msg}</div>)}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Verfügbare Updates aller Container (#396) */}
+          {data.container_updates && (
+            <div style={card}>
+              <div style={{ ...cardTitle, display: 'flex', justifyContent: 'space-between' }}>
+                <span>Verfügbare Updates</span>
+                <a href="/it/docker" style={{ fontSize: 13, fontWeight: 500, color: '#1d4ed8', textDecoration: 'none' }}>Zum Docker Dashboard →</a>
+              </div>
+              {data.container_updates.laeuft && !data.container_updates.geprueft_am ? (
+                <div style={label}>Prüfung läuft… gleich neu laden.</div>
+              ) : (
+                <>
+                  {data.container_updates.neue_version.map((v, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f3f4f6', fontSize: 13 }}>
+                      <span style={{ color: '#111827' }}>{v.name} <span style={{ color: '#6b7280' }}>({v.image})</span></span>
+                      <span style={{ color: '#1d4ed8', fontWeight: 600 }}>{v.version} verfügbar</span>
+                    </div>
+                  ))}
+                  {data.container_updates.neues_image.length > 0 && (
+                    <div style={{ fontSize: 13, color: '#b45309', padding: '6px 0' }}>
+                      Neues Image für den gleichen Tag: {data.container_updates.neues_image.join(', ')}
+                    </div>
+                  )}
+                  {!data.container_updates.neue_version.length && !data.container_updates.neues_image.length && (
+                    <div style={{ fontSize: 13, color: '#059669' }}>✓ Alle prüfbaren Container sind aktuell.</div>
+                  )}
+                  <div style={{ ...label, fontSize: 11, marginTop: 8 }}>
+                    Geprüft: {fmtZeit(data.container_updates.geprueft_am)} · neue Versionen trägt man in docker-compose/.env ein, neue Images lassen sich im Docker Dashboard per Knopf einspielen.
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Disk */}
           <div style={card}>
