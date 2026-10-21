@@ -131,7 +131,7 @@ async function remoteDigest(img) {
     res = await registryFetch(img.registry, img.repo, `/manifests/${img.tag}`, opts);
     d = res.headers.get('docker-content-digest');
   }
-  if (!res.ok) throw new Error(`Registry ${res.status}`);
+  if (!res.ok) throw Object.assign(new Error(`Registry ${res.status}`), { status: res.status });
   return d || null;
 }
 
@@ -158,6 +158,7 @@ async function containerInfos() {
   const imageIds = [...new Set(list.map(c => c.Image))];
   const images = JSON.parse(await run('docker', ['image', 'inspect', ...imageIds]).catch(() => '[]'));
   const digests = new Map(images.map(i => [i.Id, (i.RepoDigests || []).map(d => d.split('@')[1])]));
+  const versionen = new Map(images.map(i => [i.Id, (i.Config?.Labels || {})['org.opencontainers.image.version'] || null]));
   return list.map(c => {
     const labels = c.Config.Labels || {};
     return {
@@ -165,6 +166,7 @@ async function containerInfos() {
       image: c.Config.Image,
       state: c.State.Status,
       localDigests: digests.get(c.Image) || [],
+      version: versionen.get(c.Image) || null,   // OCI-Label, z. B. Authentik "2025.2.4" auch bei Tag latest
       watchtower: labels[WT_LABEL] === 'false' ? 'aus' : 'an',
       compose: labels['com.docker.compose.project'] ? {
         project: labels['com.docker.compose.project'],
@@ -186,16 +188,27 @@ async function pruefeContainer(c) {
   const img = parseImageRef(c.image);
   if (!img) return { ...out, status: 'unbekannt', hinweis: 'Image ohne Namen' };
   if (!c.localDigests.length) return { ...out, status: 'lokal', hinweis: 'lokal gebaut, keine Registry' };
+  let remote = null, tagFehlt = false;
   try {
-    const remote = await remoteDigest(img);
+    remote = await remoteDigest(img);
+  } catch (e) {
+    // Docker Hub antwortet auf unbekannte Repos mit 401: lokal gebaut (gas-webshop-*, shopware-*) oder privat
+    if (e.status === 401 && img.registry === 'docker.io') return { ...out, status: 'lokal', hinweis: 'nicht auf Docker Hub – lokal gebaut oder privat' };
+    // Tag gibt es nicht (mehr), z. B. Authentik "latest": dann nur ueber die Version aus dem Image-Label
+    if (e.status === 404 && parseVersionTag(c.version || '')) tagFehlt = true;
+    else return { ...out, status: 'fehler', hinweis: e.status === 404 ? `Tag "${img.tag}" gibt es in der Registry nicht` : e.message };
+  }
+  try {
     const neuesImage = !!remote && !c.localDigests.includes(remote);
-    let neueVersion = null;
-    if (parseVersionTag(img.tag)) neueVersion = newerTag(img.tag, await listTags(img).catch(() => []));
+    const basis = parseVersionTag(img.tag) ? img.tag : parseVersionTag(c.version || '') ? c.version : null;
+    const neueVersion = basis ? newerTag(basis, await listTags(img).catch(() => [])) : null;
     return {
       ...out,
+      version: c.version,
       status: neuesImage ? 'update' : neueVersion ? 'version' : 'aktuell',
       neue_version: neueVersion,
       kann_aktualisieren: neuesImage && !out.gesperrt,
+      hinweis: tagFehlt ? `Tag "${img.tag}" gibt es in der Registry nicht mehr – läuft Version ${c.version}; feste Version in compose/.env eintragen` : undefined,
     };
   } catch (e) {
     return { ...out, status: 'fehler', hinweis: e.message };
@@ -377,5 +390,5 @@ module.exports = {
   status, pruefen, updateStarten, updateJob, watchtowerStatus,
   // fuer Tests
   parseImageRef, parseVersionTag, newerTag, parseAuthHeader, parseWatchtowerLine, zusammenfassen, argOf,
-  remoteDigest, listTags, mitFrist,
+  remoteDigest, listTags, mitFrist, pruefeContainer,
 };

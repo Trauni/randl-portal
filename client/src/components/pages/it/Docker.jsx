@@ -125,6 +125,9 @@ function UpdateCell({ u, onUpdate }) {
         'Neue Version: Tag in docker-compose bzw. .env anpassen und den Stack neu starten (kein Knopf, bewusst)')}
       {u.status === 'lokal' && pill('lokal gebaut', 'var(--text3)', u.hinweis)}
       {u.status === 'fehler' && pill('nicht prüfbar', 'var(--text3)', u.hinweis)}
+      {u.hinweis && ['aktuell', 'version', 'update'].includes(u.status) && (
+        <span style={{ fontSize:'.66rem', color:'var(--amber)', maxWidth:220 }}>⚠ {u.hinweis}</span>
+      )}
       {u.kann_aktualisieren && (
         <button onClick={() => onUpdate(u)} style={{ padding:'.15rem .5rem', borderRadius:5, fontSize:'.72rem',
           background:'rgba(232,160,32,.1)', border:'1px solid rgba(232,160,32,.4)', color:'var(--amber)', cursor:'pointer' }}>
