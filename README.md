@@ -39,7 +39,3 @@ Pre-commit-Hook einrichten:
 #!/bin/sh
 docker run --rm -v "$(pwd)":/repo zricethezav/gitleaks:latest protect -s /repo --staged --redact --log-level warn || { echo "gitleaks: moeglicher Secret-Fund, Commit abgebrochen"; exit 1; }
 ```
-
-## Offen
-
-- Gas-DB: Portal auf eigenen DB-User umstellen (OpenProject #232). Code liest `GAS_DB_USER`, Rolle anlegen mit `migration_gas_portal_user.sql` (in `gas-db` ausführen), danach `GAS_DB_USER`/`GAS_DB_PASS` in der `.env` setzen.
