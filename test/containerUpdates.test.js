@@ -63,3 +63,55 @@ test('mitFrist: haengende Abfrage wird nach der Frist abgebrochen', async () => 
   await assert.rejects(u.mitFrist(new Promise(() => {}), 20, 'test:1'), /Zeitüberschreitung .* test:1/);
   assert.equal(await u.mitFrist(Promise.resolve(7), 1000, 'x'), 7);
 });
+
+// Registry-Antworten nachgebaut: Docker Hub kennt lokal gebaute Images nicht (401),
+// ghcr hat fuer Authentik keinen Tag "latest" mehr (404)
+function fakeRegistry(routes) {
+  const orig = global.fetch;
+  global.fetch = async (url, opts = {}) => {
+    const hit = routes.find(r => url.includes(r.match) && (!r.method || r.method === (opts.method || 'GET')));
+    const r = hit ? hit.res : { status: 404 };
+    return {
+      ok: r.status >= 200 && r.status < 300, status: r.status,
+      headers: { get: k => (r.headers || {})[k.toLowerCase()] || null },
+      json: async () => r.body || {},
+    };
+  };
+  return () => { global.fetch = orig; };
+}
+
+const base = { state: 'running', watchtower: 'aus', compose: null };
+
+test('pruefeContainer: lokal gebautes Image auf Docker Hub unbekannt -> lokal statt Fehler', async () => {
+  const restore = fakeRegistry([
+    { match: 'auth.docker.io', res: { status: 200, body: { token: 't' } } },
+    { match: '/library/gas-webshop-frontend/', res: { status: 401, headers: { 'www-authenticate': 'Bearer realm="https://auth.docker.io/token",service="registry.docker.io"' } } },
+  ]);
+  try {
+    const r = await u.pruefeContainer({ ...base, name: 'gas-webshop-frontend', image: 'gas-webshop-frontend', localDigests: ['sha256:aa'], version: null });
+    assert.equal(r.status, 'lokal');
+  } finally { restore(); }
+});
+
+test('pruefeContainer: Tag latest fehlt, Version aus dem Image-Label', async () => {
+  const restore = fakeRegistry([
+    { match: '/goauthentik/server/manifests/latest', res: { status: 404 } },
+    { match: '/goauthentik/server/tags/list', res: { status: 200, body: { tags: ['2025.2.4', '2025.12.1', '2026.8.4', 'gh-main'] } } },
+  ]);
+  try {
+    const r = await u.pruefeContainer({ ...base, name: 'authentik-server-1', image: 'ghcr.io/goauthentik/server:latest', localDigests: ['sha256:bb'], version: '2025.2.4' });
+    assert.equal(r.status, 'version');
+    assert.equal(r.neue_version, '2026.8.4');
+    assert.equal(r.kann_aktualisieren, false);
+    assert.match(r.hinweis, /gibt es in der Registry nicht mehr/);
+  } finally { restore(); }
+});
+
+test('pruefeContainer: fehlender Tag ohne Versions-Label bleibt nicht pruefbar', async () => {
+  const restore = fakeRegistry([{ match: '/manifests/latest', res: { status: 404 } }]);
+  try {
+    const r = await u.pruefeContainer({ ...base, name: 'x', image: 'ghcr.io/foo/bar:latest', localDigests: ['sha256:cc'], version: null });
+    assert.equal(r.status, 'fehler');
+    assert.match(r.hinweis, /Tag "latest" gibt es in der Registry nicht/);
+  } finally { restore(); }
+});
