@@ -48,7 +48,7 @@ export default function Cleanup() {
       .then(u => {
         if (!u) return;
         const g = u.user?.groups || u.groups || [];
-        setAdmin(g.some(x => ['Geschäftsführung', 'Verwaltung','Backoffice'].includes(x)));
+        setAdmin(g.some(x => ['Geschäftsführung', 'Backoffice'].includes(x)));
       })
       .catch(() => {});
   }, [loadResult]);
@@ -162,7 +162,7 @@ export default function Cleanup() {
         </button>
       ) : (
         <div style={{ color: '#9ca3af', fontSize: 14, padding: '10px 0' }}>
-          Nur Admins (Geschäftsführung / Verwaltung) können Cleanup starten.
+          Nur Admins (Geschäftsführung / Backoffice) können Cleanup starten.
         </div>
       )}
 

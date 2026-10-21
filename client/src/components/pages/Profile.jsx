@@ -19,7 +19,7 @@ export default function Profile() {
   const authName=user?.name||user?.preferred_username||'';
   const authEmail=user?.email||'';
   const groups=user?.groups||[];
-  const roleLabel=['Geschäftsführung','Verwaltung','Backoffice'].some(g=>groups.includes(g))?'Administrator':groups.includes('Gashandel')?'Gashandel':groups.includes('webeditor')?'Web Editor':'Mitarbeiter';
+  const roleLabel=['Geschäftsführung','Backoffice'].some(g=>groups.includes(g))?'Administrator':groups.includes('Gashandel')?'Gashandel':groups.includes('webeditor')?'Web Editor':'Mitarbeiter';
   const displayName=profile?.display_name||authName;
   const initials=displayName.split(' ').filter(Boolean).slice(0,2).map(s=>s[0].toUpperCase()).join('');
 

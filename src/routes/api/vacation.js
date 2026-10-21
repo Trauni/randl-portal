@@ -4,12 +4,10 @@ const pool = { query: (...a) => _db.getPool().execute(...a) };
 const express = require('express');
 const router  = express.Router();
 const requireAuth = require('../../middleware/requireAuth');
-const { hasArea, roleFromGroups, tagsFromGroups } = require('../../utils/permissions');
+const { hasArea } = require('../../utils/permissions');
 const urlaub = require('../../services/urlaub');
 // Urlaubsverwaltung (Kalender, Genehmigen, Ablehnen) ist Geschaeftsfuehrung.
-const canHr = (u) => hasArea(u.role || roleFromGroups(u.groups),
-                             u.accessTags || tagsFromGroups(u.groups),
-                             'hr.urlaubskalender');
+const canHr = (u) => hasArea(u.role, u.accessTags, 'hr.urlaubskalender');
 
 function dateOnly(d) {
   if (d instanceof Date) {

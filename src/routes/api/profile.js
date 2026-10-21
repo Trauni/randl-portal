@@ -96,7 +96,7 @@ router.put('/', requireAuth, async (req, res) => {
 });
 
 router.get('/:id', requireAuth, async (req, res) => {
-  const isAdmin = ['Geschäftsführung','Verwaltung','Backoffice'].some(g => (req.session.user.groups || []).includes(g));
+  const isAdmin = ['Geschäftsführung','Backoffice'].some(g => (req.session.user.groups || []).includes(g));
   if (!isAdmin) return res.status(403).json({ error: 'Kein Zugriff' });
   const [rows] = await pool.query(
     `SELECT id, username, full_name, display_name, email, phone, phone_mobile,
