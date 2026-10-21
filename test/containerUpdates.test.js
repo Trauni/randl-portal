@@ -115,3 +115,11 @@ test('pruefeContainer: fehlender Tag ohne Versions-Label bleibt nicht pruefbar',
     assert.match(r.hinweis, /Tag "latest" gibt es in der Registry nicht/);
   } finally { restore(); }
 });
+
+test('versionAusLabel: Authentik-Label "refs/tags/version/…" und normale Labels', () => {
+  assert.equal(u.versionAusLabel('refs/tags/version/2025.2.4'), '2025.2.4');
+  assert.equal(u.versionAusLabel('1.27.2'), '1.27.2');
+  assert.equal(u.versionAusLabel('v2.4.0-ls12'), 'v2.4.0');
+  assert.equal(u.versionAusLabel(''), null);
+  assert.equal(u.versionAusLabel(undefined), null);
+});
