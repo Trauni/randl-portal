@@ -205,30 +205,56 @@ async function pruefeContainer(c) {
 // ── Pruefung (im Hintergrund, Ergebnis im Speicher) ───────────────────────────
 
 const PRUEF_ALTER_MS = 12 * 3600 * 1000;
-let stand = { geprueft_am: null, laeuft: false, container: [], fehler: null };
+const FRIST_CONTAINER_MS = 45000;      // eine haengende Abfrage darf nicht die ganze Pruefung blockieren
+const FRIST_GESAMT_MS = 10 * 60000;
+let stand = { geprueft_am: null, laeuft: false, gestartet: null, fortschritt: null, container: [], fehler: null };
+let lauf = 0;
+
+function mitFrist(promise, ms, was) {
+  let t;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => { t = setTimeout(() => reject(new Error(`Zeitüberschreitung (${ms / 1000} s) bei ${was}`)), ms); }),
+  ]).finally(() => clearTimeout(t));
+}
 
 async function pruefen() {
   if (stand.laeuft) return;
-  stand = { ...stand, laeuft: true, fehler: null };
+  const meinLauf = ++lauf;
+  stand = { ...stand, laeuft: true, gestartet: new Date().toISOString(), fortschritt: null, fehler: null };
   try {
-    const infos = await containerInfos();
+    const infos = await mitFrist(containerInfos(), 60000, 'docker inspect');
     const ergebnis = [];
+    stand.fortschritt = { fertig: 0, gesamt: infos.length };
     for (let i = 0; i < infos.length; i += 4) {
-      ergebnis.push(...await Promise.all(infos.slice(i, i + 4).map(pruefeContainer)));
+      ergebnis.push(...await Promise.all(infos.slice(i, i + 4).map(c =>
+        mitFrist(pruefeContainer(c), FRIST_CONTAINER_MS, c.image)
+          .catch(e => ({ name: c.name, image: c.image, watchtower: c.watchtower, gesperrt: schutz(c.name), status: 'fehler', hinweis: e.message }))
+          .finally(() => { if (meinLauf === lauf && stand.fortschritt) stand.fortschritt.fertig++; }))));
     }
-    stand = { geprueft_am: new Date().toISOString(), laeuft: false, container: ergebnis, fehler: null };
+    if (meinLauf !== lauf) return;   // inzwischen als haengend verworfen
+    stand = { geprueft_am: new Date().toISOString(), laeuft: false, gestartet: null, fortschritt: null, container: ergebnis, fehler: null };
     const n = ergebnis.filter(c => c.status === 'update' || c.status === 'version').length;
-    console.log(`[Container-Updates] Pruefung fertig: ${ergebnis.length} Container, ${n} mit Update`);
+    const f = ergebnis.filter(c => c.status === 'fehler');
+    console.log(`[Container-Updates] Pruefung fertig: ${ergebnis.length} Container, ${n} mit Update, ${f.length} nicht pruefbar`);
+    for (const c of f) console.warn(`[Container-Updates] ${c.name} (${c.image}): ${c.hinweis}`);
   } catch (e) {
-    stand = { ...stand, laeuft: false, fehler: e.message };
+    if (meinLauf !== lauf) return;
+    stand = { ...stand, laeuft: false, gestartet: null, fortschritt: null, fehler: e.message };
     console.error('[Container-Updates] Pruefung fehlgeschlagen:', e.message);
   }
 }
 
 /** Aktueller Stand; ist er aelter als 12 h, startet im Hintergrund eine neue Pruefung. */
 function status() {
+  if (stand.laeuft && Date.now() - Date.parse(stand.gestartet) > FRIST_GESAMT_MS) {
+    lauf++;   // haengenden Lauf verwerfen, damit ein neuer starten kann
+    stand = { ...stand, laeuft: false, gestartet: null, fortschritt: null, fehler: 'Prüfung hing länger als 10 Minuten und wurde abgebrochen' };
+    console.error('[Container-Updates] Pruefung haengt, abgebrochen');
+    return stand;
+  }
   const alt = !stand.geprueft_am || Date.now() - Date.parse(stand.geprueft_am) > PRUEF_ALTER_MS;
-  if (alt && !stand.laeuft) pruefen();
+  if (alt && !stand.laeuft && !stand.fehler) pruefen();
   return stand;
 }
 
@@ -347,5 +373,5 @@ module.exports = {
   status, pruefen, updateStarten, updateJob, watchtowerStatus,
   // fuer Tests
   parseImageRef, parseVersionTag, newerTag, parseAuthHeader, parseWatchtowerLine, zusammenfassen, argOf,
-  remoteDigest, listTags,
+  remoteDigest, listTags, mitFrist,
 };

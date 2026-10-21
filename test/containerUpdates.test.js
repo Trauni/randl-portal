@@ -58,3 +58,8 @@ test('argOf: Watchtower-Argumente mit und ohne Wert', () => {
   assert.equal(u.argOf(args, '--interval'), '300');
   assert.equal(u.argOf(args, '--monitor-only'), null);
 });
+
+test('mitFrist: haengende Abfrage wird nach der Frist abgebrochen', async () => {
+  await assert.rejects(u.mitFrist(new Promise(() => {}), 20, 'test:1'), /Zeitüberschreitung .* test:1/);
+  assert.equal(await u.mitFrist(Promise.resolve(7), 1000, 'x'), 7);
+});
