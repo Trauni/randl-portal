@@ -110,6 +110,69 @@ function ActionModal({ title, result, onClose }) {
   );
 }
 
+// ── Update-Status pro Container (#396) ───────────────────────────────
+function UpdateCell({ u, onUpdate }) {
+  if (!u) return <span style={{ fontSize:'.72rem', color:'var(--text3)' }}>–</span>;
+  const pill = (text, color, title) => (
+    <span title={title} style={{ fontSize:'.68rem', padding:'.1rem .4rem', borderRadius:4,
+      border:`1px solid ${color}`, color, fontFamily:'DM Mono, monospace', whiteSpace:'nowrap' }}>{text}</span>
+  );
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:'.2rem', alignItems:'flex-start' }}>
+      {u.status === 'aktuell' && pill('✓ aktuell', 'var(--green)')}
+      {u.status === 'update' && pill('neues Image', 'var(--amber)', 'Für den gleichen Tag gibt es ein neueres Image')}
+      {u.neue_version && pill(`${u.neue_version} verfügbar`, '#3b82f6',
+        'Neue Version: Tag in docker-compose bzw. .env anpassen und den Stack neu starten (kein Knopf, bewusst)')}
+      {u.status === 'lokal' && pill('lokal gebaut', 'var(--text3)', u.hinweis)}
+      {u.status === 'fehler' && pill('nicht prüfbar', 'var(--text3)', u.hinweis)}
+      {u.kann_aktualisieren && (
+        <button onClick={() => onUpdate(u)} style={{ padding:'.15rem .5rem', borderRadius:5, fontSize:'.72rem',
+          background:'rgba(232,160,32,.1)', border:'1px solid rgba(232,160,32,.4)', color:'var(--amber)', cursor:'pointer' }}>
+          ⬆ Update
+        </button>
+      )}
+      {u.status === 'update' && u.gesperrt && (
+        <span style={{ fontSize:'.66rem', color:'var(--text3)' }}>{u.gesperrt}</span>
+      )}
+      {u.watchtower === 'aus' && (
+        <span title="Watchtower-Label enable=false: wird nicht automatisch aktualisiert"
+          style={{ fontSize:'.64rem', color:'var(--text3)' }}>Auto-Update aus</span>
+      )}
+    </div>
+  );
+}
+
+// ── Update-Verlauf ───────────────────────────────────────────────────
+function UpdateModal({ job, onClose }) {
+  const done = job?.fertig;
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.8)',
+      zIndex:200, display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style={{ background:'var(--bg1)', border:'1px solid var(--border)',
+        borderRadius:10, padding:'1.25rem', width:'95%', maxWidth:760, maxHeight:'80vh',
+        display:'flex', flexDirection:'column' }}>
+        <div style={{ fontWeight:600, color:'var(--text1)', marginBottom:'.6rem' }}>
+          Update: {job?.name}{' '}
+          <span style={{ fontSize:'.8rem', fontWeight:400,
+            color: !done ? 'var(--text2)' : job.ok ? 'var(--green)' : 'var(--red2)' }}>
+            {!done ? '⏳ läuft… (Image laden kann einige Minuten dauern)' : job.ok ? '✓ fertig' : '✗ fehlgeschlagen'}
+          </span>
+        </div>
+        <pre style={{ flex:1, overflowY:'auto', background:'#0d1117', border:'1px solid var(--border)',
+          borderRadius:7, padding:'.8rem', fontFamily:'DM Mono, monospace', fontSize:'.7rem',
+          lineHeight:1.55, color:'#e6edf3', whiteSpace:'pre-wrap', wordBreak:'break-all', margin:0, minHeight:120 }}>
+          {(job?.log || []).join('\n') || '…'}
+        </pre>
+        {done && (
+          <button onClick={onClose} style={{ marginTop:'.8rem', alignSelf:'flex-start', padding:'.35rem .8rem',
+            background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:7,
+            color:'var(--text2)', cursor:'pointer', fontSize:'.8rem' }}>Schließen</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Docker() {
   const [containers, setContainers] = useState([]);
   const [loading,    setLoading]    = useState(true);
@@ -117,6 +180,8 @@ export default function Docker() {
   const [logsFor,    setLogsFor]    = useState(null);
   const [actionMod,  setActionMod]  = useState(null); // { title, result }
   const [filter,     setFilter]     = useState('');
+  const [upd,        setUpd]        = useState(null);  // Ergebnis der Update-Pruefung
+  const [updJob,     setUpdJob]     = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -131,6 +196,43 @@ export default function Docker() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const loadUpdates = async (check) => {
+    try {
+      const r = await fetch('/api/it/docker/updates' + (check ? '/check' : ''), { method: check ? 'POST' : 'GET' });
+      const d = await r.json();
+      if (d.ok) setUpd(d);
+    } catch {}
+  };
+  useEffect(() => { loadUpdates(false); }, []);
+  // waehrend die Pruefung laeuft, alle 3 s nachsehen
+  useEffect(() => {
+    if (!upd?.laeuft) return;
+    const t = setTimeout(() => loadUpdates(false), 3000);
+    return () => clearTimeout(t);
+  }, [upd]);
+
+  const startUpdate = async (u) => {
+    const hinweis = u.watchtower === 'aus' ? '\n\nDieser Container ist bewusst vom Auto-Update ausgenommen.' : '';
+    if (!window.confirm(`${u.name} jetzt aktualisieren?\n\nImage ${u.image} wird neu geladen und der Container neu erstellt – er ist dabei kurz nicht erreichbar.${hinweis}`)) return;
+    const r = await fetch('/api/it/docker/update', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ name: u.name }) }).then(x => x.json()).catch(e => ({ ok:false, error:e.message }));
+    if (!r.ok) { setActionMod({ title:`Update: ${u.name}`, result: r.error }); return; }
+    setUpdJob(r.job);
+  };
+  useEffect(() => {
+    if (!updJob || updJob.fertig) return;
+    const t = setTimeout(async () => {
+      const r = await fetch('/api/it/docker/update/' + updJob.id).then(x => x.json()).catch(() => null);
+      if (r?.ok) {
+        setUpdJob(r.job);
+        if (r.job.fertig) { load(); loadUpdates(false); }
+      }
+    }, 2000);
+    return () => clearTimeout(t);
+  }, [updJob]);
+  const updByName = Object.fromEntries((upd?.container || []).map(u => [u.name, u]));
+  const updCount = (upd?.container || []).filter(u => u.status === 'update' || u.neue_version).length;
 
   const doAction = async (action, container) => {
     const labels = { restart:'Neustart', stop:'Stoppen', start:'Starten' };
@@ -157,6 +259,7 @@ export default function Docker() {
       {logsFor && <LogsModal container={logsFor} onClose={() => setLogsFor(null)}/>}
       {actionMod && <ActionModal {...actionMod}
         onClose={() => { setActionMod(null); }}/>}
+      {updJob && <UpdateModal job={updJob} onClose={() => setUpdJob(null)}/>}
 
       {/* Header */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
@@ -168,6 +271,15 @@ export default function Docker() {
             <span style={{ color:'var(--green)' }}>{running} laufend</span>
             {' · /var/run/docker.sock'}
           </p>
+          <p style={{ color:'var(--text3)', fontSize:'.74rem', marginTop:'.15rem' }}>
+            {upd?.laeuft ? '⏳ Prüfe Updates…'
+              : upd?.geprueft_am
+                ? <>Updates geprüft {new Date(upd.geprueft_am).toLocaleString('de-DE', { dateStyle:'short', timeStyle:'short' })}
+                    {' · '}<span style={{ color: updCount ? 'var(--amber)' : 'var(--green)' }}>
+                      {updCount ? `${updCount} mit Update` : 'alles aktuell'}</span></>
+                : 'Updates noch nicht geprüft'}
+            {upd?.fehler && <span style={{ color:'var(--red2)' }}> · Fehler: {upd.fehler}</span>}
+          </p>
         </div>
         <div style={{ display:'flex', gap:'.5rem' }}>
           <input value={filter} onChange={e => setFilter(e.target.value)}
@@ -175,6 +287,11 @@ export default function Docker() {
               border:'1px solid var(--border)', borderRadius:7,
               padding:'.3rem .7rem', color:'var(--text1)', fontSize:'.8rem',
               outline:'none', width:140 }}/>
+          <button onClick={() => loadUpdates(true)} disabled={upd?.laeuft} style={{ padding:'.4rem .9rem',
+            background:'var(--bg2)', border:'1px solid var(--border)',
+            borderRadius:8, color:'var(--text2)', fontSize:'.82rem', cursor:'pointer' }}>
+            ⬆ Updates prüfen
+          </button>
           <button onClick={load} style={{ padding:'.4rem .9rem',
             background:'var(--bg2)', border:'1px solid var(--border)',
             borderRadius:8, color:'var(--text2)', fontSize:'.82rem', cursor:'pointer' }}>
@@ -203,7 +320,7 @@ export default function Docker() {
             <table style={{ width:'100%', borderCollapse:'collapse' }}>
               <thead>
                 <tr style={{ background:'var(--bg2)', borderBottom:'1px solid var(--border)' }}>
-                  {['ID','Name','Image','Status','CPU','RAM','Aktionen'].map(h => (
+                  {['ID','Name','Image','Status','CPU','RAM','Update','Aktionen'].map(h => (
                     <th key={h} style={{ textAlign:'left', padding:'.5rem .65rem',
                       fontSize:'.65rem', textTransform:'uppercase', letterSpacing:'.08em',
                       color:'var(--text3)', fontFamily:'DM Mono, monospace', whiteSpace:'nowrap' }}>{h}</th>
@@ -231,6 +348,9 @@ export default function Docker() {
                     <td style={{ padding:'.5rem .65rem', fontFamily:'DM Mono, monospace',
                       fontSize:'.75rem', color:'var(--text2)' }}>{c.mem}</td>
                     <td style={{ padding:'.5rem .65rem' }}>
+                      <UpdateCell u={updByName[c.name]} onUpdate={startUpdate}/>
+                    </td>
+                    <td style={{ padding:'.5rem .65rem' }}>
                       <div style={{ display:'flex', gap:'.3rem' }}>
                         {c.state === 'running' ? (
                           <>
@@ -251,7 +371,7 @@ export default function Docker() {
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={7} style={{ padding:'2rem', textAlign:'center',
+                    <td colSpan={8} style={{ padding:'2rem', textAlign:'center',
                       color:'var(--text3)', fontSize:'.82rem' }}>
                       {filter ? 'Keine Container gefunden.' : 'Keine Container vorhanden.'}
                     </td>

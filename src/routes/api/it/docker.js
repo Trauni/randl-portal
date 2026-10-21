@@ -10,6 +10,7 @@ const express     = require('express');
 const router      = express.Router();
 const { exec: execCb } = require('child_process');
 const requireAuth = require('../../../middleware/requireAuth');
+const updates     = require('../../../services/containerUpdates');
 
 const execAsync = (cmd) => new Promise((res, rej) =>
   execCb(cmd, { timeout: 15000 }, (e, o, er) => e ? rej(er || e.message) : res(o.trim()))
@@ -79,6 +80,37 @@ router.post('/action', requireAuth, async (req, res) => {
     await execAsync(`docker ${action} ${id}`);
     res.json({ ok: true });
   } catch (e) { res.json({ ok: false, error: e.message }); }
+});
+
+// ── Updates (#396) ───────────────────────────────────────────────────
+
+// GET /api/it/docker/updates — Ergebnis der letzten Pruefung (aelter als 12 h: neue startet im Hintergrund)
+router.get('/updates', requireAuth, (req, res) => {
+  res.json({ ok: true, ...updates.status() });
+});
+
+// POST /api/it/docker/updates/check — jetzt pruefen (laeuft im Hintergrund)
+router.post('/updates/check', requireAuth, (req, res) => {
+  updates.pruefen();
+  res.json({ ok: true, ...updates.status() });
+});
+
+// POST /api/it/docker/update { name } — neues Image fuer den gleichen Tag einspielen
+router.post('/update', requireAuth, async (req, res) => {
+  const name = String(req.body?.name || '').trim();
+  if (!SAFE_ID.test(name)) return res.status(400).json({ ok: false, error: 'Ungültiger Container-Name' });
+  try {
+    const u = req.session.user || {};
+    const job = await updates.updateStarten(name, u.fullName || u.username);
+    res.json({ ok: true, job });
+  } catch (e) { res.status(e.status || 500).json({ ok: false, error: e.message }); }
+});
+
+// GET /api/it/docker/update/:id — Fortschritt eines Updates
+router.get('/update/:id', requireAuth, (req, res) => {
+  const job = updates.updateJob(req.params.id);
+  if (!job) return res.status(404).json({ ok: false, error: 'Update unbekannt (Portal neu gestartet?)' });
+  res.json({ ok: true, job });
 });
 
 module.exports = router;
