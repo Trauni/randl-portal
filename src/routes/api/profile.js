@@ -4,6 +4,7 @@ const pool = { query: (...a) => _db.getPool().execute(...a) };
 const express = require('express');
 const router  = express.Router();
 const requireAuth = require('../../middleware/requireAuth');
+const { updateUserEmail } = require('../../services/authentik');
 
 router.get('/', requireAuth, async (req, res) => {
   try {
@@ -46,6 +47,10 @@ router.put('/', requireAuth, async (req, res) => {
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
       return res.status(400).json({ error: 'Ungültige E-Mail-Adresse.' });
 
+    const [[vorher]] = await pool.query(
+      'SELECT username, email FROM employees WHERE authentik_uid = ?', [uid]
+    );
+
     await pool.query(
       `UPDATE employees SET
          display_name    = COALESCE(?, display_name),
@@ -62,19 +67,18 @@ router.put('/', requireAuth, async (req, res) => {
        address_country??null, email??null, uid]
     );
 
-    if (email && process.env.AUTHENTIK_TOKEN) {
+    // E-Mail nach Authentik (PATCH nur bei Abweichung, holt auch alte Altfaelle nach).
+    // Ein Fehler bricht das Speichern nicht ab.
+    if (email) {
       try {
-        const base = process.env.OIDC_ISSUER.replace('/application/o/portal/', '');
-        const pk   = req.session.user.pk;
-        if (pk) {
-          await fetch(`${base}/api/v3/core/users/${pk}/`, {
-            method: 'PATCH',
-            headers: { 'Authorization': `Bearer ${process.env.AUTHENTIK_TOKEN}`,
-                       'Content-Type': 'application/json' },
-            body: JSON.stringify({ email }),
-          });
-        }
-      } catch (e) { console.warn('Authentik sync fehlgeschlagen:', e.message); }
+        const r = await updateUserEmail({
+          username: vorher?.username || req.session.user.username,
+          oldEmail: vorher?.email,
+          email,
+        });
+        if (r.geaendert) console.log(`[Authentik-Email] ${r.username}: ${email}`);
+        req.session.user.email = email;
+      } catch (e) { console.error('[Authentik-Email] fehlgeschlagen:', e.message); }
     }
 
     const [updated] = await pool.query(

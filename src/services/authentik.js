@@ -78,4 +78,14 @@ async function syncEmployeeGroups({ username, email, role, accessTags }) {
   return { username: user.username, gesetzt: ziel, unberuehrt: fremd.map(g => g.name) };
 }
 
-module.exports = { syncEmployeeGroups, getGroups };
+// E-Mail aus dem Profil nach Authentik. Gesucht wird ueber Benutzername bzw.
+// die bisherige Adresse - die neue kennt Authentik ja noch nicht.
+async function updateUserEmail({ username, oldEmail, email }) {
+  const user = await findUser({ username, email: oldEmail });
+  if (!user) throw new Error(`Kein Authentik-Konto fuer ${username || oldEmail}`);
+  if (user.email === email) return { username: user.username, geaendert: false };
+  await api(`/core/users/${user.pk}/`, { method: 'PATCH', body: JSON.stringify({ email }) });
+  return { username: user.username, geaendert: true };
+}
+
+module.exports = { syncEmployeeGroups, getGroups, updateUserEmail };
