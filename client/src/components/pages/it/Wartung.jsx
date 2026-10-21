@@ -158,7 +158,11 @@ export default function Wartung() {
                     </table>
                   )}
 
-                  <div style={{ ...label, marginBottom: 4 }}>Automatisch aktualisiert (30 Tage)</div>
+                  <div style={{ ...label, marginBottom: 4 }}>
+                    {data.watchtower.nur_melden
+                      ? 'Gefunden, nicht installiert (30 Tage) – einspielen im Docker Dashboard'
+                      : 'Automatisch aktualisiert (30 Tage)'}
+                  </div>
                   {data.watchtower.updates.length === 0 ? (
                     <div style={{ fontSize: 13, color: '#6b7280' }}>Keine Updates im Zeitraum.</div>
                   ) : (
