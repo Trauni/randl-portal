@@ -90,6 +90,12 @@ function newerTag(current, tags) {
   return best ? best.tag : null;
 }
 
+/** OCI-Versionslabel -> Versionsnummer; Authentik schreibt z. B. "refs/tags/version/2025.2.4" */
+function versionAusLabel(label) {
+  const m = String(label || '').match(/v?\d+(?:\.\d+)+/g);
+  return m ? m[m.length - 1] : null;
+}
+
 // ── Registry (anonym, Token per WWW-Authenticate) ─────────────────────────────
 
 function parseAuthHeader(h) {
@@ -158,7 +164,7 @@ async function containerInfos() {
   const imageIds = [...new Set(list.map(c => c.Image))];
   const images = JSON.parse(await run('docker', ['image', 'inspect', ...imageIds]).catch(() => '[]'));
   const digests = new Map(images.map(i => [i.Id, (i.RepoDigests || []).map(d => d.split('@')[1])]));
-  const versionen = new Map(images.map(i => [i.Id, (i.Config?.Labels || {})['org.opencontainers.image.version'] || null]));
+  const versionen = new Map(images.map(i => [i.Id, versionAusLabel((i.Config?.Labels || {})['org.opencontainers.image.version'])]));
   return list.map(c => {
     const labels = c.Config.Labels || {};
     return {
@@ -390,5 +396,5 @@ module.exports = {
   status, pruefen, updateStarten, updateJob, watchtowerStatus,
   // fuer Tests
   parseImageRef, parseVersionTag, newerTag, parseAuthHeader, parseWatchtowerLine, zusammenfassen, argOf,
-  remoteDigest, listTags, mitFrist, pruefeContainer,
+  remoteDigest, listTags, mitFrist, pruefeContainer, versionAusLabel,
 };
