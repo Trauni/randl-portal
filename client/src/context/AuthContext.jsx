@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import { roleFromGroups, tagsFromGroups, hasArea as hasAreaFn } from '../utils/permissions'
+import { hasArea as hasAreaFn } from '../utils/permissions'
 
 const AuthContext = createContext(null)
 
@@ -22,8 +22,8 @@ export function AuthProvider({ children }) {
   }, [])
 
   const groups = user?.groups || []
-  const role = user?.role || roleFromGroups(groups)
-  const accessTags = user?.accessTags || tagsFromGroups(groups)
+  const role = user?.role
+  const accessTags = user?.accessTags || []
 
   // Zentrale Pruefung. Bereiche siehe utils/permissions.js
   const hasArea = (area) => hasAreaFn(role, accessTags, area)

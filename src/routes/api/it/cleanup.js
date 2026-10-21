@@ -19,7 +19,7 @@ const execAsync = (cmd, timeout = 120000) =>
 
 const isAdmin = (req) => {
   const groups = req.session?.user?.groups || [];
-  return groups.some(g => ['Geschäftsführung', 'Verwaltung','Backoffice'].includes(g));
+  return groups.some(g => ['Geschäftsführung', 'Backoffice'].includes(g));
 };
 
 // GET /api/it/cleanup/result

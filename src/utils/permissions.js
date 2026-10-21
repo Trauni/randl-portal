@@ -47,7 +47,6 @@ const ACCESS_TAGS = {
 const TAG_GROUPS = {
   'Geschäftsführung': 'geschaeftsfuehrung',
   'Backoffice':       'backoffice',
-  'Verwaltung':       'backoffice',
   'Gashandel':        'gashandel',
   'Metallarbeiten':   'metallarbeiten',
   'Zeltverleih':      'zeltverleih',

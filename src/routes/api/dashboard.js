@@ -1,17 +1,13 @@
 const express = require('express');
 const { getPool } = require('../../db');
 const { shopFetch } = require('./finance/shopClient');
-const { hasArea, roleFromGroups, tagsFromGroups } = require('../../utils/permissions');
+const { hasArea } = require('../../utils/permissions');
 const { projekteImMonat, naechsteProjekte, abwesenheiten } = require('../../services/rentman');
 
 const router = express.Router();
 
-// Bereichspruefung fuer den angemeldeten Nutzer. Fallback fuer Alt-Sessions.
-const darf = (u, area) => hasArea(
-  u.role || roleFromGroups(u.groups),
-  u.accessTags || tagsFromGroups(u.groups),
-  area
-);
+// Bereichspruefung fuer den angemeldeten Nutzer.
+const darf = (u, area) => hasArea(u.role, u.accessTags, area);
 
 // Montag bis Sonntag der laufenden Woche
 function aktuelleWoche() {

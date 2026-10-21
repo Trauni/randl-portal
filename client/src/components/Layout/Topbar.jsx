@@ -10,7 +10,7 @@ export default function Topbar({ user }) {
   const displayName = user?.display_name || user?.fullName || user?.username || '?';
   const initials = displayName.split(' ').filter(Boolean).slice(0,2).map(s=>s[0].toUpperCase()).join('');
   const groups = user?.groups || [];
-  const roleLabel = ['Geschäftsführung','Verwaltung','Backoffice'].some(g => groups.includes(g)) ? 'Administrator'
+  const roleLabel = ['Geschäftsführung','Backoffice'].some(g => groups.includes(g)) ? 'Administrator'
     : groups.includes('it') ? 'IT'
     : groups.includes('Gashandel') ? 'Gashandel'
     : groups.includes('webeditor') ? 'Web Editor' : 'Mitarbeiter';

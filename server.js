@@ -9,7 +9,6 @@ const { execSync } = require('child_process');
 
 const authRoutes = require('./src/routes/auth');
 const requireArea = require('./src/middleware/requireArea');
-const { roleFromGroups, tagsFromGroups } = require('./src/utils/permissions');
 const vacationRoutes = require('./src/routes/api/vacation');
 const notesRoutes = require('./src/routes/api/notes');
 const profileRoutes = require('./src/routes/api/profile');
@@ -184,8 +183,8 @@ app.get('/api/me', (req, res) => {
       fullName: req.session.user.fullName,
       email: req.session.user.email,
       groups: req.session.user.groups || [],
-      role: req.session.user.role || roleFromGroups(req.session.user.groups),
-      accessTags: req.session.user.accessTags || tagsFromGroups(req.session.user.groups),
+      role: req.session.user.role,
+      accessTags: req.session.user.accessTags || [],
       avatarInitials: req.session.user.avatarInitials
     }
   });

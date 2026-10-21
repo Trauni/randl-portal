@@ -1,6 +1,6 @@
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { roleFromGroups, tagsFromGroups, hasArea } from '../../utils/permissions';
+import { hasArea } from '../../utils/permissions';
 
 const Icon = ({ d, size=15 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -77,10 +77,8 @@ export default function Sidebar({ user }) {
   });
 
   // Sichtbarkeit ueber das zentrale Berechtigungsmodell (utils/permissions.js).
-  // Der Fallback auf die Gruppen greift nur fuer Alt-Sessions ohne role/accessTags.
-  const groups = user?.groups || [];
-  const role   = user?.role || roleFromGroups(groups);
-  const tags   = user?.accessTags || tagsFromGroups(groups);
+  const role   = user?.role;
+  const tags   = user?.accessTags || [];
   const can    = (area) => hasArea(role, tags, area);
 
   const showProjekte = tags.includes('geschaeftsfuehrung') || tags.includes('backoffice');
