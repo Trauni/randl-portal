@@ -272,7 +272,7 @@ export default function Docker() {
             {' · /var/run/docker.sock'}
           </p>
           <p style={{ color:'var(--text3)', fontSize:'.74rem', marginTop:'.15rem' }}>
-            {upd?.laeuft ? '⏳ Prüfe Updates…'
+            {upd?.laeuft ? `⏳ Prüfe Updates…${upd.fortschritt ? ` ${upd.fortschritt.fertig}/${upd.fortschritt.gesamt}` : ''}`
               : upd?.geprueft_am
                 ? <>Updates geprüft {new Date(upd.geprueft_am).toLocaleString('de-DE', { dateStyle:'short', timeStyle:'short' })}
                     {' · '}<span style={{ color: updCount ? 'var(--amber)' : 'var(--green)' }}>
