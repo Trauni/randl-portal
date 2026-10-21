@@ -87,15 +87,17 @@ router.get('/recipients', async (req, res) => {
   catch (err) { res.status(err.status || 500).json({ error: err.message }); }
 });
 
-// { wave, test_to?, customer_id? } – Vorlage, PDF und (gefilterte) Empfänger kommen von hier;
-// mit customer_id geht die Mail nur an diesen einen Kunden (bereits angeschriebene überspringt das admin-backend)
+// { wave, test_to?, customer_id?, force? } – Vorlage, PDF und (gefilterte) Empfänger kommen von hier;
+// mit customer_id geht die Mail nur an diesen einen Kunden (bereits angeschriebene überspringt das admin-backend,
+// außer mit force – erneut senden, #393)
 router.post('/send', async (req, res) => {
   const { wave, test_to, customer_id } = req.body || {};
+  const force = !!req.body?.force && customer_id != null && !test_to;
   try {
     const t = template();
     const pdf = pdfInfo();
     const body = {
-      wave, test_to: test_to || undefined, user: userName(req),
+      wave, test_to: test_to || undefined, user: userName(req), force: force || undefined,
       subject: t.subject, html: t.html,
       attachment: pdf.exists ? { name: 'Anleitung-Gasshop.pdf', base64: fs.readFileSync(PDF).toString('base64') } : undefined,
     };

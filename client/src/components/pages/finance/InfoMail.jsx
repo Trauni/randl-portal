@@ -211,10 +211,13 @@ export default function InfoMail() {
   const send = async (test, one) => {
     setError(''); setInfo('');
     const open = (data?.customers || []).filter(c => !c.sent_at).length;
-    if (one) {
+    const force = !!one?.sent_at;
+    if (force) {
+      if (!window.confirm(`${one.name} wurde bereits am ${fmt(one.sent_at)} angeschrieben.\n\nLogin- und Info-Mail erneut an ${one.recipient} senden?`)) return;
+    } else if (one) {
       if (!window.confirm(`Login- und Info-Mail jetzt an ${one.name} (${one.recipient}) senden?`)) return;
     } else if (!test && !window.confirm(`Info-Mail (Welle ${wave}) jetzt an ${open} Kunden senden?\n\nBereits angeschriebene Kunden werden übersprungen.`)) return;
-    const r = await fetch('/api/finance/info-mail/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wave, test_to: test ? testTo : undefined, customer_id: one?.id }) });
+    const r = await fetch('/api/finance/info-mail/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wave, test_to: test ? testTo : undefined, customer_id: one?.id, force: force || undefined }) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { setError(d.error || 'Versand fehlgeschlagen'); return; }
     if (test) { setInfo(`Testmail an ${d.sentTo} gesendet (Beispielkunde: ${d.sample}).`); return; }
@@ -329,7 +332,7 @@ export default function InfoMail() {
                       {wave !== 2 && <td style={S.td}>{c.sent_at ? fmt(c.sent_at) : '—'}</td>}
                       {wave !== 2 && (
                         <td style={S.td}>
-                          {!c.sent_at && <button style={S.btn} disabled={running} onClick={() => send(false, c)}>Mail senden</button>}
+                          <button style={S.btn} disabled={running} onClick={() => send(false, c)}>{c.sent_at ? 'Erneut senden' : 'Mail senden'}</button>
                         </td>
                       )}
                     </tr>
