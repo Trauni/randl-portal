@@ -280,16 +280,20 @@ async function updateAusfuehren(job, c) {
   }
 }
 
-/** Startet das Update eines Containers; nur wenn die letzte Pruefung ein neues Image gefunden hat. */
+/**
+ * Startet das Update eines Containers, wenn es fuer seinen Tag ein neues Image gibt. Der Container wird
+ * dafuer frisch geprueft – das Ergebnis im Speicher kann nach einem Portal-Neustart fehlen.
+ */
 async function updateStarten(name, user) {
-  const geprueft = stand.container.find(c => c.name === name);
-  if (!geprueft) throw Object.assign(new Error('Container nicht in der letzten Pruefung'), { status: 404 });
-  if (geprueft.gesperrt) throw Object.assign(new Error(geprueft.gesperrt), { status: 403 });
-  if (!geprueft.kann_aktualisieren) throw Object.assign(new Error('Kein neues Image fuer diesen Tag'), { status: 400 });
-  if ([...jobs.values()].some(j => j.name === name && !j.fertig)) throw Object.assign(new Error('Update laeuft bereits'), { status: 409 });
+  const fehler = (msg, status) => Object.assign(new Error(msg), { status });
+  if (schutz(name)) throw fehler(schutz(name), 403);
+  if ([...jobs.values()].some(j => j.name === name && !j.fertig)) throw fehler('Update läuft bereits', 409);
 
-  const c = (await containerInfos()).find(x => x.name === name);
-  if (!c) throw Object.assign(new Error('Container nicht gefunden'), { status: 404 });
+  const c = (await mitFrist(containerInfos(), 60000, 'docker inspect')).find(x => x.name === name);
+  if (!c) throw fehler('Container nicht gefunden', 404);
+  const geprueft = await mitFrist(pruefeContainer(c), FRIST_CONTAINER_MS, c.image);
+  if (geprueft.status === 'fehler') throw fehler('Registry nicht erreichbar: ' + geprueft.hinweis, 502);
+  if (!geprueft.kann_aktualisieren) throw fehler('Kein neues Image für diesen Tag – bereits aktuell?', 400);
 
   const id = Date.now().toString(36);
   const job = { id, name, user, gestartet: new Date().toISOString(), fertig: false, ok: null, log: [] };

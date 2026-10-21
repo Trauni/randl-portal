@@ -217,7 +217,7 @@ export default function Docker() {
     if (!window.confirm(`${u.name} jetzt aktualisieren?\n\nImage ${u.image} wird neu geladen und der Container neu erstellt – er ist dabei kurz nicht erreichbar.${hinweis}`)) return;
     const r = await fetch('/api/it/docker/update', { method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ name: u.name }) }).then(x => x.json()).catch(e => ({ ok:false, error:e.message }));
-    if (!r.ok) { setActionMod({ title:`Update: ${u.name}`, result: r.error }); return; }
+    if (!r.ok) { setActionMod({ title:`Update: ${u.name}`, result: r.error }); loadUpdates(false); return; }
     setUpdJob(r.job);
   };
   useEffect(() => {
