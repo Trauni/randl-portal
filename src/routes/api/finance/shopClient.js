@@ -1,4 +1,3 @@
-const fetch = require('node-fetch');
 
 const SHOP_API  = process.env.SHOP_ADMIN_API;
 const EMAIL     = process.env.SHOP_ADMIN_EMAIL;
