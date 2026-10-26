@@ -20,6 +20,7 @@ const DEFAULT_TEMPLATE = {
   html: '<p>Guten Tag {{name}},</p>\n<p>ab sofort können Sie Ihre Gasflaschen bequem online bestellen.</p>\n'
     + '<p><strong>Ihre Kundennummer:</strong> {{kundennummer}}<br>\n'
     + '<strong>Direkt anmelden:</strong> <a href="{{login_link}}">{{login_link}}</a></p>\n'
+    + '<p>Oder scannen Sie diesen QR-Code mit dem Handy:</p>\n<p>{{qr_code}}</p>\n'
     + '<p>Eine Anleitung finden Sie im Anhang.</p>\n<p>Freundliche Grüße<br>Ihr Randl-Gashandel</p>',
   letter: '',
 };
