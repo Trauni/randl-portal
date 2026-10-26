@@ -251,7 +251,7 @@ export default function InfoMail() {
           <div style={{ fontWeight: 600, color: 'var(--text1)', marginBottom: '.6rem' }}>Vorlage</div>
           <label style={S.label}>Betreff</label>
           <input style={{ ...S.input, marginBottom: '.6rem' }} value={tpl.subject || ''} onChange={e => setTpl({ ...tpl, subject: e.target.value })} />
-          <label style={S.label}>Mailtext (HTML) – Platzhalter: {'{{name}}'}, {'{{kundennummer}}'}, {'{{login_link}}'}, {'{{shop_url}}'}</label>
+          <label style={S.label}>Mailtext (HTML) – Platzhalter: {'{{name}}'}, {'{{kundennummer}}'}, {'{{login_link}}'}, {'{{shop_url}}'}, {'{{qr_code}}'} (QR-Code als Bild im Text – ohne Platzhalter kommt er als PNG-Anhang)</label>
           <textarea style={{ ...S.input, minHeight: 180, fontFamily: 'DM Mono, monospace', fontSize: '.78rem' }} value={tpl.html || ''} onChange={e => setTpl({ ...tpl, html: e.target.value })} />
           <label style={{ ...S.label, marginTop: '.6rem' }}>Begrüßung auf dem Flyer für Welle 2 (HTML, leer = Standardtext „Hallo {'{{name}}'}! …“) – Rest des Flyers, QR-Code und Kundennummer kommen automatisch</label>
           <textarea style={{ ...S.input, minHeight: 100, fontFamily: 'DM Mono, monospace', fontSize: '.78rem' }} value={tpl.letter || ''} onChange={e => setTpl({ ...tpl, letter: e.target.value })} />
