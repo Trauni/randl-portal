@@ -58,6 +58,9 @@ function NewsForm({ initial, onSave, onCancel, saving, error }) {
       <div style={{ marginBottom: '.7rem' }}>
         <label style={S.label}>Text</label>
         <textarea style={{ ...S.input, minHeight: 110, resize: 'vertical' }} value={f.body} onChange={upd('body')} maxLength={4000} required />
+        <div style={{ fontSize: '.72rem', color: 'var(--text3)', marginTop: '.25rem' }}>
+          Link: <code>[Linktext](https://…)</code> · Shop-Seite: <code>[Profil öffnen](#profile)</code>, auch <code>#orders</code>, <code>#rhythm</code>, <code>#contact</code>
+        </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '.7rem', marginBottom: '.7rem' }}>
         <div>
