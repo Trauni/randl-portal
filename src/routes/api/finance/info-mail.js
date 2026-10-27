@@ -88,11 +88,12 @@ router.get('/recipients', async (req, res) => {
   catch (err) { res.status(err.status || 500).json({ error: err.message }); }
 });
 
-// { wave, test_to?, customer_id?, force? } – Vorlage, PDF und (gefilterte) Empfänger kommen von hier;
-// mit customer_id geht die Mail nur an diesen einen Kunden (bereits angeschriebene überspringt das admin-backend,
-// außer mit force – erneut senden, #393)
+// { wave, test_to?, customer_id?, customer_ids?, force? } – Vorlage, PDF und (gefilterte) Empfänger kommen von hier;
+// mit customer_id geht die Mail nur an diesen einen Kunden, mit customer_ids nur an die ausgewählten
+// (bereits angeschriebene überspringt das admin-backend, außer mit force – erneut senden, #393)
 router.post('/send', async (req, res) => {
   const { wave, test_to, customer_id } = req.body || {};
+  const ids = Array.isArray(req.body?.customer_ids) ? new Set(req.body.customer_ids.map(String)) : null;
   const force = !!req.body?.force && customer_id != null && !test_to;
   try {
     const t = template();
@@ -104,8 +105,10 @@ router.post('/send', async (req, res) => {
     };
     if (!test_to) {
       const all = (await recipients(wave)).customers;
-      const list = customer_id != null ? all.filter(c => String(c.id) === String(customer_id)) : all;
-      if (customer_id != null && !list.length) return res.status(404).json({ error: 'Kunde nicht in dieser Welle' });
+      const list = customer_id != null ? all.filter(c => String(c.id) === String(customer_id))
+        : ids ? all.filter(c => ids.has(String(c.id))) : all;
+      if (customer_id != null && !list.length) return res.status(404).json({ error: 'Kunde nicht in dieser Welle (keine Mailadresse?)' });
+      if (ids && !list.length) return res.status(404).json({ error: 'Keiner der ausgewählten Kunden ist in dieser Welle (keine Mailadresse?)' });
       body.customerIds = list.map(c => c.id);
     }
     const upstream = await shopFetch('/admin/info-mail/send', { method: 'POST', body: JSON.stringify(body) });
