@@ -20,6 +20,51 @@ const WAVES = [
 ];
 
 const BATCH = 25;   // Briefe je Druckauftrag
+// Kennzahlen über der Empfängerliste (Welle 1 und 3) – Klick öffnet die Kundenliste
+const STATS = [
+  ['Info-Mail versendet', c => c.sent_at],
+  ['First Login bereits gemacht', c => c.first_login_at],
+  ['Info-Mail noch nicht versendet', c => !c.sent_at],
+  ['Mail bekommen, noch nicht eingeloggt', c => c.sent_at && !c.first_login_at],
+];
+
+function StatList({ title, customers, onClose }) {
+  useEffect(() => {
+    const onKey = e => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+      <div onClick={e => e.stopPropagation()} style={{ ...S.card, marginBottom: 0, width: '100%', maxWidth: 820, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '.6rem' }}>
+          <strong style={{ flex: 1, color: 'var(--text1)' }}>{title} ({customers.length})</strong>
+          <button style={S.btn} onClick={onClose}>✕</button>
+        </div>
+        <div style={{ overflow: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr>
+              <th style={S.th}>KD-Nr</th><th style={S.th}>Name</th><th style={S.th}>E-Mail</th><th style={S.th}>Angeschrieben</th><th style={S.th}>First Login</th>
+            </tr></thead>
+            <tbody>
+              {customers.map(c => (
+                <tr key={c.id}>
+                  <td style={{ ...S.td, fontFamily: 'DM Mono, monospace' }}>{c.customer_number}</td>
+                  <td style={{ ...S.td, color: 'var(--text1)' }}>{c.name}</td>
+                  <td style={S.td}>{c.recipient}</td>
+                  <td style={S.td}>{c.sent_at ? fmt(c.sent_at) : '—'}</td>
+                  <td style={S.td}>{c.first_login_at ? fmt(c.first_login_at) : '—'}</td>
+                </tr>
+              ))}
+              {!customers.length && <tr><td colSpan={5} style={{ ...S.td, textAlign: 'center', color: 'var(--text3)' }}>Keine Kunden.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const fmt = v => v ? new Date(v).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
 const esc = s => String(s ?? '').replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 
@@ -167,7 +212,8 @@ export default function InfoMail() {
   const [info, setInfo] = useState('');
   const [testTo, setTestTo] = useState('');
   const [job, setJob] = useState(null);
-  const [sel, setSel] = useState(new Set());   // Auswahl für den punktuellen Versand
+  const [sel, setSel] = useState(new Set());
+  const [stat, setStat] = useState(null);   // Index in STATS für das Listen-Popup   // Auswahl für den punktuellen Versand
   const poll = useRef(null);
 
   const loadTemplate = async () => {
@@ -186,7 +232,7 @@ export default function InfoMail() {
   };
 
   useEffect(() => { loadTemplate(); }, []);
-  useEffect(() => { loadRecipients(wave); setSel(new Set()); }, [wave]);
+  useEffect(() => { loadRecipients(wave); setSel(new Set()); setStat(null); }, [wave]);
   useEffect(() => () => clearInterval(poll.current), []);
 
   const saveTemplate = async () => {
@@ -316,6 +362,18 @@ export default function InfoMail() {
                 </>
               )}
             </div>
+            {wave !== 2 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '.5rem', marginBottom: '.8rem' }}>
+                {STATS.map(([label, test], i) => (
+                  <button key={i} onClick={() => setStat(i)} title="Liste anzeigen"
+                    style={{ ...S.btn, textAlign: 'left', padding: '.55rem .7rem', background: 'var(--bg0)' }}>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text1)' }}>{customers.filter(test).length}</div>
+                    <div style={{ fontSize: '.72rem', color: 'var(--text2)' }}>{label}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+            {stat != null && <StatList title={STATS[stat][0]} customers={customers.filter(STATS[stat][1])} onClose={() => setStat(null)} />}
             {!tpl?.pdf?.exists && wave !== 2 && <div style={{ fontSize: '.78rem', color: 'var(--amber, #c80)', marginBottom: '.6rem' }}>Hinweis: Ohne hochgeladene PDF geht die Mail ohne Anleitung raus.</div>}
             {job && (
               <div style={{ fontSize: '.8rem', color: 'var(--text2)', marginBottom: '.8rem' }}>
