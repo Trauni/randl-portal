@@ -258,6 +258,13 @@ router.get('/:id/qr-code', async (req, res) => {
     res.status(upstream.status).json(data);
   } catch(err) { res.status(500).json({ error: 'Shop-API nicht erreichbar' }); }
 });
+// POST /api/finance/customers/:id/reset-mail – Link für ein neues Passwort per Mail
+router.post('/:id/reset-mail', requireAuth, async (req, res) => {
+  try {
+    const upstream = await shopFetch('/admin/customers/' + encodeURIComponent(req.params.id) + '/reset-mail', { method: 'POST', body: '{}' });
+    res.status(upstream.status).json(await upstream.json().catch(() => ({})));
+  } catch(err) { res.status(500).json({ error: 'Shop-API nicht erreichbar' }); }
+});
 
 
 // ─── F11: Neuer Kunde anlegen (direkt in gas-db) ────────────────

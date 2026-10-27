@@ -120,6 +120,24 @@ function DupModal({ portalCustomer, matches = [], onLink, onOverwrite, onForce, 
   );
 }
 
+// Info-Mail (Welle 1) aus dem Kundenreiter – gleicher Versand wie unter „Info-Mail Rollout“
+async function sendInfoMail(body) {
+  const r = await fetch('/api/finance/info-mail/send', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ wave: 1, ...body }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Versand fehlgeschlagen');
+  return d;
+}
+async function waitInfoMailJob(jobId, onUpdate = () => {}) {
+  for (;;) {
+    await new Promise(res => setTimeout(res, 1500));
+    const r = await fetch('/api/finance/info-mail/jobs/' + jobId);
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j) throw new Error(j?.error || 'Versandstatus nicht abrufbar');
+    onUpdate(j);
+    if (j.finished) return j;
+  }
+}
+
 function CustomerDetail({ customer: init, onClose, onRefresh }) {
   const [customer, setCustomer] = useState(init);
   const [editing,  setEditing]  = useState(false);
@@ -225,6 +243,33 @@ function CustomerDetail({ customer: init, onClose, onRefresh }) {
     finally { setQrBusy(false); }
   };
   const handleDupForce = () => { setDupData(null); pushLexware(true); };
+  const custName = customer.company_name || customer.name || customer.customer_number;
+  const sendInfo = async () => {
+    if (!window.confirm(`Login- und Info-Mail (Welle 1) jetzt an ${custName} senden?`)) return;
+    setBusy('info'); setMsg('');
+    try {
+      let d = await sendInfoMail({ customer_id: customer.id });
+      if (d.total === 0) {
+        if (!window.confirm(`${custName} wurde bereits angeschrieben.\n\nLogin- und Info-Mail erneut senden?`)) return;
+        d = await sendInfoMail({ customer_id: customer.id, force: true });
+      }
+      const j = await waitInfoMailJob(d.jobId);
+      if (j.errors.length) throw new Error(j.errors[0].error);
+      setMsg('✓ Info-Mail gesendet');
+    } catch(e) { setMsg('✗ ' + e.message); }
+    finally { setBusy(''); }
+  };
+  const sendReset = async () => {
+    if (!window.confirm(`Link für ein neues Passwort an ${custName} schicken?\n\nDas bisherige Passwort bleibt gültig, bis ein neues gesetzt ist.`)) return;
+    setBusy('reset'); setMsg('');
+    try {
+      const r = await fetch('/api/finance/customers/' + customer.id + '/reset-mail', { method:'POST' });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'Reset-Mail fehlgeschlagen');
+      setMsg(`✓ Link für ein neues Passwort an ${d.gesendet_an} geschickt (${d.gueltig_stunden} Stunden gültig).`);
+    } catch(e) { setMsg('✗ ' + e.message); }
+    finally { setBusy(''); }
+  };
   const saveDeliveryAddress = async (da) => {
     setBusy('da-' + da.id);
     try {
@@ -338,6 +383,8 @@ function CustomerDetail({ customer: init, onClose, onRefresh }) {
           {customer.in_lexware  && <button disabled={!!busy} onClick={() => pushLexware(true)}  style={{ padding:'.4rem .8rem', borderRadius:7, fontSize:'.78rem', cursor:'pointer', background:'rgba(46,189,122,.08)', border:'1px solid rgba(46,189,122,.2)', color:'var(--green)' }}>{busy==='lex' ? '…' : '↺ Lexware aktualisieren'}</button>}
           <button onClick={() => setNewOrder(true)} style={{ padding:'.4rem .8rem', borderRadius:7, fontSize:'.78rem', cursor:'pointer', background:'rgba(184,49,31,.1)', border:'1px solid rgba(184,49,31,.3)', color:'var(--r)' }}>+ Bestellung</button>
           <button disabled={qrBusy} onClick={loadQr} style={{ padding:'.4rem .8rem', borderRadius:7, fontSize:'.78rem', cursor:'pointer', background:'rgba(74,127,212,.1)', border:'1px solid rgba(74,127,212,.3)', color:'var(--blue)' }}>{qrBusy ? '…' : 'QR-Code'}</button>
+          <button disabled={!!busy} onClick={sendInfo} style={{ padding:'.4rem .8rem', borderRadius:7, fontSize:'.78rem', cursor:'pointer', background:'rgba(232,160,32,.08)', border:'1px solid rgba(232,160,32,.3)', color:'var(--amber)' }}>{busy==='info' ? '… sendet' : '✉ Info-Mail'}</button>
+          <button disabled={!!busy} onClick={sendReset} style={{ padding:'.4rem .8rem', borderRadius:7, fontSize:'.78rem', cursor:'pointer', background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text2)' }} title="Link für ein neues Passwort per Mail (altes bleibt bis dahin gültig)">{busy==='reset' ? '…' : '🔑 Passwort-Reset'}</button>
         </div>
         <div style={{ fontSize:'.78rem', fontWeight:600, color:'var(--text1)', marginBottom:'.5rem' }}>Bestellhistorie ({orders.length})</div>
         {orders.length === 0 ? <div style={{ color:'var(--text3)', fontSize:'.8rem' }}>Keine Bestellungen.</div> : (
@@ -849,6 +896,7 @@ function Customers() {
   const [pendingLexDups, setPendingLexDups] = useState([]);
   const [lexDupModal,    setLexDupModal]    = useState(null);
   const importPollRef = useRef(null);
+  const [infoJob,        setInfoJob]        = useState(null);
 
   const load = useCallback(async (f, p, inactive = false) => {
     setLoading(true); setError('');
@@ -912,6 +960,18 @@ function Customers() {
     else             setSelected(prev => { const n=new Set(prev); visibleIds.forEach(id=>n.add(id));    return n; });
   };
   const toggleOne = (id) => setSelected(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
+  const startInfoMail = async () => {
+    const ids = [...selected];
+    if (!window.confirm(`Login- und Info-Mail (Welle 1) an ${ids.length} ausgewählte Kunden senden?\n\nBereits angeschriebene Kunden und Kunden ohne Mailadresse werden übersprungen.`)) return;
+    setError('');
+    try {
+      const d = await sendInfoMail({ customer_ids: ids });
+      setSelected(new Set());
+      const skipped = ids.length - d.total;
+      setInfoJob({ total: d.total, done: 0, sent: 0, errors: [], finished: d.total === 0, skipped });
+      if (d.total) await waitInfoMailJob(d.jobId, j => setInfoJob({ ...j, skipped }));
+    } catch(e) { setError(e.message); setInfoJob(null); }
+  };
   const selectNonLex = () => setSelected(prev => { const n=new Set(prev); customers.filter(c=>!c.in_lexware&&!c.deleted_at).forEach(c=>n.add(c.id)); return n; });
 
   // ── Bulk Push ──
@@ -1212,8 +1272,28 @@ function Customers() {
             style={{ padding:'.35rem .8rem', borderRadius:7, fontSize:'.78rem', cursor:'pointer', background: bulkBusy ? 'var(--bg3)' : 'var(--r)', border:'none', color:'#fff', opacity: bulkBusy?.6:1 }}>
             {bulkBusy ? '⏳ Läuft…' : '→ In Lexware pushen'}
           </button>
+          <button onClick={startInfoMail} disabled={infoJob && !infoJob.finished}
+            style={{ padding:'.35rem .8rem', borderRadius:7, fontSize:'.78rem', cursor:'pointer', background:'rgba(232,160,32,.08)', border:'1px solid rgba(232,160,32,.3)', color:'var(--amber)' }}>
+            ✉ Info-Mail senden
+          </button>
           <button onClick={() => setSelected(new Set())} style={{ padding:'.3rem .6rem', borderRadius:6, fontSize:'.75rem', cursor:'pointer', background:'transparent', border:'1px solid var(--border)', color:'var(--text3)' }}>Auswahl aufheben</button>
           <button onClick={selectNonLex} style={{ padding:'.3rem .6rem', borderRadius:6, fontSize:'.75rem', cursor:'pointer', background:'transparent', border:'1px solid var(--border)', color:'var(--text3)' }}>Alle ohne LEX</button>
+        </div>
+      )}
+
+      {/* Info-Mail-Versand aus der Auswahl */}
+      {infoJob && (
+        <div style={{ display:'flex', alignItems:'flex-start', gap:'.75rem', background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:8, padding:'.5rem .85rem', marginBottom:'.75rem', fontSize:'.82rem', color:'var(--text2)' }}>
+          <div style={{ flex:1 }}>
+            ✉ {infoJob.finished ? 'Info-Mail fertig: ' : 'Info-Mail wird versendet: '}{infoJob.done}/{infoJob.total} · {infoJob.sent} gesendet · {infoJob.errors.length} Fehler
+            {infoJob.skipped > 0 && <> · {infoJob.skipped} übersprungen (bereits angeschrieben oder ohne Mailadresse)</>}
+            {infoJob.errors.length > 0 && (
+              <ul style={{ color:'var(--red2)', margin:'.3rem 0 0', paddingLeft:'1.1rem' }}>
+                {infoJob.errors.map((e, i) => <li key={i}>{e.customer_number} · {e.recipient}: {e.error}</li>)}
+              </ul>
+            )}
+          </div>
+          {infoJob.finished && <button onClick={() => setInfoJob(null)} style={{ padding:'.2rem .55rem', borderRadius:6, fontSize:'.75rem', cursor:'pointer', background:'transparent', border:'1px solid var(--border)', color:'var(--text3)' }}>✕</button>}
         </div>
       )}
 

@@ -167,6 +167,7 @@ export default function InfoMail() {
   const [info, setInfo] = useState('');
   const [testTo, setTestTo] = useState('');
   const [job, setJob] = useState(null);
+  const [sel, setSel] = useState(new Set());   // Auswahl für den punktuellen Versand
   const poll = useRef(null);
 
   const loadTemplate = async () => {
@@ -185,7 +186,7 @@ export default function InfoMail() {
   };
 
   useEffect(() => { loadTemplate(); }, []);
-  useEffect(() => { loadRecipients(wave); }, [wave]);
+  useEffect(() => { loadRecipients(wave); setSel(new Set()); }, [wave]);
   useEffect(() => () => clearInterval(poll.current), []);
 
   const saveTemplate = async () => {
@@ -208,7 +209,8 @@ export default function InfoMail() {
     setTpl(t => ({ ...t, pdf: d.pdf })); setInfo('Anleitung hochgeladen.');
   };
 
-  const send = async (test, one) => {
+  // selected: nur an die angehakten Kunden (bereits angeschriebene überspringt das admin-backend)
+  const send = async (test, one, selected) => {
     setError(''); setInfo('');
     const open = (data?.customers || []).filter(c => !c.sent_at).length;
     const force = !!one?.sent_at;
@@ -216,11 +218,16 @@ export default function InfoMail() {
       if (!window.confirm(`${one.name} wurde bereits am ${fmt(one.sent_at)} angeschrieben.\n\nLogin- und Info-Mail erneut an ${one.recipient} senden?`)) return;
     } else if (one) {
       if (!window.confirm(`Login- und Info-Mail jetzt an ${one.name} (${one.recipient}) senden?`)) return;
+    } else if (selected) {
+      const openSel = selected.filter(c => !c.sent_at).length;
+      if (!window.confirm(`Info-Mail (Welle ${wave}) jetzt an ${openSel} ausgewählte Kunden senden?`
+        + (openSel < selected.length ? `\n\n${selected.length - openSel} davon wurden bereits angeschrieben und werden übersprungen.` : ''))) return;
     } else if (!test && !window.confirm(`Info-Mail (Welle ${wave}) jetzt an ${open} Kunden senden?\n\nBereits angeschriebene Kunden werden übersprungen.`)) return;
-    const r = await fetch('/api/finance/info-mail/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wave, test_to: test ? testTo : undefined, customer_id: one?.id, force: force || undefined }) });
+    const r = await fetch('/api/finance/info-mail/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wave, test_to: test ? testTo : undefined, customer_id: one?.id, customer_ids: selected?.map(c => c.id), force: force || undefined }) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { setError(d.error || 'Versand fehlgeschlagen'); return; }
     if (test) { setInfo(`Testmail an ${d.sentTo} gesendet (Beispielkunde: ${d.sample}).`); return; }
+    if (selected) setSel(new Set());
     setJob({ total: d.total, done: 0, sent: 0, errors: [], finished: d.total === 0 });
     clearInterval(poll.current);
     poll.current = setInterval(async () => {
@@ -235,6 +242,12 @@ export default function InfoMail() {
   const customers = data?.customers || [];
   const open = customers.filter(c => !c.sent_at).length;
   const running = job && !job.finished;
+  const selList = customers.filter(c => sel.has(c.id));
+  const selOpen = selList.filter(c => !c.sent_at).length;
+  const allSel = customers.length > 0 && selList.length === customers.length;
+  const toggle = id => setSel(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  // „Alle“ wählt nur die noch offenen Kunden – bereits angeschriebene würden ohnehin übersprungen
+  const toggleAll = () => setSel(selList.length ? new Set() : new Set(customers.filter(c => !c.sent_at).map(c => c.id)));
 
   return (
     <div style={{ maxWidth: 1000 }}>
@@ -298,7 +311,8 @@ export default function InfoMail() {
                 <>
                   <input style={{ ...S.input, width: 230 }} placeholder="Testmail an …" value={testTo} onChange={e => setTestTo(e.target.value)} />
                   <button style={S.btn} disabled={!testTo || running} onClick={() => send(true)}>Test senden</button>
-                  <button style={S.btnPrimary} disabled={!open || running} onClick={() => send(false)}>An {open} Kunden senden</button>
+                  <button style={S.btn} disabled={!selOpen || running} onClick={() => send(false, null, selList)}>An {selOpen} ausgewählte senden</button>
+                  <button style={S.btnPrimary} disabled={!open || running} onClick={() => send(false)}>An alle {open} Kunden senden</button>
                 </>
               )}
             </div>
@@ -316,6 +330,7 @@ export default function InfoMail() {
             <div style={{ overflowX: 'auto', maxHeight: 420, overflowY: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead><tr>
+                  {wave !== 2 && <th style={S.th}><input type="checkbox" checked={allSel} ref={el => { if (el) el.indeterminate = selList.length > 0 && !allSel; }} onChange={toggleAll} title="Alle offenen auswählen" /></th>}
                   <th style={S.th}>KD-Nr</th><th style={S.th}>Name</th>
                   <th style={S.th}>{wave === 2 ? 'Anschrift' : 'E-Mail'}</th>
                   <th style={S.th}>First Login</th>
@@ -325,6 +340,7 @@ export default function InfoMail() {
                 <tbody>
                   {customers.map(c => (
                     <tr key={c.id}>
+                      {wave !== 2 && <td style={S.td}><input type="checkbox" checked={sel.has(c.id)} onChange={() => toggle(c.id)} /></td>}
                       <td style={{ ...S.td, fontFamily: 'DM Mono, monospace' }}>{c.customer_number}</td>
                       <td style={{ ...S.td, color: 'var(--text1)' }}>{c.name}</td>
                       <td style={S.td}>{wave === 2 ? `${c.street || ''}, ${c.zip || ''} ${c.city || ''}` : c.recipient}</td>
@@ -337,7 +353,7 @@ export default function InfoMail() {
                       )}
                     </tr>
                   ))}
-                  {!customers.length && <tr><td colSpan={6} style={{ ...S.td, textAlign: 'center', color: 'var(--text3)' }}>Keine Kunden in dieser Welle.</td></tr>}
+                  {!customers.length && <tr><td colSpan={7} style={{ ...S.td, textAlign: 'center', color: 'var(--text3)' }}>Keine Kunden in dieser Welle.</td></tr>}
                 </tbody>
               </table>
             </div>
