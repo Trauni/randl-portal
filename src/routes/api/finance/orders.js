@@ -1,6 +1,7 @@
 const router = require('express').Router();
 // Rechtepruefung sitzt am Mount-Punkt in server.js: requireArea('gashandel')
 const { shopFetch } = require('./shopClient');
+const { naechsteUebertragung, istAutoPushKandidat } = require('../../../utils/serAutoPush');
 
 router.get('/', async (req, res) => {
   try {
@@ -13,6 +14,20 @@ router.get('/', async (req, res) => {
     res.status(upstream.status).json(data);
   } catch (err) {
     console.error('[Finance/Orders] GET error:', err);
+    res.status(500).json({ error: 'Shop-API nicht erreichbar' });
+  }
+});
+
+// Naechster automatischer SER-Upload (Zeitplan im gas-admin-backend) + wie viele Bestellungen er mitnimmt
+router.get('/ser-auto-push', async (req, res) => {
+  try {
+    const upstream = await shopFetch('/admin/webshop-orders?derived_status=bestellt&limit=1000');
+    const data = await upstream.json();
+    if (!upstream.ok) return res.status(upstream.status).json(data);
+    const offen = (data.orders || []).filter(istAutoPushKandidat).length;
+    res.json({ ...naechsteUebertragung(), offen });
+  } catch (err) {
+    console.error('[Finance/Orders] ser-auto-push error:', err);
     res.status(500).json({ error: 'Shop-API nicht erreichbar' });
   }
 });

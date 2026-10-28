@@ -402,8 +402,18 @@ export default function Orders() {
   const [selected, setSelected] = useState(new Set());
   const [massSer,  setMassSer]  = useState(false);
   const [filters,  setFilters]  = useState({ derived_status:'', period:'month', q:'' });
+  const [autoPush, setAutoPush] = useState(null);
+
+  const loadAutoPush = useCallback(async () => {
+    try {
+      const r = await fetch('/api/finance/orders/ser-auto-push');
+      const d = await r.json();
+      setAutoPush(d.error ? null : d);
+    } catch { setAutoPush(null); }
+  }, []);
 
   const load = useCallback(async (f) => {
+    loadAutoPush();
     setLoading(true); setError(''); setSelected(new Set());
     try {
       const params = new URLSearchParams();
@@ -507,6 +517,12 @@ export default function Orders() {
             <span style={{ color:'var(--green)', fontFamily:'DM Mono, monospace' }}>{totalNet.toFixed(2)} €</span>
             {selected.size > 0 && <span style={{ marginLeft:'.75rem', color:'var(--amber)' }}> · {selected.size} ausgewählt</span>}
           </p>
+          {autoPush && (
+            <p style={{ color:'var(--text3)', fontSize:'.75rem', marginTop:'.2rem' }}>
+              Nächste automatische Übertragung an SER: {autoPush.morgen ? 'morgen' : 'heute'} {autoPush.stunde}:00 Uhr
+              {' · '}{autoPush.offen === 0 ? 'keine Bestellung offen' : `${autoPush.offen} ${autoPush.offen === 1 ? 'Bestellung' : 'Bestellungen'} offen`}
+            </p>
+          )}
         </div>
         <div style={{ display:'flex', gap:'.5rem', flexWrap:'wrap' }}>
           <button onClick={() => setPickCustomer(true)} style={{ padding:'.4rem .9rem', background:'var(--r)', border:'none', borderRadius:8, color:'#fff', fontSize:'.82rem', cursor:'pointer' }}>+ Neue Bestellung</button>
