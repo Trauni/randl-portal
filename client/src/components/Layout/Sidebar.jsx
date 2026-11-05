@@ -86,10 +86,9 @@ export default function Sidebar({ user }) {
   const showZeltplaner = can('zeltplanung');
   const showZeltprojekte = can('zeltverleih.projekte');
   const showZeltverleih = showZeltplaner || showZeltprojekte;
-  const showLieferantenauftrag = can('metallarbeiten.lieferantenauftrag');
   const showMetallVorgaenge = can('metallarbeiten.vorgaenge');
   const showMetallkunden = can('metallarbeiten.kunden');
-  const showMetallarbeiten = showLieferantenauftrag || showMetallVorgaenge || showMetallkunden;
+  const showMetallarbeiten = showMetallVorgaenge || showMetallkunden;
 
   // Zaehler fuer „Eingang“ (#371) und „Belege zuordnen“ (#370): beim Seitenwechsel, nach einer
   // Aktion auf der Seite (Event) und alle 5 Minuten
@@ -181,7 +180,6 @@ export default function Sidebar({ user }) {
           {showMetallVorgaenge && <NavItem to="/metallarbeiten/vorgaenge" icon="orders" label="Alle Aufträge" collapsed={collapsed}/>}
           {showMetallVorgaenge && <NavItem to="/metallarbeiten/zuordnen" icon="documents" label="Belege zuordnen" count={offeneBelege} collapsed={collapsed}/>}
           {showMetallkunden && <NavItem to="/metallarbeiten/kunden" icon="employees" label="MB-Kunden" collapsed={collapsed}/>}
-          {showLieferantenauftrag && <NavItem to="/metallarbeiten/lieferantenauftraege" icon="metall" label="Lieferantenaufträge" collapsed={collapsed}/>}
         </>}
 
         {showHR&&<>

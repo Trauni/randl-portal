@@ -4,7 +4,7 @@
  * Aenderungen IMMER in beiden Dateien.
  */
 
-export const ALL_AREAS = ['metallarbeiten.lieferantenauftrag', 'metallarbeiten.kunden', 'metallarbeiten.vorgaenge', 
+export const ALL_AREAS = ['metallarbeiten.kunden', 'metallarbeiten.vorgaenge', 
   'dashboard',
   'profil',
   'urlaub.eigen',
@@ -29,9 +29,9 @@ export const ROLE_AREAS = {
 
 export const ACCESS_TAGS = {
   geschaeftsfuehrung: { label: 'Geschäftsführung', allow: ALL_AREAS },
-  backoffice:         { label: 'Backoffice',       allow: ['metallarbeiten.lieferantenauftrag', 'metallarbeiten.kunden', 'metallarbeiten.vorgaenge', 'gashandel', 'gashandel.preise', 'it', 'content', 'hr.zeitauswertung', 'zeltverleih.projekte'] },
+  backoffice:         { label: 'Backoffice',       allow: ['metallarbeiten.kunden', 'metallarbeiten.vorgaenge', 'gashandel', 'gashandel.preise', 'it', 'content', 'hr.zeitauswertung', 'zeltverleih.projekte'] },
   gashandel:          { label: 'Gashandel',        allow: ['gashandel', 'gashandel.preise'] }, // Preise ändern auch für Gruppe Gashandel (#328)
-  metallarbeiten:     { label: 'Maschinenbau',     allow: ['metallarbeiten.lieferantenauftrag', 'metallarbeiten.kunden', 'metallarbeiten.vorgaenge', ] },
+  metallarbeiten:     { label: 'Maschinenbau',     allow: ['metallarbeiten.kunden', 'metallarbeiten.vorgaenge'] },
   zeltverleih:        { label: 'Zeltverleih',      allow: ['zeltplanung', 'zeltverleih.projekte'] },   // Zeltplaner, Zeltprojekte (#461)
 };
 

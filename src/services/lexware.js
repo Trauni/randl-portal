@@ -1,7 +1,7 @@
 /**
  * Lexware (Lex API) — direkter Zugang des Portals fuer die Metallarbeiten (#382).
  *
- * Alles andere (Preis-Tool, Kunden, Bestellungen, Lieferanten) laeuft weiter ueber
+ * Alles andere (Preis-Tool, Kunden, Bestellungen) laeuft weiter ueber
  * shopClient.js → Gas-Shop-admin-backend. Gleicher Schluessel wie der Gas-Shop:
  * LEXWARE_API_KEY in der Portal-.env.
  *

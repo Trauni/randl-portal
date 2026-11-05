@@ -10,12 +10,12 @@ const { shopFetch } = require('../finance/shopClient');
 const path = require('path');
 const { generateZugangsbrief } = require('../../../utils/generateZugangsbrief');
 
-const BRIEFPAPIER = path.join(__dirname, '../../../assets/lieferantenauftrag-briefpapier.pdf');
+const BRIEFPAPIER = path.join(__dirname, '../../../assets/briefpapier.pdf');
 
 // Metallkunden-Merker (#366), Uebersicht mit Portalzugang (#369; Konten in der gas-db ueber die Gas-Shop-Admin-API).
 const GATE = requireArea('metallarbeiten.kunden');
 
-// Lokal, wie in lieferantenauftraege.js — keine geteilte Utility im Projekt
+// Lokal definiert — keine geteilte Utility im Projekt
 async function getEmployeeId(authentikUid) {
   const [rows] = await db.getPool().execute('SELECT id FROM employees WHERE authentik_uid = ?', [authentikUid]);
   return rows[0]?.id ?? null;
