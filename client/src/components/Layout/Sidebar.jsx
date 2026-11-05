@@ -83,7 +83,9 @@ export default function Sidebar({ user }) {
 
   const showProjekte = tags.includes('geschaeftsfuehrung') || tags.includes('backoffice');
   const showGashandel = can('gashandel');
-  const showZeltverleih = can('zeltplanung');
+  const showZeltplaner = can('zeltplanung');
+  const showZeltprojekte = can('zeltverleih.projekte');
+  const showZeltverleih = showZeltplaner || showZeltprojekte;
   const showLieferantenauftrag = can('metallarbeiten.lieferantenauftrag');
   const showMetallVorgaenge = can('metallarbeiten.vorgaenge');
   const showMetallkunden = can('metallarbeiten.kunden');
@@ -168,7 +170,8 @@ export default function Sidebar({ user }) {
         {showZeltverleih&&<>
           {!collapsed && <div className="nav-section-label">Zeltverleih</div>}
           {collapsed && <div className="nav-section-divider"/>}
-          <NavItem to="/zeltverleih/zeltplaner" icon="calendar" label="Zeltplaner" collapsed={collapsed}/>
+          {showZeltprojekte && <NavItem to="/zeltverleih/projekte" icon="orders" label="Zeltprojekte" collapsed={collapsed}/>}
+          {showZeltplaner && <NavItem to="/zeltverleih/zeltplaner" icon="calendar" label="Zeltplaner" collapsed={collapsed}/>}
         </>}
 
         {showMetallarbeiten&&<>
