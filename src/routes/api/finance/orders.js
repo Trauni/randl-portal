@@ -77,7 +77,8 @@ router.post('/:id/generate-xml', async (req, res) => {
 
 router.post('/:id/push-lexware', async (req, res) => {
   try {
-    const upstream = await shopFetch('/admin/webshop-orders/' + req.params.id + '/push-lexware', { method: 'POST' });
+    const force = req.query.force === 'true' ? '?force=true' : '';
+    const upstream = await shopFetch('/admin/webshop-orders/' + req.params.id + '/push-lexware' + force, { method: 'POST' });
     const data = await upstream.json();
     res.status(upstream.status).json(data);
   } catch (err) { res.status(500).json({ error: 'Shop-API nicht erreichbar' }); }
