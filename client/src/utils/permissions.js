@@ -18,6 +18,7 @@ export const ALL_AREAS = ['metallarbeiten.lieferantenauftrag', 'metallarbeiten.k
   'it',
   'content',
   'zeltplanung',   // neu 14.08.2026 — Zeltplaner
+  'zeltverleih.projekte', // neu 05.11.2026 — Zeltprojekte aus Rentman (#461)
 ];
 
 export const ROLE_AREAS = {
@@ -28,10 +29,10 @@ export const ROLE_AREAS = {
 
 export const ACCESS_TAGS = {
   geschaeftsfuehrung: { label: 'Geschäftsführung', allow: ALL_AREAS },
-  backoffice:         { label: 'Backoffice',       allow: ['metallarbeiten.lieferantenauftrag', 'metallarbeiten.kunden', 'metallarbeiten.vorgaenge', 'gashandel', 'gashandel.preise', 'it', 'content', 'hr.zeitauswertung'] },
+  backoffice:         { label: 'Backoffice',       allow: ['metallarbeiten.lieferantenauftrag', 'metallarbeiten.kunden', 'metallarbeiten.vorgaenge', 'gashandel', 'gashandel.preise', 'it', 'content', 'hr.zeitauswertung', 'zeltverleih.projekte'] },
   gashandel:          { label: 'Gashandel',        allow: ['gashandel', 'gashandel.preise'] }, // Preise ändern auch für Gruppe Gashandel (#328)
   metallarbeiten:     { label: 'Maschinenbau',     allow: ['metallarbeiten.lieferantenauftrag', 'metallarbeiten.kunden', 'metallarbeiten.vorgaenge', ] },
-  zeltverleih:        { label: 'Zeltverleih',      allow: ['zeltplanung'] },   // neu 14.08.2026 — Zeltplaner
+  zeltverleih:        { label: 'Zeltverleih',      allow: ['zeltplanung', 'zeltverleih.projekte'] },   // Zeltplaner, Zeltprojekte (#461)
 };
 
 export const TAG_GROUPS = {

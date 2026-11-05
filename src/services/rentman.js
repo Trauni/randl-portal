@@ -114,40 +114,89 @@ async function zeitreport({ rentmanId, jahr, monat }) {
 // Status liegt am SUBPROJEKT, nicht am Projekt. Zeitraeume sind "generated
 // fields" und lassen sich weder filtern noch sortieren - deshalb einmal alles
 // holen und in Node verarbeiten. Bei rund 140 Datensaetzen unkritisch.
+// Namen kommen live aus /statuses (Rentman fuehrt eigene Status ab 1001 ein,
+// Stand 11/2026: 1001 In Bearbeitung, 1002 Ausfuehrung abgeschlossen,
+// 1003 Abgerundet). Die Liste hier ist nur der Rueckfall, falls der Abruf scheitert.
 const STATUS_NAMEN = {
   1: 'Option', 2: 'Annulliert', 3: 'Bestätigt', 4: 'Gepackt',
   5: 'Am Veranstaltungsort', 6: 'Retour', 7: 'Anfrage', 8: 'Konzept',
+  1001: 'In Bearbeitung', 1002: 'Ausführung abgeschlossen', 1003: 'Abgerundet',
 };
-const AKTIVE_STATUS = [3, 5];   // Bestaetigt, Am Veranstaltungsort
+// Belegung: fest = Material ist verplant, vorlaeufig = noch nicht zugesagt.
+// Annulliert (2) belegt nichts. Unbekannte neue Status zaehlen als vorlaeufig,
+// damit sie sichtbar bleiben, aber nicht als sichere Belegung gelten.
+const FESTE_STATUS = [3, 4, 5, 6, 1001, 1002, 1003];
+const VORLAEUFIGE_STATUS = [1, 7, 8];
+const ANNULLIERT = 2;
+// Fuer Dashboard und Kalender: nur feste Belegungen.
+const AKTIVE_STATUS = FESTE_STATUS;
+
+function belegungVon(statusId) {
+  if (statusId === ANNULLIERT) return 'annulliert';
+  if (FESTE_STATUS.includes(statusId)) return 'fest';
+  return 'vorlaeufig';
+}
 
 let projektCache = null;
 let projektCacheAt = 0;
 
 const zahlAusPfad = (p) => {
-  const n = Number(String(p || '').split('/').pop());
+  if (p === null || p === undefined || p === '') return null;   // sonst Number('') = 0
+  const n = Number(String(p).split('/').pop());
   return Number.isFinite(n) ? n : null;
 };
 
+// Stammdaten aendern sich selten: eine Stunde cachen.
+const stammCache = new Map();
+async function stammdaten(pfad) {
+  const c = stammCache.get(pfad);
+  if (c && Date.now() - c.at < 3600000) return c.map;
+  const d = await api(pfad, { limit: 300 });
+  const map = new Map((d.data || []).map((x) => [x.id, x.name || x.displayname || '']));
+  stammCache.set(pfad, { at: Date.now(), map });
+  return map;
+}
+
+async function statusNamen() {
+  try { return await stammdaten('/statuses'); } catch (e) {
+    console.warn('[rentman] /statuses nicht abrufbar, nutze Rueckfall:', e.message);
+    return new Map(Object.entries(STATUS_NAMEN).map(([k, v]) => [Number(k), v]));
+  }
+}
+
 async function projekteLaden(force) {
   if (!force && projektCache && Date.now() - projektCacheAt < 300000) return projektCache;
-  const d = await api('/subprojects', { limit: 500, expand: 'project' });
+  const [d, namen, typen] = await Promise.all([
+    api('/subprojects', { limit: 500, expand: 'project' }),
+    statusNamen(),
+    stammdaten('/projecttypes').catch(() => new Map()),
+  ]);
   projektCache = (d.data || []).map((s) => {
     const pr = (s.project && typeof s.project === 'object') ? s.project : {};
     const statusId = zahlAusPfad(s.status);
     const projektId = pr.id || zahlAusPfad(s.project);
+    const typId = zahlAusPfad(pr.project_type);
+    const belegung = belegungVon(statusId);
     return {
       id: s.id,
       projektId,
       link: (APP_URL && projektId) ? APP_URL + '/#/projects/' + projektId + '/details' : null,
       name: s.name || s.displayname || '',
+      projektName: pr.name || pr.displayname || '',
       nummer: pr.number || null,
       ort: pr.location || null,
+      kundeId: zahlAusPfad(pr.customer),
       farbe: pr.color ? '#' + pr.color : null,
+      typId,
+      typ: typen.get(typId) || null,
       von: s.usageperiod_start || null,
       bis: s.usageperiod_end || null,
+      planVon: s.planperiod_start || null,
+      planBis: s.planperiod_end || null,
       statusId,
-      status: STATUS_NAMEN[statusId] || null,
-      aktiv: AKTIVE_STATUS.includes(statusId),
+      status: namen.get(statusId) || STATUS_NAMEN[statusId] || null,
+      belegung,
+      aktiv: belegung === 'fest',
     };
   });
   projektCacheAt = Date.now();
@@ -197,8 +246,107 @@ async function abwesenheiten(von, bis) {
     }));
 }
 
+// ── Zeltprojekte und Material (#461) ─────────────────────────────────────────
+// Zeltprojekt = Projekttyp ZELTBAU, VERLEIH MIT ABHOLUNG oder VERLEIH MIT
+// LIEFERUNG (Stand 11/2026: 126 von 130 Projekten). SONSTIGES u. a. bleiben
+// ueber den Typfilter abrufbar.
+const ZELT_TYPEN = [104, 107, 113];
+
+async function alleSeiten(pfad, params = {}) {
+  const alle = [];
+  for (let offset = 0; offset < 30000; offset += 300) {
+    const d = await api(pfad, { ...params, limit: 300, offset });
+    const seite = d.data || [];
+    alle.push(...seite);
+    if (seite.length < 300) break;
+  }
+  return alle;
+}
+
+// Materialzeilen haben kein project-Feld, nur equipment_group. Die Gruppe kennt
+// Projekt und Subprojekt. Rund 1600 Zeilen: komplett holen, 10 Min. cachen.
+let materialCache = null;
+let materialCacheAt = 0;
+
+async function materialLaden(force) {
+  if (!force && materialCache && Date.now() - materialCacheAt < 600000) return materialCache;
+  const [zeilen, gruppen, equipment, ordner] = await Promise.all([
+    alleSeiten('/projectequipment'),
+    alleSeiten('/projectequipmentgroup'),
+    alleSeiten('/equipment'),
+    stammdaten('/folders').catch(() => new Map()),
+  ]);
+  const gruppeMap = new Map(gruppen.map((g) => [g.id, g]));
+  const equipMap = new Map(equipment.map((e) => [e.id, e]));
+  const proSubprojekt = new Map();
+  for (const z of zeilen) {
+    const g = gruppeMap.get(zahlAusPfad(z.equipment_group));
+    if (!g) continue;
+    const subId = zahlAusPfad(g.subproject);
+    const e = equipMap.get(zahlAusPfad(z.equipment)) || {};
+    const zeile = {
+      id: z.id,
+      equipmentId: zahlAusPfad(z.equipment),
+      name: z.name || z.displayname || e.name || '',
+      code: e.code || null,
+      ordner: ordner.get(zahlAusPfad(e.folder)) || null,
+      art: e.type || null,              // item | set | case
+      parentId: zahlAusPfad(z.parent),  // Bestandteil eines Sets
+      anzahl: z.quantity_total ?? z.quantity ?? 0,
+      option: !!z.is_option,
+      gruppe: g.name || g.displayname || '',
+      gruppeOrder: g.order ?? 0,
+      order: z.order ?? 0,
+      planVon: z.planperiod_start || null,
+      planBis: z.planperiod_end || null,
+    };
+    if (!proSubprojekt.has(subId)) proSubprojekt.set(subId, []);
+    proSubprojekt.get(subId).push(zeile);
+  }
+  for (const liste of proSubprojekt.values()) {
+    liste.sort((a, b) => (a.gruppeOrder - b.gruppeOrder) || a.gruppe.localeCompare(b.gruppe) || (a.order - b.order));
+  }
+  materialCache = proSubprojekt;
+  materialCacheAt = Date.now();
+  return materialCache;
+}
+
+/**
+ * Zeltprojekte, deren Planzeitraum (inkl. Auf-/Abbau) [von, bis] ueberschneidet.
+ * von/bis als YYYY-MM-DD, beide optional. Annullierte nur auf Wunsch.
+ */
+async function zeltProjekte({ von, bis, typen = ZELT_TYPEN, mitAnnulliert = false } = {}) {
+  const [alle, material] = await Promise.all([projekteLaden(), materialLaden()]);
+  const bisEnde = bis ? bis + 'T23:59:59' : null;
+  return alle
+    .filter((p) => typen.includes(p.typId))
+    .filter((p) => mitAnnulliert || p.belegung !== 'annulliert')
+    .filter((p) => {
+      const a = p.planVon || p.von;
+      const b = p.planBis || p.bis;
+      if (!a || !b) return false;
+      if (von && b < von) return false;
+      if (bisEnde && a > bisEnde) return false;
+      return true;
+    })
+    .map((p) => ({ ...p, materialAnzahl: (material.get(p.id) || []).length }))
+    .sort((a, b) => (a.planVon || a.von || '').localeCompare(b.planVon || b.von || ''));
+}
+
+async function projektMaterial(subprojektId) {
+  const material = await materialLaden();
+  return material.get(Number(subprojektId)) || [];
+}
+
+async function projektTypen() {
+  const typen = await stammdaten('/projecttypes');
+  return [...typen.entries()].map(([id, name]) => ({ id, name, zelt: ZELT_TYPEN.includes(id) }));
+}
+
 module.exports = {
+  zeltProjekte, projektMaterial, projektTypen, materialLaden, ZELT_TYPEN,
   zeitreport, leaveTypes, SUMMEN_TYPEN,
   projekteLaden, projekteImMonat, naechsteProjekte, abwesenheiten,
-  STATUS_NAMEN, AKTIVE_STATUS,
+  STATUS_NAMEN, AKTIVE_STATUS, FESTE_STATUS, VORLAEUFIGE_STATUS,
+  belegungVon, stammdaten, zahlAusPfad, api,
 };

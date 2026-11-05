@@ -31,6 +31,7 @@ import Bilderverwaltung from './components/pages/content/Bilderverwaltung'
 import CMSShopseite from './components/pages/content/CMSShopseite'
 import Zeiterfassung from './components/pages/hr/Zeiterfassung'
 import Zeltplaner from './components/pages/zeltverleih/Zeltplaner'
+import Zeltprojekte from './components/pages/zeltverleih/Zeltprojekte'
 
 function AuthGuard({ children }) {
   const { user, loading } = useAuth()
@@ -106,6 +107,7 @@ function AppRoutes() {
         <Route path="content/bilder" element={<Bilderverwaltung />} />
         <Route path="content/shop" element={<CMSShopseite />} />
         <Route path="zeltverleih/zeltplaner" element={<Zeltplaner />} />
+        <Route path="zeltverleih/projekte" element={<Zeltprojekte />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>
     </Routes>
