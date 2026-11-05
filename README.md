@@ -22,9 +22,8 @@ Alle Zugangsdaten stehen in der `.env` (nie committen, Vorlage: `.env.example`).
 ## Neuaufsetzen
 
 1. `git clone` des Repos, `cp .env.example .env` und Werte aus KeePass eintragen
-2. `mkdir -p storage/lieferantenauftraege` (Ordner ist nicht im Repo)
-3. `npm install` im Hauptordner und in `client/` und `client-mobile/`, Frontends bauen (siehe jeweilige `package.json`)
-4. `pm2 start ecosystem.config.js`
+2. `npm install` im Hauptordner und in `client/` und `client-mobile/`, Frontends bauen (siehe jeweilige `package.json`)
+3. `pm2 start ecosystem.config.js`
 
 ## Regeln
 

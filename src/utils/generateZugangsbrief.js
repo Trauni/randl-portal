@@ -1,4 +1,4 @@
-// Zugangsbrief fuer das Kundenkonto (#369): Briefpapier wie beim Lieferantenauftrag,
+// Zugangsbrief fuer das Kundenkonto (#369): Briefpapier src/assets/briefpapier.pdf,
 // Anschrift im Fenster, Kundennummer, Anleitung zur Erstanmeldung und QR-Code
 // (KdNr und PLZ vorausgefuellt). Kein Passwort im Brief – die Erstanmeldung laeuft
 // mit Kundennummer + PLZ, danach vergibt der Kunde sein eigenes Passwort.

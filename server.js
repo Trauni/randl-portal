@@ -149,8 +149,6 @@ app.use('/api/hr/rentman',     requireArea('hr.mitarbeiter'), hrRentmanRouter);
 // Muss VOR /api/zeltverleih stehen, sonst greift dort der Guard 'zeltplanung' (#461)
 app.use('/api/zeltverleih/projekte', requireArea('zeltverleih.projekte'), require('./src/routes/api/zeltverleih/projekte'));
 app.use('/api/zeltverleih',    requireArea('zeltplanung'), zeltverleihRouter);   // neu 14.08.2026 — Zeltplaner
-app.use('/api/metallarbeiten/lieferanten', require('./src/routes/api/metallarbeiten/lieferanten'));
-app.use('/api/metallarbeiten/lieferantenauftraege', require('./src/routes/api/metallarbeiten/lieferantenauftraege'));
 app.use('/api/metallarbeiten/kunden', require('./src/routes/api/metallarbeiten/kunden'));   // neu 16.10.2026 — Metallkunden-Merker (#366)
 app.use('/api/metallarbeiten/vorgaenge', require('./src/routes/api/metallarbeiten/vorgaenge'));   // neu 16.10.2026 — In Lexware anlegen (#365)
 app.use('/api/metallarbeiten/zuordnen', require('./src/routes/api/metallarbeiten/zuordnen'));   // neu 16.10.2026 — Belege zuordnen (#370)
