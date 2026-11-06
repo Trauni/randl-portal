@@ -143,6 +143,8 @@ app.use('/api/shop-images',    requireArea('content'), shopImagesRouter);
 app.use('/api/shop-cms',       requireArea('content'), shopCmsRouter);
 app.use('/api/shop-products',  requireArea('content'), shopProductsRouter);
 app.use('/api/hr/employees',   requireArea('hr.mitarbeiter'), hrEmployeesRouter);
+// Gleitzeitkonto (#490): Einstellungen = Personalstammdaten, nur GF (BookStack 188)
+app.use('/api/hr/gleitzeit/einstellungen', requireArea('hr.mitarbeiter'), require('./src/routes/api/hr/gleitzeit').einstellungen);
 app.use('/api/hr/zeiterfassung', requireArea('hr.zeitauswertung'), hrZeitRouter);
 app.use('/api/zeit',            requireArea('zeit.eigen'), zeitEigenRouter);
 app.use('/api/hr/rentman',     requireArea('hr.mitarbeiter'), hrRentmanRouter);

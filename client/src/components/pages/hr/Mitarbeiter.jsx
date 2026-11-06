@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import GleitzeitEinstellungen from './GleitzeitEinstellungen';
 
 const TAG_LABELS = [
   ['geschaeftsfuehrung', 'Geschäftsführung'],
@@ -160,6 +161,9 @@ function MitarbeiterModal({ emp, departments, onClose, onSave }) {
               „Genommen“ zählt alle genehmigten Urlaube dieses Jahres, auch künftige – „Verbleibend“ ist schon um geplanten Urlaub reduziert.
             </div>
           </div>
+
+          {/* Gleitzeitkonto (#490) — speichert eigenständig */}
+          <GleitzeitEinstellungen employeeId={emp.id} />
 
           {/* Editierbare Felder */}
           <div style={{
