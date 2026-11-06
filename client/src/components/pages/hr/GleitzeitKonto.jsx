@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback } from 'react';
  */
 
 const MONATE_KURZ = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+const MONATE_LANG = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 
 function formatMinuten(min, mitVorzeichen = true) {
   const vz = !mitVorzeichen ? '' : min > 0 ? '+' : min < 0 ? '−' : '';
@@ -150,7 +151,10 @@ export default function GleitzeitKonto({ eigen = false, employeeId, jahr, monat,
                 </tr>
               ))}
               <tr>
-                <td style={{ ...S.td, textAlign: 'left', fontWeight: 600 }}>Summe</td>
+                {/* Saldo des Zeitraums, nicht der Kontostand (der steht oben) */}
+                <td style={{ ...S.td, textAlign: 'left', fontWeight: 600 }}>
+                  Saldo {gruppe === 'woche' ? MONATE_LANG[monat - 1] : jahr}
+                </td>
                 <td colSpan={4} />
                 <td style={{ ...S.td, fontWeight: 700, color: farbe(summe) }}>{formatMinuten(summe)}</td>
               </tr>
