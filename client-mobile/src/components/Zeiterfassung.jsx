@@ -12,12 +12,29 @@ function formatDauer(sekunden) {
   return `${pad(h)}:${pad(m)}:${pad(sec)}`
 }
 
+// Gleitzeitkonto (#490): Minuten als +12:30 / −3:05
+function formatMinuten(m) {
+  const v = m > 0 ? '+' : m < 0 ? '−' : ''
+  const a = Math.abs(Math.round(m))
+  return `${v}${Math.floor(a / 60)}:${pad(a % 60)}`
+}
+
 export default function Zeiterfassung() {
   const [laufend, setLaufend] = useState(null)
   const [jetzt, setJetzt] = useState(Date.now())
   const [heute, setHeute] = useState([])
   const [busy, setBusy] = useState(false)
   const [fehler, setFehler] = useState('')
+  const [konto, setKonto] = useState(null)
+
+  // Nur Kontostand, Verlauf gibt es am Desktop. Ohne aktives Konto keine Zeile.
+  useEffect(() => {
+    const d = new Date()
+    fetch(`/api/zeit/gleitzeit?jahr=${d.getFullYear()}&monat=${d.getMonth() + 1}&gruppe=monat`, { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((k) => setKonto(k && k.aktiv ? k : null))
+      .catch(() => setKonto(null))
+  }, [])
 
   const ladeLaufend = () => {
     fetch('/api/zeit/laufend', { credentials: 'include' })
@@ -104,6 +121,12 @@ export default function Zeiterfassung() {
     <section>
       <h2>Zeiterfassung</h2>
       {fehler && <p className="error-text">{fehler}</p>}
+      {konto && (
+        <p className="card-sub" style={{ margin: '0 0 12px' }}>
+          Gleitzeitkonto: <strong style={{ color: konto.minuten < 0 ? 'var(--red, #e05050)' : 'var(--green, #2ebd7a)' }}>{formatMinuten(konto.minuten)} h</strong>
+          {konto.gebuchtBis && <> · Stand {new Date(konto.gebuchtBis + 'T00:00').toLocaleDateString('de-DE')}</>}
+        </p>
+      )}
 
       <div className="timer-card">
         {!laufend && (

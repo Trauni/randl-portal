@@ -18,7 +18,7 @@ router.get('/', async (req, res) => {
         -- Jahresfilter, damit der Anspruch im Januar wieder von vorn beginnt.
         COALESCE((SELECT SUM(v.days_count)
                   FROM vacation_requests v
-                  WHERE v.employee_id = e.id AND v.status = 'approved'
+                  WHERE v.employee_id = e.id AND v.status = 'approved' AND v.art = 'urlaub'
                     AND YEAR(v.start_date) = YEAR(CURDATE())), 0) AS vacation_taken,
         COALESCE((SELECT GROUP_CONCAT(a.tag ORDER BY a.tag)
                   FROM employee_access a WHERE a.employee_id = e.id), '') AS access_tags_raw

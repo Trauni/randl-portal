@@ -6,6 +6,11 @@ const router  = express.Router();
 const requireAuth = require('../../middleware/requireAuth');
 const { hasArea } = require('../../utils/permissions');
 const urlaub = require('../../services/urlaub');
+const gleitzeit = require('../../services/gleitzeit');
+const { arbeitstage, feiertag } = require('../../utils/feiertage');
+
+const ISO_TAG = /^\d{4}-\d{2}-\d{2}$/;
+const ARTEN = ['urlaub', 'gleitzeitabbau']; // #490
 // Urlaubsverwaltung (Kalender, Genehmigen, Ablehnen) ist Geschaeftsfuehrung.
 const canHr = (u) => hasArea(u.role, u.accessTags, 'hr.urlaubskalender');
 
@@ -34,16 +39,42 @@ async function getEmployeeId(uid) {
   return rows[0]?.id ?? null;
 }
 
-function workdaysBetween(start, end) {
-  let count = 0;
-  const cur = new Date(start);
-  while (cur <= end) {
-    const day = cur.getDay();
-    if (day !== 0 && day !== 6) count++;
-    cur.setDate(cur.getDate() + 1);
+// GET /api/vacation/arbeitstage?von=&bis= — Vorschau im Antragsformular,
+// damit Client und Server dieselbe Feiertagslogik verwenden (#490)
+// Mit art=gleitzeitabbau zählen die vereinbarten Arbeitstage des Mitarbeiters,
+// dazu die Vorschau aufs Gleitzeitkonto.
+router.get('/arbeitstage', requireAuth, async (req, res) => {
+  const { von, bis, art } = req.query;
+  if (!ISO_TAG.test(von || '') || !ISO_TAG.test(bis || '')) return res.status(400).json({ error: 'Datum ungültig' });
+  if (art === 'gleitzeitabbau') {
+    try {
+      const empId = await getEmployeeId(req.session.user.authentikUid);
+      if (!empId) return res.status(404).json({ error: 'Mitarbeiter nicht gefunden' });
+      const v = await gleitzeit.abbauVorschau(empId, von, bis);
+      if (!v.aktiv) return res.status(409).json({ error: 'Kein Gleitzeitkonto aktiv' });
+      return res.json({ tage: v.tage, feiertage: [], gleitzeit: v });
+    } catch (err) { console.error(err); return res.status(500).json({ error: 'Fehler' }); }
   }
-  return count;
-}
+  const feiertage = [];
+  for (let d = new Date(von + 'T12:00:00Z'); d <= new Date(bis + 'T12:00:00Z'); d = new Date(+d + 86400000)) {
+    const tag = d.toISOString().slice(0, 10);
+    const name = feiertag(tag);
+    const wt = d.getUTCDay();
+    if (name && wt !== 0 && wt !== 6) feiertage.push({ tag, name });
+  }
+  res.json({ tage: arbeitstage(von, bis).length, feiertage });
+});
+
+// GET /api/vacation/gleitzeit — eigenes Gleitzeitkonto (#490): ob Abbau
+// beantragt werden kann, und der aktuelle Stand fürs Formular
+router.get('/gleitzeit', requireAuth, async (req, res) => {
+  try {
+    const empId = await getEmployeeId(req.session.user.authentikUid);
+    if (!empId) return res.status(404).json({ error: 'Mitarbeiter nicht gefunden' });
+    const stand = await gleitzeit.kontostand(empId);
+    res.json(stand.aktiv ? stand : { aktiv: false });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Fehler' }); }
+});
 
 // GET /api/vacation — eigene Anträge
 router.get('/', requireAuth, async (req, res) => {
@@ -73,7 +104,7 @@ router.get('/timeline', requireAuth, async (req, res) => {
     const from = req.query.from || new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
     const to   = req.query.to   || new Date(now.getFullYear(), now.getMonth() + 4, 0).toISOString().split('T')[0];
     const [rows] = await pool.query(
-      `SELECT vr.id, vr.start_date, vr.end_date, vr.days_count,
+      `SELECT vr.id, vr.art, vr.start_date, vr.end_date, vr.days_count,
               vr.status, vr.reason, vr.cancel_reason,
               e.id AS emp_id,
               COALESCE(e.display_name, e.full_name, e.username) AS emp_name,
@@ -120,13 +151,26 @@ router.post('/', requireAuth, async (req, res) => {
     const empId = await getEmployeeId(req.session.user.authentikUid);
     if (!empId) return res.status(404).json({ error: 'Mitarbeiter nicht gefunden' });
     const { start_date, end_date, reason } = req.body;
+    const art = req.body.art || 'urlaub';
+    if (!ARTEN.includes(art)) return res.status(400).json({ error: 'Unbekannte Art' });
     if (!start_date || !end_date) return res.status(400).json({ error: 'Datum fehlt' });
-    const days = workdaysBetween(new Date(start_date), new Date(end_date));
-    if (days <= 0) return res.status(400).json({ error: 'Kein gültiger Zeitraum' });
+    if (!ISO_TAG.test(start_date) || !ISO_TAG.test(end_date)) return res.status(400).json({ error: 'Datum ungültig' });
+    let days;
+    if (art === 'gleitzeitabbau') {
+      // Nur mit aktivem Konto; gezählt werden die vereinbarten Arbeitstage (#490)
+      const konto = await gleitzeit.ladeKonto(empId);
+      if (!konto.aktiv) return res.status(400).json({ error: 'Gleitzeitabbau ist nur mit aktivem Gleitzeitkonto möglich' });
+      days = (await gleitzeit.abbauTage(empId, start_date, end_date)).length;
+      if (days <= 0) return res.status(400).json({ error: 'Im Zeitraum liegt kein vereinbarter Arbeitstag' });
+    } else {
+      // Werktage Mo–Fr ohne gesetzliche Feiertage in Bayern (#490)
+      days = arbeitstage(start_date, end_date).length;
+      if (days <= 0) return res.status(400).json({ error: 'Kein gültiger Zeitraum' });
+    }
     const [result] = await pool.query(
-      `INSERT INTO vacation_requests (employee_id, start_date, end_date, days_count, reason, status)
-       VALUES (?, ?, ?, ?, ?, 'pending')`,
-      [empId, start_date, end_date, days, reason || null]
+      `INSERT INTO vacation_requests (employee_id, art, start_date, end_date, days_count, reason, status)
+       VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
+      [empId, art, start_date, end_date, days, reason || null]
     );
     const [newReq] = await pool.query('SELECT * FROM vacation_requests WHERE id = ?', [result.insertId]);
     res.status(201).json(normalizeRow(newReq[0]));
@@ -146,16 +190,20 @@ router.patch('/:id/approve', requireAuth, async (req, res) => {
     );
     const [rows] = await pool.query('SELECT * FROM vacation_requests WHERE id=?', [req.params.id]);
     const antwort = normalizeRow(rows[0]);
-    // Urlaub nach Rentman schreiben. Ein Fehler darf die Genehmigung nicht
+    // Nach Rentman schreiben. Ein Fehler darf die Genehmigung nicht
     // scheitern lassen: der naechtliche Job holt es nach, und die Abgleichs-
     // liste auf der Zeiterfassungsseite zeigt den Rueckstand.
     if (antwort && antwort.status === 'approved') {
       try {
-        antwort.rentman = await urlaub.urlaubNachRentman(Number(req.params.id));
+        // Urlaub mit 13-Wochen-Schnitt, Gleitzeitabbau als Kompensation (#490)
+        antwort.rentman = await urlaub.nachRentman(Number(req.params.id));
       } catch (e) {
         console.error(`[vacation] Antrag ${req.params.id} nicht nach Rentman uebertragen: ${e.message}`);
         antwort.rentman = { fehler: e.message };
       }
+      // An genehmigten Urlaubstagen entfaellt das Gleitzeit-Soll (#490).
+      // Wirkt nur fuer vergangene Tage, kuenftige bucht der Tagesabschluss.
+      antwort.gleitzeit = await gleitzeit.zeitraumGeaendert(antwort.employee_id, antwort.start_date, antwort.end_date);
     }
     res.json(antwort);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Fehler' }); }
@@ -206,6 +254,9 @@ router.patch('/:id/cancel', requireAuth, async (req, res) => {
       } catch (e) {
         console.error(`[vacation] Antrag ${req.params.id} in Rentman nicht storniert: ${e.message}`);
       }
+    }
+    if (vr.status === 'approved') {
+      await gleitzeit.zeitraumGeaendert(vr.employee_id, vrStartDate, dateOnly(vr.end_date)); // #490
     }
     const [updated] = await pool.query('SELECT * FROM vacation_requests WHERE id=?', [req.params.id]);
     res.json(normalizeRow(updated[0]));

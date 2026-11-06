@@ -31,6 +31,7 @@
  */
 const { getPool } = require('../db');
 const urlaub = require('./urlaub');
+const gleitzeit = require('./gleitzeit');
 
 const BASE = 'https://api.rentman.net';
 const ARBEITSZEIT = '/leavetypes/1';
@@ -179,7 +180,10 @@ async function manuellErfassen({ employeeId, tag, start, ende, pauseMinuten, erf
       return null;
     });
   }
-  return { entryId, urlaubNeuberechnet };
+  // Nachtrag fuer einen vergangenen Tag aendert das Gleitzeitkonto (#490),
+  // auch bei Selbst-Erfassung. Heute bucht der Tagesabschluss.
+  const gleitzeitNeuberechnet = await gleitzeit.tagGeaendert(employeeId, tag);
+  return { entryId, urlaubNeuberechnet, gleitzeitNeuberechnet };
 }
 
 /**
@@ -218,7 +222,8 @@ async function bearbeiten(entryId, updates, geaendertVonId) {
     console.error(`[zeit] Urlaubs-Neuberechnung nach Korrektur fehlgeschlagen: ${e.message}`);
     return null;
   });
-  return { urlaubNeuberechnet };
+  const gleitzeitNeuberechnet = await gleitzeit.tagGeaendert(alt.employee_id, alt.tag); // #490
+  return { urlaubNeuberechnet, gleitzeitNeuberechnet };
 }
 
 /** Spiegelt einen abgeschlossenen Eintrag nach Rentman (POST oder PUT). */

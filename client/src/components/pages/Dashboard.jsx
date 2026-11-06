@@ -300,7 +300,7 @@ export default function Dashboard() {
               }}>
                 <span style={{ color: 'var(--text2)' }}>
                   {dat(a.start_date)} – {dat(a.end_date)}
-                  <span style={{ color: 'var(--text3)', marginLeft: '6px' }}>{a.days_count} Tage</span>
+                  <span style={{ color: 'var(--text3)', marginLeft: '6px' }}>{a.art === 'gleitzeitabbau' ? 'Gleitzeitabbau · ' : ''}{a.days_count} Tage</span>
                 </span>
                 <span style={{
                   fontSize: '11px', padding: '2px 8px', borderRadius: '10px',
