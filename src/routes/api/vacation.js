@@ -6,6 +6,7 @@ const router  = express.Router();
 const requireAuth = require('../../middleware/requireAuth');
 const { hasArea } = require('../../utils/permissions');
 const urlaub = require('../../services/urlaub');
+const gleitzeit = require('../../services/gleitzeit');
 const { arbeitstage, feiertag } = require('../../utils/feiertage');
 
 const ISO_TAG = /^\d{4}-\d{2}-\d{2}$/;
@@ -165,6 +166,9 @@ router.patch('/:id/approve', requireAuth, async (req, res) => {
         console.error(`[vacation] Antrag ${req.params.id} nicht nach Rentman uebertragen: ${e.message}`);
         antwort.rentman = { fehler: e.message };
       }
+      // An genehmigten Urlaubstagen entfaellt das Gleitzeit-Soll (#490).
+      // Wirkt nur fuer vergangene Tage, kuenftige bucht der Tagesabschluss.
+      antwort.gleitzeit = await gleitzeit.zeitraumGeaendert(antwort.employee_id, antwort.start_date, antwort.end_date);
     }
     res.json(antwort);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Fehler' }); }
@@ -215,6 +219,9 @@ router.patch('/:id/cancel', requireAuth, async (req, res) => {
       } catch (e) {
         console.error(`[vacation] Antrag ${req.params.id} in Rentman nicht storniert: ${e.message}`);
       }
+    }
+    if (vr.status === 'approved') {
+      await gleitzeit.zeitraumGeaendert(vr.employee_id, vrStartDate, dateOnly(vr.end_date)); // #490
     }
     const [updated] = await pool.query('SELECT * FROM vacation_requests WHERE id=?', [req.params.id]);
     res.json(normalizeRow(updated[0]));
