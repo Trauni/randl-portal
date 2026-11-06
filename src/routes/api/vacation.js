@@ -6,6 +6,9 @@ const router  = express.Router();
 const requireAuth = require('../../middleware/requireAuth');
 const { hasArea } = require('../../utils/permissions');
 const urlaub = require('../../services/urlaub');
+const { arbeitstage, feiertag } = require('../../utils/feiertage');
+
+const ISO_TAG = /^\d{4}-\d{2}-\d{2}$/;
 // Urlaubsverwaltung (Kalender, Genehmigen, Ablehnen) ist Geschaeftsfuehrung.
 const canHr = (u) => hasArea(u.role, u.accessTags, 'hr.urlaubskalender');
 
@@ -34,16 +37,20 @@ async function getEmployeeId(uid) {
   return rows[0]?.id ?? null;
 }
 
-function workdaysBetween(start, end) {
-  let count = 0;
-  const cur = new Date(start);
-  while (cur <= end) {
-    const day = cur.getDay();
-    if (day !== 0 && day !== 6) count++;
-    cur.setDate(cur.getDate() + 1);
+// GET /api/vacation/arbeitstage?von=&bis= — Vorschau im Antragsformular,
+// damit Client und Server dieselbe Feiertagslogik verwenden (#490)
+router.get('/arbeitstage', requireAuth, (req, res) => {
+  const { von, bis } = req.query;
+  if (!ISO_TAG.test(von || '') || !ISO_TAG.test(bis || '')) return res.status(400).json({ error: 'Datum ungültig' });
+  const feiertage = [];
+  for (let d = new Date(von + 'T12:00:00Z'); d <= new Date(bis + 'T12:00:00Z'); d = new Date(+d + 86400000)) {
+    const tag = d.toISOString().slice(0, 10);
+    const name = feiertag(tag);
+    const wt = d.getUTCDay();
+    if (name && wt !== 0 && wt !== 6) feiertage.push({ tag, name });
   }
-  return count;
-}
+  res.json({ tage: arbeitstage(von, bis).length, feiertage });
+});
 
 // GET /api/vacation — eigene Anträge
 router.get('/', requireAuth, async (req, res) => {
@@ -121,7 +128,9 @@ router.post('/', requireAuth, async (req, res) => {
     if (!empId) return res.status(404).json({ error: 'Mitarbeiter nicht gefunden' });
     const { start_date, end_date, reason } = req.body;
     if (!start_date || !end_date) return res.status(400).json({ error: 'Datum fehlt' });
-    const days = workdaysBetween(new Date(start_date), new Date(end_date));
+    if (!ISO_TAG.test(start_date) || !ISO_TAG.test(end_date)) return res.status(400).json({ error: 'Datum ungültig' });
+    // Werktage Mo–Fr ohne gesetzliche Feiertage in Bayern (#490)
+    const days = arbeitstage(start_date, end_date).length;
     if (days <= 0) return res.status(400).json({ error: 'Kein gültiger Zeitraum' });
     const [result] = await pool.query(
       `INSERT INTO vacation_requests (employee_id, start_date, end_date, days_count, reason, status)

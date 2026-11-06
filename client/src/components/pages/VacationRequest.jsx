@@ -21,7 +21,15 @@ export default function VacationRequest() {
   const load=async()=>{try{setLoading(true);const r=await fetch('/api/vacation');if(!r.ok)throw new Error();setReqs(await r.json());}catch(e){setError('Laden fehlgeschlagen');}finally{setLoading(false);}};
   useEffect(()=>{load();},[]);
 
-  const days=()=>{if(!form.start_date||!form.end_date||form.end_date<form.start_date)return null;let c=0,cur=new Date(form.start_date),end=new Date(form.end_date);while(cur<=end){const d=cur.getDay();if(d!==0&&d!==6)c++;cur.setDate(cur.getDate()+1);}return c;};
+  // Arbeitstage vom Server: Mo–Fr ohne bayerische Feiertage (#490)
+  const [preview,setPreview]=useState(null);
+  useEffect(()=>{
+    if(!form.start_date||!form.end_date||form.end_date<form.start_date){setPreview(null);return;}
+    let aktuell=true;
+    fetch(`/api/vacation/arbeitstage?von=${form.start_date}&bis=${form.end_date}`)
+      .then(r=>r.ok?r.json():null).then(p=>{if(aktuell)setPreview(p);}).catch(()=>{if(aktuell)setPreview(null);});
+    return()=>{aktuell=false;};
+  },[form.start_date,form.end_date]);
 
   const submit=async()=>{
     if(!form.start_date||!form.end_date){setError('Datum fehlt');return;}
@@ -41,7 +49,7 @@ export default function VacationRequest() {
     }catch(e){setError(e.message);}finally{setCancelling(null);}
   };
 
-  const d=days();
+  const d=preview?preview.tage:null;
   return (
     <div className="vr-root">
       <div className="vr-hdr"><div><h1 className="vr-title">Mein Urlaub</h1><p className="vr-sub">Anträge stellen und verwalten</p></div>
@@ -57,7 +65,7 @@ export default function VacationRequest() {
           <div className="vr-form-grid">
             <div className="vr-ff"><label className="vr-lbl">Von</label><input type="date" className="vr-inp" value={form.start_date} onChange={e=>setForm(f=>({...f,start_date:e.target.value}))}/></div>
             <div className="vr-ff"><label className="vr-lbl">Bis (einschließlich)</label><input type="date" className="vr-inp" value={form.end_date} min={form.start_date} onChange={e=>setForm(f=>({...f,end_date:e.target.value}))}/></div>
-            {d!==null&&<div className="vr-days-preview"><span className="vr-days-num">{d}</span><span className="vr-days-lbl">Arbeitstag{d!==1?'e':''}</span></div>}
+            {d!==null&&<div className="vr-days-preview"><span className="vr-days-num">{d}</span><span className="vr-days-lbl">Arbeitstag{d!==1?'e':''}{preview.feiertage.length>0&&` · ohne ${preview.feiertage.map(f=>f.name).join(', ')}`}</span></div>}
           </div>
           <div className="vr-ff" style={{marginTop:12}}><label className="vr-lbl">Anmerkung (optional)</label>
             <textarea className="vr-inp vr-ta" value={form.reason} onChange={e=>setForm(f=>({...f,reason:e.target.value}))} placeholder="z.B. Familienurlaub…" rows={2}/>

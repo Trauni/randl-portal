@@ -27,6 +27,7 @@
  */
 
 const { getPool } = require('../db');
+const { arbeitstage } = require('../utils/feiertage');
 
 const BASE = 'https://api.rentman.net';
 const FENSTER_TAGE = 91;              // 13 Wochen
@@ -56,15 +57,9 @@ function offsetFuer(tag) {
   return m ? m[1] + m[2] : '+0100';
 }
 
-/** Werktage Mo–Fr im Zeitraum. Feiertage werden bei Randl nicht gepflegt. */
+/** Werktage Mo–Fr im Zeitraum, ohne gesetzliche Feiertage in Bayern (#490). */
 function werktage(von, bis) {
-  const liste = [];
-  const ende = new Date(bis + 'T12:00:00Z');
-  for (let d = new Date(von + 'T12:00:00Z'); d <= ende; d = new Date(+d + TAG_MS)) {
-    const wt = d.getUTCDay();
-    if (wt !== 0 && wt !== 6) liste.push(d.toISOString().slice(0, 10));
-  }
-  return liste;
+  return arbeitstage(von, bis);
 }
 
 const tagVor = (tag, n = 1) =>
