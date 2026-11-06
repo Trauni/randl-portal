@@ -19,7 +19,9 @@
  *   node src/services/gleitzeit.js stand <id>          Kontostand anzeigen
  */
 const { getPool } = require('../db');
-const { zeitraumBuchungen, eintragMinuten, formatMinuten } = require('../utils/gleitzeit');
+const {
+  zeitraumBuchungen, eintragMinuten, formatMinuten, arbeitszeitAm, regelSoll,
+} = require('../utils/gleitzeit');
 
 const AUTOMATISCH = ['tagessaldo', 'abbau'];
 
@@ -235,9 +237,58 @@ async function tagesabschluss() {
   return ergebnis;
 }
 
+/**
+ * Tage eines Gleitzeitabbaus mit dem jeweils abgebuchten Regel-Soll:
+ * nur Tage mit Soll > 0 (vereinbarter Arbeitstag, kein Feiertag).
+ */
+async function abbauTage(employeeId, von, bis, db = getPool()) {
+  const historie = await ladeHistorie(employeeId, db);
+  const tage = [];
+  const ende = new Date(bis + 'T12:00:00Z');
+  for (let d = new Date(von + 'T12:00:00Z'); d <= ende; d = new Date(+d + 86400000)) {
+    const tag = d.toISOString().slice(0, 10);
+    const minuten = regelSoll(arbeitszeitAm(historie, tag), tag);
+    if (minuten > 0) tage.push({ tag, minuten });
+  }
+  return tage;
+}
+
+/**
+ * Vorschau fürs Antragsformular: aktueller Stand, bereits geplanter Abbau
+ * (offene und genehmigte Anträge ab heute, noch nicht gebucht) und Stand danach.
+ */
+async function abbauVorschau(employeeId, von, bis) {
+  const db = getPool();
+  const konto = await ladeKonto(employeeId, db);
+  if (!konto.aktiv) return { aktiv: false };
+  const heute = heuteLokal();
+  const tage = await abbauTage(employeeId, von, bis, db);
+  const minuten = tage.reduce((s, t) => s + t.minuten, 0);
+
+  const [antraege] = await db.query(
+    `SELECT DATE_FORMAT(start_date,'%Y-%m-%d') AS von, DATE_FORMAT(end_date,'%Y-%m-%d') AS bis
+       FROM vacation_requests
+      WHERE employee_id = ? AND art = 'gleitzeitabbau' AND status IN ('pending', 'approved')
+        AND cancelled_at IS NULL AND end_date >= ?`, [employeeId, heute]);
+  let geplant = 0;
+  for (const a of antraege) {
+    for (const t of await abbauTage(employeeId, maxTag(a.von, heute), a.bis, db)) geplant += t.minuten;
+  }
+  const stand = await kontostand(employeeId);
+  return {
+    aktiv: true,
+    tage: tage.length,
+    minuten,
+    stand: stand.minuten,
+    geplant,
+    danach: stand.minuten - geplant - minuten,
+  };
+}
+
 module.exports = {
   ladeKonto, neuberechnen, kontostand, verlauf,
   tagGeaendert, zeitraumGeaendert, tagesabschluss,
+  abbauTage, abbauVorschau,
 };
 
 // ── CLI ───────────────────────────────────────────────────────────────────────

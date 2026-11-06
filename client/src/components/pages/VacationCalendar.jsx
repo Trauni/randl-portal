@@ -84,7 +84,7 @@ export default function VacationCalendar() {
             <div className="vc-dlg-hdr"><h2 className="vc-dlg-title">{cancelDlg.status==='pending'?'Urlaubsantrag':'Urlaub stornieren'}</h2><button className="vc-dlg-x" onClick={()=>setCancelDlg(null)}>✕</button></div>
             <div className="vc-dlg-body">
               <p style={{color:'var(--text2)',fontSize:13,margin:'0 0 14px'}}>
-                <strong style={{color:'var(--text1)'}}>{cancelDlg.emp_display||cancelDlg.emp_full}</strong>: {fmt(cancelDlg.start_date)} – {fmt(cancelDlg.end_date)} ({cancelDlg.days_count}T)
+                <strong style={{color:'var(--text1)'}}>{cancelDlg.emp_display||cancelDlg.emp_full}</strong>: {fmt(cancelDlg.start_date)} – {fmt(cancelDlg.end_date)} ({cancelDlg.art==='gleitzeitabbau'?'Gleitzeitabbau, ':''}{cancelDlg.days_count}T)
               </p>
               {cancelDlg.status==='approved'&&<div className="alert alert--warn" style={{marginBottom:12}}>⚠ Bereits genehmigter Urlaub</div>}
               {cancelDlg.status==='pending'&&<div className="alert alert--warn" style={{marginBottom:12}}>⚠ Noch nicht genehmigt</div>}
@@ -156,10 +156,10 @@ function TlView({tl,tlY,tlM,VM,onPrev,onNext,onToday,onCancel}){
                     {vs.filter(v=>v.status==='pending'||v.status==='approved').map(v=>{
                       const g=geo(v.start_date,v.end_date);
                       const s=STATUS[v.status]||STATUS.pending;
-                      return<div key={v.id} title={`${fmtS(v.start_date)}–${fmtS(v.end_date)} · ${v.days_count}T · ${s.label}${v.reason?` · ${v.reason}`:''} · Klicken für Details`}
+                      return<div key={v.id} title={`${v.art==='gleitzeitabbau'?'Gleitzeitabbau · ':''}${fmtS(v.start_date)}–${fmtS(v.end_date)} · ${v.days_count}T · ${s.label}${v.reason?` · ${v.reason}`:''} · Klicken für Details`}
                         onClick={()=>onCancel({...v, emp_display:v.emp_name})}
                         style={{position:'absolute',left:g.left,width:g.width,top:'8%',height:'84%',background:s.color+'33',border:`1.5px solid ${s.color}`,borderRadius:4,display:'flex',alignItems:'center',paddingLeft:4,overflow:'hidden',cursor:'pointer',zIndex:3}}>
-                        <span style={{fontSize:9,fontWeight:700,color:s.color,whiteSpace:'nowrap'}}>{v.days_count}T</span>
+                        <span style={{fontSize:9,fontWeight:700,color:s.color,whiteSpace:'nowrap'}}>{v.art==='gleitzeitabbau'?'GZ ':''}{v.days_count}T</span>
                       </div>;
                     })}
                   </div>
@@ -208,7 +208,7 @@ function ListView({all,actId,note,setNote,onApprove,onReject,onCancel}){
                     <div className="vc-emp-av">{eName.split(' ').slice(0,2).map(s=>s[0]).join('')}</div>
                     <div className="vc-item-info"><span className="vc-emp-name">{eName}</span>{req.emp_department&&<span className="vc-emp-dept">{req.emp_department}</span>}</div>
                   </div>
-                  <div className="vc-item-center"><span className="vc-dates">{fmt(req.start_date)} – {fmt(req.end_date)}</span><span className="vc-days">{req.days_count} Arbeitstag{req.days_count!==1?'e':''}</span></div>
+                  <div className="vc-item-center"><span className="vc-dates">{fmt(req.start_date)} – {fmt(req.end_date)}</span><span className="vc-days">{req.art==='gleitzeitabbau'&&<strong>Gleitzeitabbau · </strong>}{req.days_count} Arbeitstag{req.days_count!==1?'e':''}</span></div>
                   <div className="vc-item-right"><Badge status={req.status}/><span className="vc-chev">{on?'▲':'▼'}</span></div>
                 </div>
                 {on&&(

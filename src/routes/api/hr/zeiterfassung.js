@@ -115,6 +115,7 @@ auswertung.get('/urlaub-abgleich', async (req, res) => {
     res.json(offen.map((r) => ({
       ...r,
       grund: r.rentman_leaverequest_id ? 'Wert noch vorlaeufig' : 'nie uebertragen',
+      artLabel: r.art === 'gleitzeitabbau' ? 'Gleitzeitabbau' : 'Urlaub',
       vergangen: r.bis < heute,
     })));
   } catch (err) {
@@ -133,7 +134,7 @@ auswertung.get('/urlaub/:id/vorschau', async (req, res) => {
 
 auswertung.post('/urlaub/:id/neuberechnen', async (req, res) => {
   try {
-    const ergebnis = await urlaub.urlaubNachRentman(Number(req.params.id));
+    const ergebnis = await urlaub.nachRentman(Number(req.params.id)); // Urlaub oder Gleitzeitabbau (#490)
     console.log(`[Urlaubsabgleich] Antrag ${req.params.id} neu berechnet von `
       + (req.session?.user?.username || 'unbekannt'));
     res.json(ergebnis);

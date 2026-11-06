@@ -225,8 +225,8 @@ async function naechsteProjekte(limit = 10) {
     .slice(0, limit);
 }
 
-/** Genehmigte Abwesenheiten in einem Zeitraum. Typ 2 Urlaub, 4 Krankheit, 6 Feiertag. */
-const ABWESENHEIT_TYPEN = [2, 4, 6];
+/** Genehmigte Abwesenheiten in einem Zeitraum. Typ 2 Urlaub, 4 Krankheit, 5 Kompensation (Gleitzeitabbau, #490), 6 Feiertag. */
+const ABWESENHEIT_TYPEN = [2, 4, 5, 6];
 
 async function abwesenheiten(von, bis) {
   const d = await api('/timeregistration', {

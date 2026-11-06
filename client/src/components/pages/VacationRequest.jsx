@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 
 const STATUS={pending:{label:'Ausstehend',color:'#e8a020',bg:'#2a2208'},approved:{label:'Genehmigt',color:'#2ebd7a',bg:'#0d2318'},rejected:{label:'Abgelehnt',color:'#e05050',bg:'#2a0e0e'},cancelled:{label:'Storniert',color:'#52576a',bg:'#1a1c1f'}};
+// Gleitzeitkonto (#490): Minuten als +12:30 / −3:05
+const fmtMin=m=>{const v=m>0?'+':m<0?'−':'';const a=Math.abs(Math.round(m));return `${v}${Math.floor(a/60)}:${String(a%60).padStart(2,'0')}`;};
+const ART_LABEL={urlaub:'Urlaub',gleitzeitabbau:'Gleitzeitabbau'};
 const fmt=d=>d?new Date(d+'T00:00').toLocaleDateString('de-DE',{day:'2-digit',month:'short',year:'numeric'}):'';
 function Badge({status}){const s=STATUS[status]||STATUS.pending;return<span style={{display:'inline-flex',alignItems:'center',padding:'2px 9px',borderRadius:10,fontSize:11,fontWeight:700,color:s.color,background:s.bg,border:`1px solid ${s.color}44`}}>{s.label}</span>;}
 
@@ -16,7 +19,9 @@ export default function VacationRequest() {
   const [showForm,setShowForm]=useState(false);
   const [cancelDlg,setCancelDlg]=useState(null);
   const [cancelReason,setCancelReason]=useState('');
-  const [form,setForm]=useState({start_date:'',end_date:'',reason:''});
+  const [form,setForm]=useState({art:'urlaub',start_date:'',end_date:'',reason:''});
+  const [konto,setKonto]=useState(null); // eigenes Gleitzeitkonto, null = keins aktiv
+  useEffect(()=>{fetch('/api/vacation/gleitzeit').then(r=>r.ok?r.json():null).then(k=>setKonto(k&&k.aktiv?k:null)).catch(()=>{});},[]);
 
   const load=async()=>{try{setLoading(true);const r=await fetch('/api/vacation');if(!r.ok)throw new Error();setReqs(await r.json());}catch(e){setError('Laden fehlgeschlagen');}finally{setLoading(false);}};
   useEffect(()=>{load();},[]);
@@ -26,10 +31,10 @@ export default function VacationRequest() {
   useEffect(()=>{
     if(!form.start_date||!form.end_date||form.end_date<form.start_date){setPreview(null);return;}
     let aktuell=true;
-    fetch(`/api/vacation/arbeitstage?von=${form.start_date}&bis=${form.end_date}`)
+    fetch(`/api/vacation/arbeitstage?von=${form.start_date}&bis=${form.end_date}&art=${form.art}`)
       .then(r=>r.ok?r.json():null).then(p=>{if(aktuell)setPreview(p);}).catch(()=>{if(aktuell)setPreview(null);});
     return()=>{aktuell=false;};
-  },[form.start_date,form.end_date]);
+  },[form.start_date,form.end_date,form.art]);
 
   const submit=async()=>{
     if(!form.start_date||!form.end_date){setError('Datum fehlt');return;}
@@ -37,7 +42,7 @@ export default function VacationRequest() {
     setSubmitting(true);setError('');setSuccess('');
     try{const r=await fetch('/api/vacation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(form)});
     if(!r.ok){const e=await r.json();throw new Error(e.error);}
-    setSuccess('Urlaubsantrag eingereicht.');setShowForm(false);setForm({start_date:'',end_date:'',reason:''});await load();setTimeout(()=>setSuccess(''),4000);
+    setSuccess(form.art==='gleitzeitabbau'?'Gleitzeitabbau beantragt.':'Urlaubsantrag eingereicht.');setShowForm(false);setForm({art:'urlaub',start_date:'',end_date:'',reason:''});await load();setTimeout(()=>setSuccess(''),4000);
     }catch(e){setError(e.message);}finally{setSubmitting(false);}
   };
 
@@ -61,12 +66,30 @@ export default function VacationRequest() {
       {success&&<div className="alert alert--success">{success}</div>}
       {showForm&&(
         <div className="card vr-form">
-          <h2 className="vr-sec-title">Neuer Urlaubsantrag</h2>
+          <h2 className="vr-sec-title">{form.art==='gleitzeitabbau'?'Neuer Gleitzeitabbau':'Neuer Urlaubsantrag'}</h2>
+          {konto&&(
+            <div className="vr-ff" style={{marginBottom:12}}><label className="vr-lbl">Art</label>
+              <div style={{display:'flex',gap:6}}>
+                {Object.entries(ART_LABEL).map(([k,l])=>(
+                  <button key={k} type="button" className={`btn ${form.art===k?'btn-primary':'btn-ghost'}`} onClick={()=>setForm(f=>({...f,art:k}))}>{l}</button>
+                ))}
+              </div>
+              {form.art==='gleitzeitabbau'&&<div className="vr-note" style={{marginTop:6}}>Gleitzeitkonto: <strong>{fmtMin(konto.minuten)} h</strong> · pro Tag wird das vereinbarte Tages-Soll abgebucht, kein Urlaubstag.</div>}
+            </div>
+          )}
           <div className="vr-form-grid">
             <div className="vr-ff"><label className="vr-lbl">Von</label><input type="date" className="vr-inp" value={form.start_date} onChange={e=>setForm(f=>({...f,start_date:e.target.value}))}/></div>
             <div className="vr-ff"><label className="vr-lbl">Bis (einschließlich)</label><input type="date" className="vr-inp" value={form.end_date} min={form.start_date} onChange={e=>setForm(f=>({...f,end_date:e.target.value}))}/></div>
             {d!==null&&<div className="vr-days-preview"><span className="vr-days-num">{d}</span><span className="vr-days-lbl">Arbeitstag{d!==1?'e':''}{preview.feiertage.length>0&&` · ohne ${preview.feiertage.map(f=>f.name).join(', ')}`}</span></div>}
           </div>
+          {preview?.gleitzeit&&(
+            <div className={`vr-note${preview.gleitzeit.danach<0?' vr-note-red':''}`} style={{marginTop:10}}>
+              Abbau <strong>{fmtMin(-preview.gleitzeit.minuten)} h</strong>
+              {preview.gleitzeit.geplant>0&&<> · bereits geplant {fmtMin(-preview.gleitzeit.geplant)} h</>}
+              {' · '}Konto voraussichtlich <strong>{fmtMin(preview.gleitzeit.stand)} → {fmtMin(preview.gleitzeit.danach)} h</strong>
+              {preview.gleitzeit.danach<0&&' (danach im Minus)'}
+            </div>
+          )}
           <div className="vr-ff" style={{marginTop:12}}><label className="vr-lbl">Anmerkung (optional)</label>
             <textarea className="vr-inp vr-ta" value={form.reason} onChange={e=>setForm(f=>({...f,reason:e.target.value}))} placeholder="z.B. Familienurlaub…" rows={2}/>
           </div>
@@ -81,7 +104,7 @@ export default function VacationRequest() {
         {reqs.map(req=>(
           <div key={req.id} className={`card vr-item${req.status==='cancelled'?' vr-item--cancelled':''}`}>
             <div className="vr-item-main">
-              <div className="vr-item-dates"><span className="vr-date-range">{fmt(req.start_date)} – {fmt(req.end_date)}</span><span className="vr-days-info">{req.days_count} Arbeitstag{req.days_count!==1?'e':''}</span></div>
+              <div className="vr-item-dates"><span className="vr-date-range">{fmt(req.start_date)} – {fmt(req.end_date)}</span><span className="vr-days-info">{req.art==='gleitzeitabbau'&&<strong>Gleitzeitabbau · </strong>}{req.days_count} Arbeitstag{req.days_count!==1?'e':''}</span></div>
               <div className="vr-item-meta"><Badge status={req.status}/><span className="vr-id">#{req.id}</span></div>
             </div>
             {req.reason&&<div className="vr-note"><span className="vr-note-lbl">Anmerkung:</span> {req.reason}</div>}
@@ -97,12 +120,12 @@ export default function VacationRequest() {
       {cancelDlg&&(
         <div className="vr-overlay" onClick={e=>e.target===e.currentTarget&&setCancelDlg(null)}>
           <div className="vr-dialog">
-            <div className="vr-dlg-hdr"><h2 className="vr-dlg-title">Urlaub stornieren</h2><button className="vr-dlg-close" onClick={()=>setCancelDlg(null)}>✕</button></div>
+            <div className="vr-dlg-hdr"><h2 className="vr-dlg-title">{cancelDlg.art==='gleitzeitabbau'?'Gleitzeitabbau':'Urlaub'} stornieren</h2><button className="vr-dlg-close" onClick={()=>setCancelDlg(null)}>✕</button></div>
             <div className="vr-dlg-body">
               <p style={{color:'var(--text2)',fontSize:13,margin:'0 0 14px'}}>
                 {fmt(cancelDlg.start_date)} – {fmt(cancelDlg.end_date)} ({cancelDlg.days_count} Tage) stornieren?
               </p>
-              {cancelDlg.status==='approved'&&<div className="alert alert--warn" style={{marginBottom:12}}>⚠ Dieser Urlaub ist bereits genehmigt.</div>}
+              {cancelDlg.status==='approved'&&<div className="alert alert--warn" style={{marginBottom:12}}>⚠ {cancelDlg.art==='gleitzeitabbau'?'Dieser Gleitzeitabbau':'Dieser Urlaub'} ist bereits genehmigt.</div>}
               <label className="vr-lbl" style={{display:'block',marginBottom:4}}>Grund (optional)</label>
               <textarea className="vr-inp vr-ta" value={cancelReason} onChange={e=>setCancelReason(e.target.value)} placeholder="Stornierungsgrund…" rows={2}/>
             </div>

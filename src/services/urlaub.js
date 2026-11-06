@@ -28,11 +28,13 @@
 
 const { getPool } = require('../db');
 const { arbeitstage } = require('../utils/feiertage');
+const gleitzeit = require('./gleitzeit');
 
 const BASE = 'https://api.rentman.net';
 const FENSTER_TAGE = 91;              // 13 Wochen
 const ARBEITSZEIT = '/leavetypes/1';
 const URLAUB = '/leavetypes/2';
+const KOMPENSATION = '/leavetypes/5';   // Gleitzeitabbau (#490), zählt in Rentman nicht in die Summe
 const TAG_MS = 86400000;
 
 async function api(method, pfad, body) {
@@ -95,7 +97,7 @@ async function bemessung(rentmanId, beginn) {
 
 async function ladeAntrag(antragId) {
   const [[a]] = await getPool().query(
-    `SELECT vr.id, vr.employee_id, vr.status, vr.days_count,
+    `SELECT vr.id, vr.employee_id, vr.status, vr.days_count, vr.art,
             vr.rentman_leaverequest_id AS lrId,
             DATE_FORMAT(vr.start_date, '%Y-%m-%d') AS von,
             DATE_FORMAT(vr.end_date,   '%Y-%m-%d') AS bis,
@@ -123,6 +125,15 @@ async function rentmanStatus(lrId) {
 /** Rechnet, ohne zu schreiben. */
 async function vorschau(antragId) {
   const a = await ladeAntrag(antragId);
+  if (a.art === 'gleitzeitabbau') {
+    const tage = await gleitzeit.abbauTage(a.employee_id, a.von, a.bis);
+    return {
+      antrag: a.id, art: a.art, mitarbeiter: a.full_name, status: a.status, von: a.von, bis: a.bis,
+      werktage: tage.map((t) => t.tag), gesamtSekunden: tage.reduce((s, t) => s + t.minuten * 60, 0),
+      vorlaeufig: false, rentmanAntrag: a.lrId || null,
+      vorgehen: a.lrId ? 'bereits als Kompensation übertragen' : 'als Kompensation anlegen und genehmigen',
+    };
+  }
   if (!a.rentman_id) throw new Error(`${a.full_name} hat keine rentman_id`);
   const tage = werktage(a.von, a.bis);
   const b = await bemessung(a.rentman_id, a.von);
@@ -148,6 +159,7 @@ async function urlaubNachRentman(antragId) {
   const a = await ladeAntrag(antragId);
 
   if (a.status !== 'approved') throw new Error(`Antrag ${antragId} ist ${a.status}, nicht approved`);
+  if (a.art !== 'urlaub') throw new Error(`Antrag ${antragId} ist ${a.art}, kein Urlaub — kompensationNachRentman() verwenden`);
   if (!a.rentman_id) throw new Error(`${a.full_name} hat keine rentman_id`);
 
   const tage = werktage(a.von, a.bis);
@@ -263,6 +275,56 @@ async function urlaubNachRentman(antragId) {
 }
 
 /**
+ * Gleitzeitabbau (#490) als Kompensation nach Rentman. Anders als Urlaub gibt
+ * es keinen vorläufigen Wert: abgebucht wird das vereinbarte Tages-Soll, das
+ * steht bei Genehmigung fest. Der Antrag wird deshalb sofort genehmigt.
+ * Die Stunden sind in Rentman nur Information (leavetype 5 zählt nicht in die
+ * Summe) — maßgeblich ist das Gleitzeitkonto im Portal. Sinn des Spiegels:
+ * Disposition und Sicherung sehen, dass die Person fehlt.
+ */
+async function kompensationNachRentman(antragId) {
+  const db = getPool();
+  const a = await ladeAntrag(antragId);
+  if (a.art !== 'gleitzeitabbau') throw new Error(`Antrag ${antragId} ist kein Gleitzeitabbau`);
+  if (a.status !== 'approved') throw new Error(`Antrag ${antragId} ist ${a.status}, nicht approved`);
+  if (a.lrId) return { antragId, leaverequestId: a.lrId, uebersprungen: 'bereits übertragen' };
+  if (!a.rentman_id) throw new Error(`${a.full_name} hat keine rentman_id`);
+
+  const tage = await gleitzeit.abbauTage(a.employee_id, a.von, a.bis, db);
+  if (!tage.length) throw new Error(`Antrag ${antragId} enthält keine Arbeitstage`);
+
+  const crew = '/crew/' + a.rentman_id;
+  const pruefer = a.pruefer ? '/crew/' + a.pruefer : crew;
+  const titel = `Gleitzeitabbau ${a.von} bis ${a.bis} (Mitarbeiterportal)`;
+  const lr = await api('POST', '/leaverequest', { requested_for: crew, approval_status: 'pending', description: titel });
+  await db.execute('UPDATE vacation_requests SET rentman_leaverequest_id = ?, vorlaeufig = 0 WHERE id = ?', [lr.id, antragId]);
+
+  for (const { tag, minuten } of tage) {
+    const off = offsetFuer(tag);
+    const neu = await api('POST', '/leaverequest/' + lr.id + '/timeregistration', {
+      crewmember: crew, leavetype: KOMPENSATION,
+      start: tag + 'T08:00:00' + off, end: tag + 'T16:00:00' + off,
+      duration: minuten * 60, remark: 'Gleitzeitabbau (Mitarbeiterportal)',
+    });
+    await db.execute(
+      `INSERT INTO vacation_request_days (vacation_request_id, tag, rentman_timeregistration_id, stunden_sekunden)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE rentman_timeregistration_id = VALUES(rentman_timeregistration_id),
+                               stunden_sekunden = VALUES(stunden_sekunden)`,
+      [antragId, tag, neu.id, minuten * 60]);
+  }
+  await api('PUT', '/leaverequest/' + lr.id,
+    { requested_for: crew, approval_status: 'approved', reviewer: pruefer, description: titel });
+  return { antragId, leaverequestId: lr.id, tage: tage.length, rentmanStatus: 'approved' };
+}
+
+/** Genehmigten Antrag je nach Art übertragen: Urlaub oder Gleitzeitabbau (#490). */
+async function nachRentman(antragId) {
+  const a = await ladeAntrag(antragId);
+  return a.art === 'gleitzeitabbau' ? kompensationNachRentman(antragId) : urlaubNachRentman(antragId);
+}
+
+/**
  * Urlaub zurücknehmen. Kein Löschen nötig: der Zeiteintrag folgt dem Antrag
  * und wird durch das Stornieren automatisch `rejected`, fällt also aus allen
  * Summen. Achtung — danach ist der Datensatz in Rentman eingefroren.
@@ -277,7 +339,7 @@ async function urlaubStornieren(antragId) {
   }
   await api('PUT', '/leaverequest/' + a.lrId, {
     requested_for: '/crew/' + a.rentman_id, approval_status: 'canceled',
-    description: `Urlaub ${a.von} bis ${a.bis} storniert (Mitarbeiterportal)`,
+    description: `${a.art === 'gleitzeitabbau' ? 'Gleitzeitabbau' : 'Urlaub'} ${a.von} bis ${a.bis} storniert (Mitarbeiterportal)`,
   });
   await db.execute('UPDATE vacation_requests SET vorlaeufig = 0 WHERE id = ?', [antragId]);
   return { antragId, leaverequestId: a.lrId, storniert: true };
@@ -302,6 +364,7 @@ async function betroffeneUrlaubeNeuberechnen(employeeId, tag) {
     `SELECT id, DATE_FORMAT(start_date,'%Y-%m-%d') AS von, stunden_sekunden AS alt
        FROM vacation_requests
       WHERE employee_id = ? AND status = 'approved' AND cancelled_at IS NULL
+        AND art = 'urlaub'
         AND start_date > ?
         AND DATE_SUB(start_date, INTERVAL ? DAY) <= ?`,
     [employeeId, tag, FENSTER_TAGE, tag]);
@@ -321,15 +384,15 @@ async function betroffeneUrlaubeNeuberechnen(employeeId, tag) {
 
 async function offeneNeuberechnungen() {
   const [rows] = await getPool().query(
-    `SELECT vr.id, vr.employee_id, e.full_name,
+    `SELECT vr.id, vr.employee_id, vr.art, e.full_name,
             DATE_FORMAT(vr.start_date, '%Y-%m-%d') AS von,
             DATE_FORMAT(vr.end_date,   '%Y-%m-%d') AS bis,
             vr.stunden_sekunden, vr.berechnet_am, vr.rentman_leaverequest_id
        FROM vacation_requests vr
        JOIN employees e ON e.id = vr.employee_id
-      WHERE vr.status = 'approved'
+      WHERE vr.status = 'approved' AND vr.cancelled_at IS NULL
         AND ( vr.rentman_leaverequest_id IS NULL
-              OR (vr.vorlaeufig = 1 AND vr.start_date <= CURDATE()) )
+              OR (vr.art = 'urlaub' AND vr.vorlaeufig = 1 AND vr.start_date <= CURDATE()) )
       ORDER BY vr.start_date`);
   return rows;
 }
@@ -340,7 +403,7 @@ async function faelligeNeuberechnung() {
   const ergebnis = [];
   for (const r of offen) {
     try {
-      ergebnis.push(await urlaubNachRentman(r.id));
+      ergebnis.push(await nachRentman(r.id));
     } catch (e) {
       console.error(`[urlaub] Antrag ${r.id} (${r.full_name}): ${e.message}`);
       ergebnis.push({ antragId: r.id, fehler: e.message });
@@ -352,7 +415,7 @@ async function faelligeNeuberechnung() {
 module.exports = {
   betroffeneUrlaubeNeuberechnen,
   bemessung, werktage, offsetFuer, vorschau, rentmanStatus,
-  urlaubNachRentman, urlaubStornieren,
+  urlaubNachRentman, urlaubStornieren, kompensationNachRentman, nachRentman,
   offeneNeuberechnungen, faelligeNeuberechnung,
 };
 
@@ -363,7 +426,7 @@ if (require.main === module) {
   (async () => {
     try {
       if (befehl === 'rechnen' && arg) console.dir(await vorschau(Number(arg)), { depth: null });
-      else if (befehl === 'schreiben' && arg) console.dir(await urlaubNachRentman(Number(arg)), { depth: null });
+      else if (befehl === 'schreiben' && arg) console.dir(await nachRentman(Number(arg)), { depth: null });
       else if (befehl === 'faellig') console.dir(await faelligeNeuberechnung(), { depth: null });
       else if (befehl === 'offen') console.dir(await offeneNeuberechnungen(), { depth: null });
       else console.log('Aufruf: rechnen <id> | schreiben <id> | faellig | offen');
