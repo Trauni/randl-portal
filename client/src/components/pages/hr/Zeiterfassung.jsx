@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import GleitzeitKonto from './GleitzeitKonto';
 
 /**
  * Zeiterfassung — Spiegel der Rentman-Daten, nur lesend.
@@ -547,6 +548,11 @@ export default function Zeiterfassung({ eigen = false }) {
           background: 'var(--bg2)', border: '1px solid var(--red2)', borderRadius: '7px',
           padding: '12px 14px', marginBottom: '16px', fontSize: '13px', color: 'var(--red2)',
         }}>{fehler}</div>
+      )}
+
+      {/* Gleitzeitkonto (#490) — erscheint nur, wenn für den Mitarbeiter eines aktiv ist */}
+      {(eigen || empId) && (
+        <GleitzeitKonto eigen={eigen} employeeId={empId} jahr={jahr} monat={monat} aktualisiert={daten} />
       )}
 
       {!eigen && !empId && !fehler && (

@@ -3,6 +3,7 @@ const { getPool } = require('../../../db');
 const { zeitreport } = require('../../../services/rentman');
 const urlaub = require('../../../services/urlaub');
 const zeit = require('../../../services/zeit');
+const gleitzeit = require('../../../services/gleitzeit');
 
 function pruefeZeitraum(req, res) {
   const jahr = Number(req.query.jahr);
@@ -288,6 +289,75 @@ eigen.get('/laufend', async (req, res) => {
     res.json(row || null);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Gleitzeitkonto (#490) ─────────────────────────────────────────────────────
+// gruppe=monat: Monate des Jahres; gruppe=woche: Wochen des gewählten Monats.
+function gleitzeitZeitraum(req) {
+  const jahr = Number(req.query.jahr);
+  const monat = Number(req.query.monat);
+  if (!Number.isInteger(jahr) || jahr < 2000 || jahr > 2100) return null;
+  const gruppe = req.query.gruppe === 'woche' ? 'woche' : 'monat';
+  if (gruppe === 'monat') return { gruppe, von: `${jahr}-01-01`, bis: `${jahr}-12-31` };
+  if (!Number.isInteger(monat) || monat < 1 || monat > 12) return null;
+  const mm = String(monat).padStart(2, '0');
+  const letzter = new Date(Date.UTC(jahr, monat, 0)).getUTCDate();
+  return { gruppe, von: `${jahr}-${mm}-01`, bis: `${jahr}-${mm}-${letzter}` };
+}
+
+async function gleitzeitAntwort(employeeId, z, mitKorrekturen) {
+  const stand = await gleitzeit.kontostand(employeeId);
+  if (!stand.aktiv && !stand.gebuchtBis) return { aktiv: false };
+  return {
+    ...stand,
+    gruppe: z.gruppe,
+    verlauf: await gleitzeit.verlauf(employeeId, z),
+    ...(mitKorrekturen ? { korrekturen: await gleitzeit.korrekturen(employeeId, z) } : {}),
+  };
+}
+
+eigen.get('/gleitzeit', async (req, res) => {
+  const employeeId = req.session?.user?.id;
+  if (!employeeId) return res.status(409).json({ error: 'Keine Mitarbeiterzuordnung in der Sitzung' });
+  const z = gleitzeitZeitraum(req);
+  if (!z) return res.status(400).json({ error: 'Ungueltiger Zeitraum' });
+  try {
+    res.json(await gleitzeitAntwort(employeeId, z, false));
+  } catch (err) {
+    console.error('[Gleitzeit eigen]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+auswertung.get('/mitarbeiter/:employeeId/gleitzeit', async (req, res) => {
+  const z = gleitzeitZeitraum(req);
+  if (!z) return res.status(400).json({ error: 'Ungueltiger Zeitraum' });
+  try {
+    res.json(await gleitzeitAntwort(Number(req.params.employeeId), z, true));
+  } catch (err) {
+    console.error('[Gleitzeit]', err.message);
+    res.status(/nicht gefunden/.test(err.message) ? 404 : 500).json({ error: err.message });
+  }
+});
+
+// { datum, minuten, notiz } — minuten mit Vorzeichen
+auswertung.post('/mitarbeiter/:employeeId/gleitzeit/korrektur', async (req, res) => {
+  try {
+    const { datum, minuten, notiz } = req.body || {};
+    res.status(201).json(await gleitzeit.korrekturBuchen(
+      Number(req.params.employeeId), { datum, minuten: Number(minuten), notiz }, req.session?.user?.id));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+auswertung.delete('/mitarbeiter/:employeeId/gleitzeit/korrektur/:id', async (req, res) => {
+  try {
+    res.json(await gleitzeit.korrekturLoeschen(
+      Number(req.params.employeeId), Number(req.params.id), req.session?.user?.id));
+  } catch (err) {
+    res.status(/nicht gefunden/.test(err.message) ? 404 : 500).json({ error: err.message });
   }
 });
 

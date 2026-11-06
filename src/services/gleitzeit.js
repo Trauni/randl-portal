@@ -285,10 +285,57 @@ async function abbauVorschau(employeeId, von, bis) {
   };
 }
 
+// ── Korrekturbuchungen von Hand (Backoffice/GF, hr.zeitauswertung) ──────────
+// Bleiben bei jeder Neuberechnung stehen. Notiz ist Pflicht, damit der
+// Kontostand nachvollziehbar bleibt.
+
+async function korrekturen(employeeId, { von, bis } = {}) {
+  const bedingungen = ["b.employee_id = ?", "b.art = 'korrektur'"];
+  const werte = [employeeId];
+  if (von) { bedingungen.push('b.datum >= ?'); werte.push(von); }
+  if (bis) { bedingungen.push('b.datum <= ?'); werte.push(bis); }
+  const [rows] = await getPool().query(
+    `SELECT b.id, DATE_FORMAT(b.datum,'%Y-%m-%d') AS datum, b.minuten, b.notiz,
+            DATE_FORMAT(b.created_at,'%Y-%m-%d %H:%i') AS erfasst_am,
+            COALESCE(e.display_name, e.full_name, e.username) AS erfasst_von
+       FROM gleitzeit_buchungen b
+       LEFT JOIN employees e ON e.id = b.erstellt_von
+      WHERE ${bedingungen.join(' AND ')}
+      ORDER BY b.datum DESC, b.id DESC`, werte);
+  return rows;
+}
+
+async function korrekturBuchen(employeeId, { datum, minuten, notiz }, erstelltVon) {
+  const konto = await ladeKonto(employeeId);
+  if (!konto.aktiv) throw new Error('Gleitzeitkonto nicht aktiv');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datum || '')) throw new Error('Datum ungültig');
+  if (!Number.isInteger(minuten) || minuten === 0 || Math.abs(minuten) > 500 * 60) {
+    throw new Error('Korrektur ungültig (ganze Minuten, nicht 0, höchstens ±500 Stunden)');
+  }
+  const text = String(notiz || '').trim();
+  if (!text) throw new Error('Bitte einen Grund angeben');
+  const [r] = await getPool().execute(
+    `INSERT INTO gleitzeit_buchungen (employee_id, datum, art, minuten, quelle, notiz, erstellt_von)
+     VALUES (?, ?, 'korrektur', ?, 'hand', ?, ?)`,
+    [employeeId, datum, minuten, text.slice(0, 255), erstelltVon || null]);
+  console.log(`[gleitzeit] Korrektur ${r.insertId}: Mitarbeiter ${employeeId}, ${datum}, ${formatMinuten(minuten)} von ${erstelltVon}`);
+  return { id: r.insertId };
+}
+
+async function korrekturLoeschen(employeeId, korrekturId, geloeschtVon) {
+  const [r] = await getPool().execute(
+    "DELETE FROM gleitzeit_buchungen WHERE id = ? AND employee_id = ? AND art = 'korrektur'",
+    [korrekturId, employeeId]);
+  if (!r.affectedRows) throw new Error('Korrektur nicht gefunden');
+  console.log(`[gleitzeit] Korrektur ${korrekturId} von Mitarbeiter ${employeeId} gelöscht durch ${geloeschtVon}`);
+  return { ok: true };
+}
+
 module.exports = {
   ladeKonto, neuberechnen, kontostand, verlauf,
   tagGeaendert, zeitraumGeaendert, tagesabschluss,
   abbauTage, abbauVorschau,
+  korrekturen, korrekturBuchen, korrekturLoeschen,
 };
 
 // ── CLI ───────────────────────────────────────────────────────────────────────
