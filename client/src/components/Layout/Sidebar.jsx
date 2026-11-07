@@ -45,16 +45,6 @@ function NavItem({ to, icon, label, collapsed, count }) {
   );
 }
 
-// Externer Link (neuer Tab), z. B. zu OpenProject.
-function NavItemExtern({ href, icon, label, collapsed }) {
-  return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className={`nav-item${collapsed?' nav-item--collapsed':''}`} title={collapsed ? label : undefined}>
-      <span className="nav-icon"><Icon d={ICONS[icon]||ICONS.dashboard}/></span>
-      {!collapsed && <span className="nav-label">{label}</span>}
-    </a>
-  );
-}
-
 // Platzhalter fuer geplante, noch nicht gebaute Bereiche - nicht klickbar.
 function NavItemSoon({ icon, label, collapsed }) {
   return (
@@ -128,7 +118,6 @@ export default function Sidebar({ user }) {
   const tags   = user?.accessTags || [];
   const can    = (area) => hasArea(role, tags, area);
 
-  const showProjekte = tags.includes('geschaeftsfuehrung') || tags.includes('backoffice');
   const showGashandel = can('gashandel');
   const showZeltplaner = can('zeltplanung');
   const showZeltprojekte = can('zeltverleih.projekte');
@@ -203,7 +192,6 @@ export default function Sidebar({ user }) {
           <NavItem to="/profil" icon="profile"  label="Profil & Daten" collapsed={collapsed}/>
           <NavItem to="/urlaub" icon="vacation" label="Mein Urlaub"    collapsed={collapsed}/>
           <NavItem to="/zeit"   icon="clock"    label="Meine Zeiterfassung" collapsed={collapsed}/>
-          {showProjekte && <NavItemExtern href="https://projects.randlweb.de" icon="orders" label="Projekte" collapsed={collapsed}/>}
         </NavSection>
 
         {showGashandel && (
