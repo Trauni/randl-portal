@@ -14,9 +14,8 @@ const router = express.Router();
 // Bereichspruefung fuer den angemeldeten Nutzer.
 const darf = (u, area) => hasArea(u.role, u.accessTags, area);
 
-// Rentman-Projekte: Geschäftsführung und Backoffice sehen alle Projekttypen,
-// alle anderen mit Bereich zeltverleih.projekte nur Zeltprojekte.
-const darfProjekte = (u) => darf(u, 'zeltverleih.projekte');
+// Rentman-Projekte auf dem Dashboard: für alle sichtbar (Mount verlangt schon 'dashboard').
+// Geschäftsführung und Backoffice sehen alle Projekttypen, alle anderen nur Zeltprojekte.
 const alleProjektTypen = (u) => (u.accessTags || []).some(t => t === 'geschaeftsfuehrung' || t === 'backoffice');
 const projektFilter = (u) => (p) => alleProjektTypen(u) || ZELT_TYPEN.includes(p.typId);
 
@@ -202,7 +201,6 @@ router.get('/abwesend', async (req, res) => {
 
 // ── Projekte: Kalender und Liste, fuer alle sichtbar ────────────────────────
 router.get('/projekte', async (req, res) => {
-  if (!darfProjekte(req.session.user)) return res.status(403).json({ error: 'Keine Berechtigung' });
   const jahr = Number(req.query.jahr) || new Date().getFullYear();
   const monat = Number(req.query.monat) || (new Date().getMonth() + 1);
   if (monat < 1 || monat > 12 || jahr < 2000 || jahr > 2100) {
@@ -218,7 +216,6 @@ router.get('/projekte', async (req, res) => {
 
 router.get('/projekte/naechste', async (req, res) => {
   const u = req.session.user;
-  if (!darfProjekte(u)) return res.status(403).json({ error: 'Keine Berechtigung' });
   const limit = Math.min(Number(req.query.limit) || 10, 25);
   try {
     // alle kommenden holen, dann filtern — sonst fehlen Zelte, wenn andere Typen vorne liegen

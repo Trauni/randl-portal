@@ -29,7 +29,7 @@ export const ROLE_AREAS = {
 
 export const ACCESS_TAGS = {
   geschaeftsfuehrung: { label: 'Geschäftsführung', allow: ALL_AREAS },
-  backoffice:         { label: 'Backoffice',       allow: ['metallarbeiten.kunden', 'metallarbeiten.vorgaenge', 'gashandel', 'gashandel.preise', 'it', 'content', 'hr.zeitauswertung', 'zeltverleih.projekte'] },
+  backoffice:         { label: 'Backoffice',       allow: ['metallarbeiten.kunden', 'metallarbeiten.vorgaenge', 'gashandel', 'gashandel.preise', 'it', 'content', 'hr.zeitauswertung', 'hr.urlaubskalender', 'zeltverleih.projekte'] }, // Urlaubskalender inkl. Genehmigen (07.11.2026)
   gashandel:          { label: 'Gashandel',        allow: ['gashandel', 'gashandel.preise'] }, // Preise ändern auch für Gruppe Gashandel (#328)
   metallarbeiten:     { label: 'Maschinenbau',     allow: ['metallarbeiten.kunden', 'metallarbeiten.vorgaenge'] },
   zeltverleih:        { label: 'Zeltverleih',      allow: ['zeltplanung', 'zeltverleih.projekte'] },   // Zeltplaner, Zeltprojekte (#461)
