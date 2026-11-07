@@ -291,7 +291,8 @@ function aufgabenAus(k, p) {
 export default function Dashboard() {
   const { user, hasArea, hasTag } = useAuth();
   const jetzt = new Date();
-  const darfProjekte = hasArea('zeltverleih.projekte');
+  // Projekte aus Rentman sieht jeder; die Seite Zeltprojekte nur mit eigenem Bereich
+  const zeltSeite = hasArea('zeltverleih.projekte') ? '/zeltverleih/projekte' : undefined;
   const darfGas = hasArea('gashandel');
 
   const [daten, setDaten] = useState(null);
@@ -324,17 +325,16 @@ export default function Dashboard() {
   useEffect(() => { hol('/api/dashboard/abwesend', setAbwesend); }, []);
   useEffect(() => { hol('/api/dashboard/doku', setDoku); }, []);
   useEffect(() => {
-    if (darfProjekte) hol('/api/dashboard/projekte/naechste?limit=10', setNaechste);
-  }, [darfProjekte]);
+    hol('/api/dashboard/projekte/naechste?limit=10', setNaechste);
+  }, []);
   useEffect(() => {
     if (darfGas) hol('/api/dashboard/bestellungen?limit=10', setBestellungen);
   }, [darfGas]);
 
   const holKalender = useCallback(() => {
-    if (!darfProjekte) return;
     setKalender(null);
     hol(`/api/dashboard/projekte?jahr=${kalJahr}&monat=${kalMonat}`, setKalender);
-  }, [kalJahr, kalMonat, darfProjekte]);
+  }, [kalJahr, kalMonat]);
   useEffect(() => { holKalender(); }, [holKalender]);
 
   const blaettern = (schritt) => {
@@ -372,9 +372,9 @@ export default function Dashboard() {
   }
 
   const bereich = [];
-  if (darfProjekte && naechste && !naechste.fehler) {
-    bereich.push(<Kachel key="zw" icon="zelt" label={nurZelte ? 'Zelte diese Woche' : 'Projekte diese Woche'} wert={naechste.dieseWoche} sub="im Mietzeitraum" ziel="/zeltverleih/projekte" />);
-    bereich.push(<Kachel key="z14" icon="zelt" label="Nächste 14 Tage" wert={naechste.naechste14} sub={nurZelte ? 'Zeltprojekte' : 'Projekte'} ziel="/zeltverleih/projekte" />);
+  if (naechste && !naechste.fehler) {
+    bereich.push(<Kachel key="zw" icon="zelt" label={nurZelte ? 'Zelte diese Woche' : 'Projekte diese Woche'} wert={naechste.dieseWoche} sub="im Mietzeitraum" ziel={zeltSeite} />);
+    bereich.push(<Kachel key="z14" icon="zelt" label="Nächste 14 Tage" wert={naechste.naechste14} sub={nurZelte ? 'Zeltprojekte' : 'Projekte'} ziel={zeltSeite} />);
   }
   if (k.bestellungenOhneSer !== undefined) {
     bereich.push(<Kachel key="ser" icon="senden" label="Nicht an SER" wert={k.bestellungenOhneSer} ziel="/finance/bestellungen" ton="warn" sub="Gasbestellungen" />);
@@ -398,7 +398,7 @@ export default function Dashboard() {
   const schnell = [
     ['/urlaub', 'Urlaubsantrag stellen'],
     ['/zeit', 'Meine Zeiterfassung'],
-    darfProjekte && ['/zeltverleih/projekte', 'Zeltprojekte'],
+    zeltSeite && [zeltSeite, 'Zeltprojekte'],
     hasArea('zeltplanung') && ['/zeltverleih/zeltplaner', 'Zeltplaner'],
     darfGas && ['/finance/kunden', 'Gas-Kunden'],
     darfGas && ['/finance/bestellungen', 'Gasbestellungen'],
@@ -410,7 +410,7 @@ export default function Dashboard() {
   ].filter(Boolean);
 
   const zeigeRechts = !!bestellungen?.bestellungen || hasArea('notizen') || doku?.seiten?.length > 0;
-  const rasterKlasse = 'dash-grid' + (darfProjekte ? ' dash-mit-projekten' : ' dash-ohne-projekte') + (zeigeRechts ? ' dash-drei' : '');
+  const rasterKlasse = 'dash-grid' + ' dash-mit-projekten' + (zeigeRechts ? ' dash-drei' : '');
 
   return (
     <div style={{ padding: '20px 24px', maxWidth: '1900px' }}>
@@ -501,8 +501,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Mitte: Projekte aus Rentman, nur mit Bereich Zeltprojekte */}
-        {darfProjekte && (
+        {/* Mitte: Projekte aus Rentman (ohne GF/Backoffice nur Zelte) */}
+        {(
           <div className="dash-spalte">
             <div style={karte}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', gap: '8px', flexWrap: 'wrap' }}>
