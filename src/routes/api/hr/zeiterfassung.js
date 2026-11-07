@@ -69,7 +69,10 @@ async function report(res, employeeId, jahr, monat) {
     daten.summe += ungespiegelt.reduce((s, e) => s + (e.dauer || 0), 0);
   }
 
-  res.json({ mitarbeiter: { id: emp.id, name: emp.name, rentman_id: emp.rentman_id }, ...daten });
+  res.json({
+    mitarbeiter: { id: emp.id, name: emp.name, rentman_id: emp.rentman_id, zeiterfassung_quelle: emp.zeiterfassung_quelle },
+    ...daten,
+  });
 }
 
 // ── Auswertung: beliebiger Mitarbeiter, Bereich hr.zeitauswertung ────────────

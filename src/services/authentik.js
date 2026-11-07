@@ -16,10 +16,17 @@ const TAG_TO_GROUP = {
   geschaeftsfuehrung: 'Geschäftsführung',
   backoffice:         'Backoffice',
   gashandel:          'Gashandel',
-  metallarbeiten:     'Metallarbeiten',
+  metallarbeiten:     'Maschinenbau',
   zeltverleih:        'Zeltverleih',
 };
-const MANAGED = new Set([...Object.values(ROLE_TO_GROUP), ...Object.values(TAG_TO_GROUP)]);
+// Alte Gruppennamen, solange die Umbenennung in Authentik noch aussteht (#494).
+// Fehlt der neue Name, wird der alte genommen; gezaehlt werden beide als verwaltet.
+const GROUP_FALLBACK = {
+  'Maschinenbau': 'Metallarbeiten',
+};
+const MANAGED = new Set([
+  ...Object.values(ROLE_TO_GROUP), ...Object.values(TAG_TO_GROUP), ...Object.values(GROUP_FALLBACK),
+]);
 
 let cache = null;
 let cacheAt = 0;
@@ -66,7 +73,9 @@ async function findUser({ username, email }) {
 
 async function syncEmployeeGroups({ username, email, role, accessTags }) {
   const groups = await getGroups();
-  const ziel = [ROLE_TO_GROUP[role], ...(accessTags || []).map(t => TAG_TO_GROUP[t])].filter(Boolean);
+  const ziel = [ROLE_TO_GROUP[role], ...(accessTags || []).map(t => TAG_TO_GROUP[t])]
+    .filter(Boolean)
+    .map(n => (!groups.has(n) && GROUP_FALLBACK[n] && groups.has(GROUP_FALLBACK[n]) ? GROUP_FALLBACK[n] : n));
   const fehlend = ziel.filter(n => !groups.has(n));
   if (fehlend.length) throw new Error('Gruppen fehlen in Authentik: ' + fehlend.join(', '));
   const user = await findUser({ username, email });

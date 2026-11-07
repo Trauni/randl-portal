@@ -84,7 +84,7 @@ router.get('/callback', async (req, res, next) => {
     const groups = claims.groups || [];
 
     // Alle bekannten Authentik-Gruppen dürfen einloggen; Berechtigungen per requireArea (server.js)
-    const KNOWN_GROUPS = ['Geschäftsführung', 'Backoffice', 'Gashandel', 'Metallarbeiten', 'Mitarbeiter', 'Zeltverleih', 'Freelancer'];
+    const KNOWN_GROUPS = ['Geschäftsführung', 'Backoffice', 'Gashandel', 'Maschinenbau', 'Metallarbeiten', 'Mitarbeiter', 'Zeltverleih', 'Freelancer'];
     const hasAccess = groups.some(g => KNOWN_GROUPS.includes(g));
     const role = roleFromGroups(groups);
     const accessTags = tagsFromGroups(groups);

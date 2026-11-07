@@ -39,7 +39,8 @@ export const TAG_GROUPS = {
   'Geschäftsführung': 'geschaeftsfuehrung',
   'Backoffice':       'backoffice',
   'Gashandel':        'gashandel',
-  'Metallarbeiten':   'metallarbeiten',
+  'Maschinenbau':     'metallarbeiten',
+  'Metallarbeiten':   'metallarbeiten', // alter Name, entfernen nach Umbenennung in Authentik (#494)
   'Zeltverleih':      'zeltverleih',
 };
 
