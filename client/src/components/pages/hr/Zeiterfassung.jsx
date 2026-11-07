@@ -364,7 +364,10 @@ export default function Zeiterfassung({ eigen = false }) {
         {eigen ? 'Meine Zeiterfassung' : 'Zeiterfassung (Auswertung)'}
       </h1>
       <p style={{ fontSize: '13px', color: 'var(--text3)', margin: '0 0 20px' }}>
-        Gespiegelt aus Rentman. Pausen sind in der registrierten Zeit bereits abgezogen.
+        {daten?.mitarbeiter?.zeiterfassung_quelle && daten.mitarbeiter.zeiterfassung_quelle !== 'portal'
+          ? 'Erfasst in Rentman, ins Portal übernommen.'
+          : 'Erfasst im Portal, Rentman wird nur noch als Kopie mitgeführt.'}
+        {' '}Pausen sind in der Zeit bereits abgezogen.
       </p>
 
       {/* Auswahl */}
