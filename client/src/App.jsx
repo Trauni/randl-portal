@@ -10,12 +10,7 @@ import MetallVorgangDetail from './components/pages/metall/VorgangDetail'
 import Metallkunden from './components/pages/metall/Metallkunden'
 import VacationCalendar from './components/pages/VacationCalendar'
 import Profile from './components/pages/Profile'
-import SystemDashboard from './components/pages/it/SystemDashboard'
-import CloudflareDNS   from './components/pages/it/CloudflareDNS'
-import SpamDashboard   from './components/pages/it/SpamDashboard'
-import Docker          from './components/pages/it/Docker'
-import Cleanup from './components/pages/it/Cleanup'
-import Wartung from './components/pages/it/Wartung'
+import ITBereich from './components/pages/it/ITBereich'
 import Orders   from './components/pages/finance/Orders';
 import Products from './components/pages/finance/Products';
 import Customers       from './components/pages/finance/Customers';
@@ -23,7 +18,6 @@ import DeliveryRhythm from './components/pages/finance/DeliveryRhythm';
 import ShopNews from './components/pages/finance/ShopNews';
 import InfoMail from './components/pages/finance/InfoMail';
 import WidmannBestand from './components/pages/finance/WidmannBestand';
-import Logs     from './components/pages/it/Logs'
 import { CmsPage, CmsEditorPage } from './components/pages/content/CmsEditor'
 import Mitarbeiter from './components/pages/hr/Mitarbeiter'
 import Bilderverwaltung from './components/pages/content/Bilderverwaltung'
@@ -86,13 +80,11 @@ function AppRoutes() {
           hasArea('hr.mitarbeiter') ? <Mitarbeiter /> : <Navigate to="/dashboard" replace />
         } />
         <Route path="urlaub/kalender" element={<Navigate to="/hr/urlaubskalender" replace />} />
-        <Route path="it/system"     element={<SystemDashboard />} />
-        <Route path="it/cloudflare" element={<CloudflareDNS />} />
-        <Route path="it/spam"       element={<SpamDashboard />} />
-        <Route path="it/docker"     element={<Docker />} />
-        <Route path="it/logs"     element={<Logs />} />
-              <Route path="it/cleanup" element={<Cleanup />} />
-              <Route path="it/maintenance" element={<Wartung />} />
+        {/* IT: alle Dashboards auf einer Seite mit Tabs */}
+        <Route path="it" element={<Navigate to="/it/system" replace />} />
+        <Route path="it/:tab" element={
+          hasArea('it') ? <ITBereich /> : <Navigate to="/dashboard" replace />
+        } />
         <Route path="finance/kunden"       element={<Customers />} />
         <Route path="finance/rhythmus"  element={<DeliveryRhythm />} />
         <Route path="finance/mitteilungen" element={<ShopNews />} />

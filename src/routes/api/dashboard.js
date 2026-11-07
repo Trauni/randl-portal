@@ -2,12 +2,75 @@ const express = require('express');
 const { getPool } = require('../../db');
 const { shopFetch } = require('./finance/shopClient');
 const { hasArea } = require('../../utils/permissions');
-const { projekteImMonat, naechsteProjekte, abwesenheiten } = require('../../services/rentman');
+const os = require('os');
+const { execFile } = require('child_process');
+const { projekteImMonat, naechsteProjekte, abwesenheiten, ZELT_TYPEN } = require('../../services/rentman');
+const gleitzeit = require('../../services/gleitzeit');
+const metallEingang = require('../../services/metallEingang');
+const metallZuordnen = require('../../services/metallZuordnen');
 
 const router = express.Router();
 
 // Bereichspruefung fuer den angemeldeten Nutzer.
 const darf = (u, area) => hasArea(u.role, u.accessTags, area);
+
+// Rentman-Projekte: Geschäftsführung und Backoffice sehen alle Projekttypen,
+// alle anderen mit Bereich zeltverleih.projekte nur Zeltprojekte.
+const darfProjekte = (u) => darf(u, 'zeltverleih.projekte');
+const alleProjektTypen = (u) => (u.accessTags || []).some(t => t === 'geschaeftsfuehrung' || t === 'backoffice');
+const projektFilter = (u) => (p) => alleProjektTypen(u) || ZELT_TYPEN.includes(p.typId);
+
+// Belegung der Root-Partition in Prozent, ohne Shell
+function diskProzent() {
+  return new Promise((resolve) => {
+    execFile('df', ['-P', '/'], { timeout: 3000 }, (err, out) => {
+      if (err) return resolve(null);
+      const m = String(out).trim().split('\n').pop().match(/(\d+)%/);
+      resolve(m ? Number(m[1]) : null);
+    });
+  });
+}
+
+// Persönliche Kennzahlen: heute/Woche erfasst, laufende Stempeluhr, Gleitzeit, nächster Urlaub
+async function persoenlich(pool, employeeId) {
+  const [[emp]] = await pool.execute(
+    'SELECT zeiterfassung_quelle FROM employees WHERE id = ?', [employeeId]);
+  const [[summe]] = await pool.execute(
+    `SELECT
+       COALESCE(SUM(IF(tag = CURDATE(), GREATEST(TIMESTAMPDIFF(SECOND, start, ende) - pause_sekunden, 0), 0)), 0) AS heute,
+       COALESCE(SUM(GREATEST(TIMESTAMPDIFF(SECOND, start, ende) - pause_sekunden, 0)), 0) AS woche
+     FROM time_entries
+     WHERE employee_id = ? AND ende IS NOT NULL AND eintrag_typ <> 'krankheit'
+       AND status IN ('abgeschlossen', 'auto_beendet')
+       AND tag BETWEEN DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) AND CURDATE()`,
+    [employeeId]);
+  // Laufender Eintrag: bisherige Netto-Sekunden rechnet die DB (keine Zeitzonen-Fallen)
+  const [[laufend]] = await pool.execute(
+    `SELECT id, status,
+            DATE_FORMAT(start, '%H:%i') AS seit,
+            GREATEST(TIMESTAMPDIFF(SECOND, start, COALESCE(pause_start, NOW())) - pause_sekunden, 0) AS sekunden
+       FROM time_entries
+      WHERE employee_id = ? AND status IN ('laufend', 'pausiert')`, [employeeId]);
+  const [[urlaub]] = await pool.execute(
+    `SELECT DATE_FORMAT(start_date, '%Y-%m-%d') AS von, DATE_FORMAT(end_date, '%Y-%m-%d') AS bis,
+            art, days_count, status
+       FROM vacation_requests
+      WHERE employee_id = ? AND status IN ('approved', 'pending') AND end_date >= CURDATE()
+      ORDER BY start_date LIMIT 1`, [employeeId]);
+  let konto = null;
+  try {
+    const stand = await gleitzeit.kontostand(employeeId);
+    if (stand.aktiv) konto = { minuten: stand.minuten, anzeige: stand.anzeige };
+  } catch (e) { /* kein Gleitzeitkonto */ }
+  return {
+    zeitQuelle: emp ? emp.zeiterfassung_quelle : null,
+    heuteSekunden: Number(summe.heute),
+    wocheSekunden: Number(summe.woche),
+    laufend: laufend ? { id: laufend.id, status: laufend.status, seit: laufend.seit, sekunden: Number(laufend.sekunden) } : null,
+    gleitzeit: konto,
+    naechsterUrlaub: urlaub || null,
+  };
+}
 
 // Montag bis Sonntag der laufenden Woche
 function aktuelleWoche() {
@@ -68,6 +131,30 @@ router.get('/', async (req, res, next) => {
       }
     }
 
+    if (darf(u, 'metallarbeiten.vorgaenge')) {
+      try {
+        antwort.kacheln.metallEingangNeu = await metallEingang.zaehleNeue(pool);
+        antwort.kacheln.metallBelegeOffen = await metallZuordnen.zaehleOffene(pool);
+      } catch (e) { console.error('[Dashboard] Maschinenbau:', e.message); }
+    }
+
+    if (darf(u, 'hr.zeitauswertung')) {
+      const [[r]] = await pool.execute(
+        "SELECT COUNT(*) AS n FROM time_entries WHERE status IN ('laufend', 'pausiert')");
+      antwort.kacheln.jetztEingestempelt = r.n;
+    }
+
+    if (darf(u, 'it')) {
+      const ram = Math.round((1 - os.freemem() / os.totalmem()) * 100);
+      const last = Math.min(Math.round(os.loadavg()[0] / os.cpus().length * 100), 100);
+      antwort.kacheln.server = { ram, last, disk: await diskProzent() };
+    }
+
+    if (u.id && darf(u, 'zeit.eigen')) {
+      try { antwort.persoenlich = await persoenlich(pool, u.id); }
+      catch (e) { console.error('[Dashboard] Persönlich:', e.message); }
+    }
+
     if (u.id) {
       const [rows] = await pool.execute(
         `SELECT id, art, start_date, end_date, abbau_von, abbau_bis, days_count, status
@@ -115,22 +202,35 @@ router.get('/abwesend', async (req, res) => {
 
 // ── Projekte: Kalender und Liste, fuer alle sichtbar ────────────────────────
 router.get('/projekte', async (req, res) => {
+  if (!darfProjekte(req.session.user)) return res.status(403).json({ error: 'Keine Berechtigung' });
   const jahr = Number(req.query.jahr) || new Date().getFullYear();
   const monat = Number(req.query.monat) || (new Date().getMonth() + 1);
   if (monat < 1 || monat > 12 || jahr < 2000 || jahr > 2100) {
     return res.status(400).json({ error: 'Ungueltiger Zeitraum' });
   }
   try {
-    res.json({ jahr, monat, projekte: await projekteImMonat(jahr, monat) });
+    const projekte = (await projekteImMonat(jahr, monat)).filter(projektFilter(req.session.user));
+    res.json({ jahr, monat, projekte });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
 });
 
 router.get('/projekte/naechste', async (req, res) => {
+  const u = req.session.user;
+  if (!darfProjekte(u)) return res.status(403).json({ error: 'Keine Berechtigung' });
   const limit = Math.min(Number(req.query.limit) || 10, 25);
   try {
-    res.json({ projekte: await naechsteProjekte(limit) });
+    // alle kommenden holen, dann filtern — sonst fehlen Zelte, wenn andere Typen vorne liegen
+    const alle = (await naechsteProjekte(500)).filter(projektFilter(u));
+    const w = aktuelleWoche();
+    const in14 = new Date(); in14.setDate(in14.getDate() + 14);
+    const in14Tag = in14.toISOString().slice(0, 10) + 'T23:59:59';
+    res.json({
+      projekte: alle.slice(0, limit),
+      dieseWoche: alle.filter(p => p.von && p.von <= w.bis && p.bis >= w.von).length,
+      naechste14: alle.filter(p => p.von && p.von <= in14Tag).length,
+    });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }

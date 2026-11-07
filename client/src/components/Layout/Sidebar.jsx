@@ -65,6 +65,40 @@ function NavItemSoon({ icon, label, collapsed }) {
   );
 }
 
+// Klappbarer Bereich ab „Persönlich“. Zugeklappt zeigt der Kopf die Summe der Zähler.
+// In der schmalen Sidebar gibt es keine Köpfe; dort bleiben alle Einträge sichtbar.
+function NavSection({ id, label, offen, onToggle, collapsed, count, children }) {
+  if (collapsed) return <><div className="nav-section-divider"/>{children}</>;
+  return (
+    <div className="nav-section">
+      <button type="button" className="nav-section-label nav-section-toggle" onClick={() => onToggle(id)} aria-expanded={offen}>
+        <span>{label}</span>
+        <span className="nav-section-meta">
+          {!offen && count > 0 && <span className="nav-count">{count}</span>}
+          <svg className={`nav-chevron${offen ? ' nav-chevron--offen' : ''}`} width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        </span>
+      </button>
+      <div className={`nav-section-body${offen ? ' nav-section-body--offen' : ''}`}>
+        <div className="nav-section-inner">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+// Standard: nur „Persönlich“ offen. Gespeichert wird nur, was der Nutzer selbst umschaltet.
+const SECTION_DEFAULT = { persoenlich: true };
+const SECTION_KEY = 'sidebar-sections';
+// Welcher Bereich zu einer URL gehört — damit der Bereich der aktiven Seite aufgeht.
+const SECTION_PFADE = [
+  ['gashandel', '/finance/'],
+  ['zeltverleih', '/zeltverleih/'],
+  ['maschinenbau', '/metallarbeiten/'],
+  ['hr', '/hr/'],
+  ['it', '/it/'],
+  ['content', '/content/'],
+  ['persoenlich', '/profil'], ['persoenlich', '/urlaub'], ['persoenlich', '/zeit'],
+];
+
 export default function Sidebar({ user }) {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(() => {
@@ -73,6 +107,19 @@ export default function Sidebar({ user }) {
   const toggle = () => setCollapsed(v => {
     const next = !v;
     try { localStorage.setItem('sidebar-collapsed', next ? '1' : '0'); } catch {}
+    return next;
+  });
+
+  const [sections, setSections] = useState(() => {
+    try { return { ...SECTION_DEFAULT, ...JSON.parse(localStorage.getItem(SECTION_KEY) || '{}') }; }
+    catch { return { ...SECTION_DEFAULT }; }
+  });
+  const toggleSection = (id) => setSections(prev => {
+    const next = { ...prev, [id]: !prev[id] };
+    try {
+      const gespeichert = JSON.parse(localStorage.getItem(SECTION_KEY) || '{}');
+      localStorage.setItem(SECTION_KEY, JSON.stringify({ ...gespeichert, [id]: next[id] }));
+    } catch {}
     return next;
   });
 
@@ -93,6 +140,11 @@ export default function Sidebar({ user }) {
   // Zaehler fuer „Eingang“ (#371) und „Belege zuordnen“ (#370): beim Seitenwechsel, nach einer
   // Aktion auf der Seite (Event) und alle 5 Minuten
   const location = useLocation();
+  // Liegt die aktive Seite in einem zugeklappten Bereich, geht dieser auf (nicht gespeichert).
+  const aktiveSection = (SECTION_PFADE.find(([, p]) => location.pathname.startsWith(p)) || [])[0];
+  useEffect(() => {
+    if (aktiveSection) setSections(prev => (prev[aktiveSection] ? prev : { ...prev, [aktiveSection]: true }));
+  }, [aktiveSection]);
   const [offeneBelege, setOffeneBelege] = useState(0);
   const [neuImEingang, setNeuImEingang] = useState(0);
   useEffect(() => {
@@ -147,68 +199,67 @@ export default function Sidebar({ user }) {
       <nav className="sidebar-nav">
         <NavItem to="/dashboard" icon="dashboard" label="Dashboard" collapsed={collapsed}/>
 
-        {!collapsed && <div className="nav-section-label">Persönlich</div>}
-        {collapsed && <div className="nav-section-divider"/>}
-        <NavItem to="/profil" icon="profile"  label="Profil & Daten" collapsed={collapsed}/>
-        <NavItem to="/urlaub" icon="vacation" label="Mein Urlaub"    collapsed={collapsed}/>
-        <NavItem to="/zeit"   icon="clock"    label="Meine Zeiterfassung" collapsed={collapsed}/>
-        {showProjekte && <NavItemExtern href="https://projects.randlweb.de" icon="orders" label="Projekte" collapsed={collapsed}/>}
+        <NavSection id="persoenlich" label="Persönlich" offen={!!sections.persoenlich} onToggle={toggleSection} collapsed={collapsed}>
+          <NavItem to="/profil" icon="profile"  label="Profil & Daten" collapsed={collapsed}/>
+          <NavItem to="/urlaub" icon="vacation" label="Mein Urlaub"    collapsed={collapsed}/>
+          <NavItem to="/zeit"   icon="clock"    label="Meine Zeiterfassung" collapsed={collapsed}/>
+          {showProjekte && <NavItemExtern href="https://projects.randlweb.de" icon="orders" label="Projekte" collapsed={collapsed}/>}
+        </NavSection>
 
-        {showGashandel&&<>
-          {!collapsed && <div className="nav-section-label">Gashandel</div>}
-          {collapsed && <div className="nav-section-divider"/>}
-          <NavItem to="/finance/kunden"       icon="employees" label="Kunden" collapsed={collapsed}/>
-          <NavItem to="/finance/bestellungen" icon="orders"    label="Bestellungen"              collapsed={collapsed}/>
-          <NavItem to="/finance/rhythmus"  icon="calendar"  label="Lieferrhythmus"             collapsed={collapsed}/>
-          <NavItem to="/finance/mitteilungen" icon="bell"  label="Mitteilungen"               collapsed={collapsed}/>
-          <NavItem to="/finance/info-mail"    icon="documents" label="Info-Mail Rollout"     collapsed={collapsed}/>
-          <NavItem to="/finance/produkte"     icon="products"  label="Produkte"                  collapsed={collapsed}/>
-          <NavItem to="/finance/widmann-bestand" icon="products" label="Widmann-Bestand" collapsed={collapsed}/>
-        </>}
+        {showGashandel && (
+          <NavSection id="gashandel" label="Gashandel" offen={!!sections.gashandel} onToggle={toggleSection} collapsed={collapsed}>
+            <NavItem to="/finance/kunden"       icon="employees" label="Kunden"            collapsed={collapsed}/>
+            <NavItem to="/finance/bestellungen" icon="orders"    label="Bestellungen"      collapsed={collapsed}/>
+            <NavItem to="/finance/rhythmus"     icon="calendar"  label="Lieferrhythmus"    collapsed={collapsed}/>
+            <NavItem to="/finance/mitteilungen" icon="bell"      label="Mitteilungen"      collapsed={collapsed}/>
+            <NavItem to="/finance/info-mail"    icon="documents" label="Info-Mail Rollout" collapsed={collapsed}/>
+            <NavItem to="/finance/produkte"     icon="products"  label="Produkte"          collapsed={collapsed}/>
+            <NavItem to="/finance/widmann-bestand" icon="products" label="Widmann-Bestand" collapsed={collapsed}/>
+          </NavSection>
+        )}
 
-        {showZeltverleih&&<>
-          {!collapsed && <div className="nav-section-label">Zeltverleih</div>}
-          {collapsed && <div className="nav-section-divider"/>}
-          {showZeltprojekte && <NavItem to="/zeltverleih/projekte" icon="orders" label="Zeltprojekte" collapsed={collapsed}/>}
-          {showZeltplaner && <NavItem to="/zeltverleih/zeltplaner" icon="calendar" label="Zeltplaner" collapsed={collapsed}/>}
-        </>}
+        {showZeltverleih && (
+          <NavSection id="zeltverleih" label="Zeltverleih" offen={!!sections.zeltverleih} onToggle={toggleSection} collapsed={collapsed}>
+            {showZeltprojekte && <NavItem to="/zeltverleih/projekte" icon="orders" label="Zeltprojekte" collapsed={collapsed}/>}
+            {showZeltplaner && <NavItem to="/zeltverleih/zeltplaner" icon="calendar" label="Zeltplaner" collapsed={collapsed}/>}
+          </NavSection>
+        )}
 
-        {showMetallarbeiten&&<>
-          {!collapsed && <div className="nav-section-label">Maschinenbau</div>}
-          {collapsed && <div className="nav-section-divider"/>}
-          {showMetallVorgaenge && <NavItem to="/metallarbeiten/eingang" icon="inbox" label="Eingang" count={neuImEingang} collapsed={collapsed}/>}
-          {showMetallVorgaenge && <NavItem to="/metallarbeiten/vorgaenge" icon="orders" label="Alle Aufträge" collapsed={collapsed}/>}
-          {showMetallVorgaenge && <NavItem to="/metallarbeiten/zuordnen" icon="documents" label="Belege zuordnen" count={offeneBelege} collapsed={collapsed}/>}
-          {showMetallkunden && <NavItem to="/metallarbeiten/kunden" icon="employees" label="MB-Kunden" collapsed={collapsed}/>}
-        </>}
+        {showMetallarbeiten && (
+          <NavSection id="maschinenbau" label="Maschinenbau" offen={!!sections.maschinenbau} onToggle={toggleSection} collapsed={collapsed}
+            count={showMetallVorgaenge ? neuImEingang + offeneBelege : 0}>
+            {showMetallVorgaenge && <NavItem to="/metallarbeiten/eingang" icon="inbox" label="Eingang" count={neuImEingang} collapsed={collapsed}/>}
+            {showMetallVorgaenge && <NavItem to="/metallarbeiten/vorgaenge" icon="orders" label="Alle Aufträge" collapsed={collapsed}/>}
+            {showMetallVorgaenge && <NavItem to="/metallarbeiten/zuordnen" icon="documents" label="Belege zuordnen" count={offeneBelege} collapsed={collapsed}/>}
+            {showMetallkunden && <NavItem to="/metallarbeiten/kunden" icon="employees" label="MB-Kunden" collapsed={collapsed}/>}
+          </NavSection>
+        )}
 
-        {showHR&&<>
-          {!collapsed && <div className="nav-section-label">HR Department</div>}
-          {collapsed && <div className="nav-section-divider"/>}
-          {can('hr.urlaubskalender') && <NavItem to="/hr/urlaubskalender" icon="calendar"  label="Urlaubskalender"      collapsed={collapsed}/>}
-          {can('hr.zeitauswertung')  && <NavItem to="/hr/zeiterfassung"   icon="clock"     label="Zeiterfassung (Auswertung)" collapsed={collapsed}/>}
-          {can('hr.mitarbeiter')     && <NavItem to="/hr/mitarbeiter"     icon="employees" label="Mitarbeiterverwaltung" collapsed={collapsed}/>}
-        </>}
+        {showHR && (
+          <NavSection id="hr" label="HR Department" offen={!!sections.hr} onToggle={toggleSection} collapsed={collapsed}>
+            {can('hr.urlaubskalender') && <NavItem to="/hr/urlaubskalender" icon="calendar"  label="Urlaubskalender"      collapsed={collapsed}/>}
+            {can('hr.zeitauswertung')  && <NavItem to="/hr/zeiterfassung"   icon="clock"     label="Zeiterfassung (Auswertung)" collapsed={collapsed}/>}
+            {can('hr.mitarbeiter')     && <NavItem to="/hr/mitarbeiter"     icon="employees" label="Mitarbeiterverwaltung" collapsed={collapsed}/>}
+          </NavSection>
+        )}
 
-        {showIT&&<>
-          {!collapsed && <div className="nav-section-label">IT Department</div>}
-          {collapsed && <div className="nav-section-divider"/>}
-          <NavItem to="/it/system"      icon="system"     label="System Dashboard" collapsed={collapsed}/>
-          <NavItem to="/it/cloudflare"  icon="cloudflare" label="Cloudflare DNS"   collapsed={collapsed}/>
-          <NavItem to="/it/spam"        icon="spam"       label="Spam Dashboard"   collapsed={collapsed}/>
-          <NavItem to="/it/docker"      icon="docker"     label="Docker Dashboard" collapsed={collapsed}/>
-          <NavItem to="/it/logs"        icon="logs"       label="System Logs"      collapsed={collapsed}/>
-          <NavItem to="/it/cleanup"     icon="system"     label="Server Cleanup"   collapsed={collapsed}/>
-          <NavItem to="/it/maintenance" icon="system"     label="Wartung"          collapsed={collapsed}/>
-        </>}
+        {showIT && (
+          <NavSection id="it" label="IT Department" offen={!!sections.it} onToggle={toggleSection} collapsed={collapsed}>
+            {/* Alle IT-Dashboards liegen auf einer Seite mit Tabs (ITBereich.jsx) */}
+            <NavLink to="/it/system" className={() => `nav-item${location.pathname.startsWith('/it/') ? ' nav-item--active' : ''}${collapsed ? ' nav-item--collapsed' : ''}`} title={collapsed ? 'IT-Dashboards' : undefined}>
+              <span className="nav-icon"><Icon d={ICONS.system}/></span>
+              {!collapsed && <span className="nav-label">IT-Dashboards</span>}
+            </NavLink>
+          </NavSection>
+        )}
 
-        {showContent&&<>
-          {!collapsed && <div className="nav-section-label">Content</div>}
-          {collapsed && <div className="nav-section-divider"/>}
-          <NavItem to="/content/cms"    icon="cms"    label="CMS Landingpage"  collapsed={collapsed}/>
-          <NavItem to="/content/shop"   icon="shop"   label="CMS Shopseite"    collapsed={collapsed}/>
-          <NavItem to="/content/bilder" icon="images" label="Bilderverwaltung" collapsed={collapsed}/>
-        </>}
+        {showContent && (
+          <NavSection id="content" label="Content" offen={!!sections.content} onToggle={toggleSection} collapsed={collapsed}>
+            <NavItem to="/content/cms"    icon="cms"    label="CMS Landingpage"  collapsed={collapsed}/>
+            <NavItem to="/content/shop"   icon="shop"   label="CMS Shopseite"    collapsed={collapsed}/>
+            <NavItem to="/content/bilder" icon="images" label="Bilderverwaltung" collapsed={collapsed}/>
+          </NavSection>
+        )}
       </nav>
 
       {/* Footer */}
@@ -248,6 +299,17 @@ export default function Sidebar({ user }) {
         .nav-count{font-size:10px;font-weight:700;background:var(--r);color:#fff;min-width:18px;padding:1px 6px;border-radius:9px;text-align:center;flex-shrink:0;box-sizing:border-box;}
         .nav-section-label{padding:14px 16px 4px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);display:flex;align-items:center;justify-content:space-between;gap:6px;}
         .nav-section-tag{font-size:9.5px;font-weight:500;background:var(--bg3);color:var(--text3);padding:1px 6px;border-radius:10px;text-transform:none;letter-spacing:0;white-space:nowrap;flex-shrink:0;}
+        .nav-section-toggle{width:100%;background:none;border:none;cursor:pointer;font-family:inherit;text-align:left;transition:color .12s;}
+        .nav-section-toggle:hover{color:var(--text2);}
+        .nav-section-toggle:focus-visible{outline:2px solid var(--r);outline-offset:-2px;border-radius:6px;}
+        .nav-section-meta{display:flex;align-items:center;gap:6px;}
+        .nav-chevron{transition:transform .2s ease;flex-shrink:0;}
+        .nav-chevron--offen{transform:rotate(90deg);}
+        .nav-section-body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .2s ease;}
+        .nav-section-body--offen{grid-template-rows:1fr;}
+        .nav-section-inner{overflow:hidden;min-height:0;transition:visibility .2s;}
+        .nav-section-body:not(.nav-section-body--offen) .nav-section-inner{visibility:hidden;}
+        @media (prefers-reduced-motion: reduce){.nav-section-body,.nav-chevron{transition:none;}}
         .nav-section-divider{height:1px;background:var(--border);margin:6px 8px;}
         .sidebar-footer{flex-shrink:0;border-top:1px solid var(--border);padding:10px 8px;display:flex;align-items:center;gap:9px;overflow:hidden;}
         .sidebar-footer-avatar{width:30px;height:30px;border-radius:50%;background:var(--r);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:default;}
