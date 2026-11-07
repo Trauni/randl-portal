@@ -4,6 +4,10 @@ const STATUS={pending:{label:'Ausstehend',color:'#e8a020',bg:'#2a2208'},approved
 // Gleitzeitkonto (#490): Minuten als +12:30 / −3:05
 const fmtMin=m=>{const v=m>0?'+':m<0?'−':'';const a=Math.abs(Math.round(m));return `${v}${Math.floor(a/60)}:${String(a%60).padStart(2,'0')}`;};
 const ART_LABEL={urlaub:'Urlaub',gleitzeitabbau:'Gleitzeitabbau'};
+// Stundenweiser Gleitzeitabbau (#490): '12:00:00' -> '12:00'
+const hhmm=t=>t?String(t).slice(0,5):'';
+const zeitText=r=>r.abbau_von?`${hhmm(r.abbau_von)}–${hhmm(r.abbau_bis)} Uhr`:null;
+const LEER={art:'urlaub',start_date:'',end_date:'',stundenweise:false,zeit_von:'',zeit_bis:'',reason:''};
 const fmt=d=>d?new Date(d+'T00:00').toLocaleDateString('de-DE',{day:'2-digit',month:'short',year:'numeric'}):'';
 function Badge({status}){const s=STATUS[status]||STATUS.pending;return<span style={{display:'inline-flex',alignItems:'center',padding:'2px 9px',borderRadius:10,fontSize:11,fontWeight:700,color:s.color,background:s.bg,border:`1px solid ${s.color}44`}}>{s.label}</span>;}
 
@@ -19,7 +23,11 @@ export default function VacationRequest() {
   const [showForm,setShowForm]=useState(false);
   const [cancelDlg,setCancelDlg]=useState(null);
   const [cancelReason,setCancelReason]=useState('');
-  const [form,setForm]=useState({art:'urlaub',start_date:'',end_date:'',reason:''});
+  const [form,setForm]=useState(LEER);
+  // Stundenweise nur beim Gleitzeitabbau an genau einem Tag
+  const einTag=form.start_date&&(!form.end_date||form.end_date===form.start_date);
+  const stunden=form.art==='gleitzeitabbau'&&form.stundenweise&&einTag;
+  const zeitOk=!stunden||(form.zeit_von&&form.zeit_bis&&form.zeit_bis>form.zeit_von);
   const [konto,setKonto]=useState(null); // eigenes Gleitzeitkonto, null = keins aktiv
   useEffect(()=>{fetch('/api/vacation/gleitzeit').then(r=>r.ok?r.json():null).then(k=>setKonto(k&&k.aktiv?k:null)).catch(()=>{});},[]);
 
@@ -29,20 +37,24 @@ export default function VacationRequest() {
   // Arbeitstage vom Server: Mo–Fr ohne bayerische Feiertage (#490)
   const [preview,setPreview]=useState(null);
   useEffect(()=>{
-    if(!form.start_date||!form.end_date||form.end_date<form.start_date){setPreview(null);return;}
+    if(!form.start_date||!form.end_date||form.end_date<form.start_date||!zeitOk){setPreview(null);return;}
     let aktuell=true;
-    fetch(`/api/vacation/arbeitstage?von=${form.start_date}&bis=${form.end_date}&art=${form.art}`)
+    const zeit=stunden?`&zeit_von=${form.zeit_von}&zeit_bis=${form.zeit_bis}`:'';
+    fetch(`/api/vacation/arbeitstage?von=${form.start_date}&bis=${form.end_date}&art=${form.art}${zeit}`)
       .then(r=>r.ok?r.json():null).then(p=>{if(aktuell)setPreview(p);}).catch(()=>{if(aktuell)setPreview(null);});
     return()=>{aktuell=false;};
-  },[form.start_date,form.end_date,form.art]);
+  },[form.start_date,form.end_date,form.art,stunden,form.zeit_von,form.zeit_bis,zeitOk]);
 
   const submit=async()=>{
     if(!form.start_date||!form.end_date){setError('Datum fehlt');return;}
     if(form.end_date<form.start_date){setError('Enddatum muss nach Startdatum liegen');return;}
+    if(!zeitOk){setError('Uhrzeit bis muss nach von liegen');return;}
     setSubmitting(true);setError('');setSuccess('');
-    try{const r=await fetch('/api/vacation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(form)});
+    const body={art:form.art,start_date:form.start_date,end_date:form.end_date,reason:form.reason,
+      ...(stunden?{zeit_von:form.zeit_von,zeit_bis:form.zeit_bis}:{})};
+    try{const r=await fetch('/api/vacation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(!r.ok){const e=await r.json();throw new Error(e.error);}
-    setSuccess(form.art==='gleitzeitabbau'?'Gleitzeitabbau beantragt.':'Urlaubsantrag eingereicht.');setShowForm(false);setForm({art:'urlaub',start_date:'',end_date:'',reason:''});await load();setTimeout(()=>setSuccess(''),4000);
+    setSuccess(form.art==='gleitzeitabbau'?'Gleitzeitabbau beantragt.':'Urlaubsantrag eingereicht.');setShowForm(false);setForm(LEER);await load();setTimeout(()=>setSuccess(''),4000);
     }catch(e){setError(e.message);}finally{setSubmitting(false);}
   };
 
@@ -74,14 +86,30 @@ export default function VacationRequest() {
                   <button key={k} type="button" className={`btn ${form.art===k?'btn-primary':'btn-ghost'}`} onClick={()=>setForm(f=>({...f,art:k}))}>{l}</button>
                 ))}
               </div>
-              {form.art==='gleitzeitabbau'&&<div className="vr-note" style={{marginTop:6}}>Gleitzeitkonto: <strong>{fmtMin(konto.minuten)} h</strong> · pro Tag wird das vereinbarte Tages-Soll abgebucht, kein Urlaubstag.</div>}
+              {form.art==='gleitzeitabbau'&&<div className="vr-note" style={{marginTop:6}}>Gleitzeitkonto: <strong>{fmtMin(konto.minuten)} h</strong> · {stunden?'abgebucht wird die Dauer, höchstens das Tages-Soll. Den Rest des Tages normal stempeln.':'pro Tag wird das vereinbarte Tages-Soll abgebucht, kein Urlaubstag.'}</div>}
             </div>
           )}
           <div className="vr-form-grid">
-            <div className="vr-ff"><label className="vr-lbl">Von</label><input type="date" className="vr-inp" value={form.start_date} onChange={e=>setForm(f=>({...f,start_date:e.target.value}))}/></div>
+            <div className="vr-ff"><label className="vr-lbl">Von</label><input type="date" className="vr-inp" value={form.start_date} onChange={e=>{const v=e.target.value;setForm(f=>({...f,start_date:v,...(f.stundenweise?{end_date:v}:{})}));}}/></div>
             <div className="vr-ff"><label className="vr-lbl">Bis (einschließlich)</label><input type="date" className="vr-inp" value={form.end_date} min={form.start_date} onChange={e=>setForm(f=>({...f,end_date:e.target.value}))}/></div>
-            {d!==null&&<div className="vr-days-preview"><span className="vr-days-num">{d}</span><span className="vr-days-lbl">Arbeitstag{d!==1?'e':''}{preview.feiertage.length>0&&` · ohne ${preview.feiertage.map(f=>f.name).join(', ')}`}</span></div>}
+            {d!==null&&!stunden&&<div className="vr-days-preview"><span className="vr-days-num">{d}</span><span className="vr-days-lbl">Arbeitstag{d!==1?'e':''}{preview.feiertage.length>0&&` · ohne ${preview.feiertage.map(f=>f.name).join(', ')}`}</span></div>}
+            {stunden&&preview?.gleitzeit&&<div className="vr-days-preview"><span className="vr-days-num">{fmtMin(preview.gleitzeit.minuten).replace('+','')}</span><span className="vr-days-lbl">Stunden</span></div>}
           </div>
+          {form.art==='gleitzeitabbau'&&(
+            <div style={{marginTop:12}}>
+              <div style={{display:'flex',gap:6}}>
+                <button type="button" className={`btn ${!form.stundenweise?'btn-primary':'btn-ghost'}`} onClick={()=>setForm(f=>({...f,stundenweise:false}))}>Ganzer Tag</button>
+                <button type="button" className={`btn ${form.stundenweise?'btn-primary':'btn-ghost'}`} disabled={!einTag} title={einTag?'':'Nur für einen einzelnen Tag'} onClick={()=>setForm(f=>({...f,stundenweise:true,end_date:f.start_date}))}>Stundenweise</button>
+              </div>
+              {form.stundenweise&&!einTag&&<div className="vr-note vr-note-red" style={{marginTop:6}}>Stundenweise geht nur für einen einzelnen Tag (Von = Bis).</div>}
+              {stunden&&(
+                <div className="vr-form-grid" style={{marginTop:10,gridTemplateColumns:'1fr 1fr'}}>
+                  <div className="vr-ff"><label className="vr-lbl">Frei ab</label><input type="time" step="300" className="vr-inp" value={form.zeit_von} onChange={e=>setForm(f=>({...f,zeit_von:e.target.value}))}/></div>
+                  <div className="vr-ff"><label className="vr-lbl">Frei bis</label><input type="time" step="300" className="vr-inp" value={form.zeit_bis} onChange={e=>setForm(f=>({...f,zeit_bis:e.target.value}))}/></div>
+                </div>
+              )}
+            </div>
+          )}
           {preview?.gleitzeit&&(
             <div className={`vr-note${preview.gleitzeit.danach<0?' vr-note-red':''}`} style={{marginTop:10}}>
               Abbau <strong>{fmtMin(-preview.gleitzeit.minuten)} h</strong>
@@ -104,7 +132,7 @@ export default function VacationRequest() {
         {reqs.map(req=>(
           <div key={req.id} className={`card vr-item${req.status==='cancelled'?' vr-item--cancelled':''}`}>
             <div className="vr-item-main">
-              <div className="vr-item-dates"><span className="vr-date-range">{fmt(req.start_date)} – {fmt(req.end_date)}</span><span className="vr-days-info">{req.art==='gleitzeitabbau'&&<strong>Gleitzeitabbau · </strong>}{req.days_count} Arbeitstag{req.days_count!==1?'e':''}</span></div>
+              <div className="vr-item-dates"><span className="vr-date-range">{fmt(req.start_date)} – {fmt(req.end_date)}</span><span className="vr-days-info">{req.art==='gleitzeitabbau'&&<strong>Gleitzeitabbau · </strong>}{zeitText(req)||`${req.days_count} Arbeitstag${req.days_count!==1?'e':''}`}</span></div>
               <div className="vr-item-meta"><Badge status={req.status}/><span className="vr-id">#{req.id}</span></div>
             </div>
             {req.reason&&<div className="vr-note"><span className="vr-note-lbl">Anmerkung:</span> {req.reason}</div>}
@@ -123,7 +151,7 @@ export default function VacationRequest() {
             <div className="vr-dlg-hdr"><h2 className="vr-dlg-title">{cancelDlg.art==='gleitzeitabbau'?'Gleitzeitabbau':'Urlaub'} stornieren</h2><button className="vr-dlg-close" onClick={()=>setCancelDlg(null)}>✕</button></div>
             <div className="vr-dlg-body">
               <p style={{color:'var(--text2)',fontSize:13,margin:'0 0 14px'}}>
-                {fmt(cancelDlg.start_date)} – {fmt(cancelDlg.end_date)} ({cancelDlg.days_count} Tage) stornieren?
+                {fmt(cancelDlg.start_date)} – {fmt(cancelDlg.end_date)} ({zeitText(cancelDlg)||`${cancelDlg.days_count} Tage`}) stornieren?
               </p>
               {cancelDlg.status==='approved'&&<div className="alert alert--warn" style={{marginBottom:12}}>⚠ {cancelDlg.art==='gleitzeitabbau'?'Dieser Gleitzeitabbau':'Dieser Urlaub'} ist bereits genehmigt.</div>}
               <label className="vr-lbl" style={{display:'block',marginBottom:4}}>Grund (optional)</label>

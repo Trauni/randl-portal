@@ -101,6 +101,8 @@ async function ladeAntrag(antragId) {
             vr.rentman_leaverequest_id AS lrId,
             DATE_FORMAT(vr.start_date, '%Y-%m-%d') AS von,
             DATE_FORMAT(vr.end_date,   '%Y-%m-%d') AS bis,
+            TIME_FORMAT(vr.abbau_von, '%H:%i') AS zeitVon,
+            TIME_FORMAT(vr.abbau_bis, '%H:%i') AS zeitBis,
             e.rentman_id, e.full_name,
             (SELECT rentman_id FROM employees WHERE id = vr.approved_by) AS pruefer
        FROM vacation_requests vr
@@ -126,7 +128,7 @@ async function rentmanStatus(lrId) {
 async function vorschau(antragId) {
   const a = await ladeAntrag(antragId);
   if (a.art === 'gleitzeitabbau') {
-    const tage = await gleitzeit.abbauTage(a.employee_id, a.von, a.bis);
+    const tage = await gleitzeit.abbauTage(a.employee_id, a.von, a.bis, undefined, abbauZeiten(a));
     return {
       antrag: a.id, art: a.art, mitarbeiter: a.full_name, status: a.status, von: a.von, bis: a.bis,
       werktage: tage.map((t) => t.tag), gesamtSekunden: tage.reduce((s, t) => s + t.minuten * 60, 0),
@@ -290,20 +292,25 @@ async function kompensationNachRentman(antragId) {
   if (a.lrId) return { antragId, leaverequestId: a.lrId, uebersprungen: 'bereits übertragen' };
   if (!a.rentman_id) throw new Error(`${a.full_name} hat keine rentman_id`);
 
-  const tage = await gleitzeit.abbauTage(a.employee_id, a.von, a.bis, db);
+  const zeiten = abbauZeiten(a);
+  const tage = await gleitzeit.abbauTage(a.employee_id, a.von, a.bis, db, zeiten);
   if (!tage.length) throw new Error(`Antrag ${antragId} enthält keine Arbeitstage`);
 
   const crew = '/crew/' + a.rentman_id;
   const pruefer = a.pruefer ? '/crew/' + a.pruefer : crew;
-  const titel = `Gleitzeitabbau ${a.von} bis ${a.bis} (Mitarbeiterportal)`;
+  const titel = zeiten
+    ? `Gleitzeitabbau ${a.von} ${zeiten.von}–${zeiten.bis} (Mitarbeiterportal)`
+    : `Gleitzeitabbau ${a.von} bis ${a.bis} (Mitarbeiterportal)`;
   const lr = await api('POST', '/leaverequest', { requested_for: crew, approval_status: 'pending', description: titel });
   await db.execute('UPDATE vacation_requests SET rentman_leaverequest_id = ?, vorlaeufig = 0 WHERE id = ?', [lr.id, antragId]);
 
   for (const { tag, minuten } of tage) {
     const off = offsetFuer(tag);
+    // Stundenweise: echte Uhrzeit, damit die Disposition sieht, wann die Person fehlt
+    const [start, ende] = zeiten ? [zeiten.von, zeiten.bis] : ['08:00', '16:00'];
     const neu = await api('POST', '/leaverequest/' + lr.id + '/timeregistration', {
       crewmember: crew, leavetype: KOMPENSATION,
-      start: tag + 'T08:00:00' + off, end: tag + 'T16:00:00' + off,
+      start: `${tag}T${start}:00${off}`, end: `${tag}T${ende}:00${off}`,
       duration: minuten * 60, remark: 'Gleitzeitabbau (Mitarbeiterportal)',
     });
     await db.execute(
@@ -316,6 +323,11 @@ async function kompensationNachRentman(antragId) {
   await api('PUT', '/leaverequest/' + lr.id,
     { requested_for: crew, approval_status: 'approved', reviewer: pruefer, description: titel });
   return { antragId, leaverequestId: lr.id, tage: tage.length, rentmanStatus: 'approved' };
+}
+
+/** Uhrzeiten eines stundenweisen Gleitzeitabbaus, sonst null (ganzer Tag). */
+function abbauZeiten(a) {
+  return a.zeitVon && a.zeitBis ? { von: a.zeitVon, bis: a.zeitBis } : null;
 }
 
 /** Genehmigten Antrag je nach Art übertragen: Urlaub oder Gleitzeitabbau (#490). */

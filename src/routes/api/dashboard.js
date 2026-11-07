@@ -70,7 +70,7 @@ router.get('/', async (req, res, next) => {
 
     if (u.id) {
       const [rows] = await pool.execute(
-        `SELECT id, art, start_date, end_date, days_count, status
+        `SELECT id, art, start_date, end_date, abbau_von, abbau_bis, days_count, status
          FROM vacation_requests WHERE employee_id = ?
          ORDER BY start_date DESC LIMIT 3`, [u.id]
       );

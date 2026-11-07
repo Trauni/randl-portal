@@ -8,11 +8,24 @@ const { hasArea } = require('../../utils/permissions');
 const urlaub = require('../../services/urlaub');
 const gleitzeit = require('../../services/gleitzeit');
 const { arbeitstage, feiertag } = require('../../utils/feiertage');
+const { abbauDauer } = require('../../utils/gleitzeit');
 
 const ISO_TAG = /^\d{4}-\d{2}-\d{2}$/;
 const ARTEN = ['urlaub', 'gleitzeitabbau']; // #490
 // Urlaubsverwaltung (Kalender, Genehmigen, Ablehnen) ist Geschaeftsfuehrung.
 const canHr = (u) => hasArea(u.role, u.accessTags, 'hr.urlaubskalender');
+
+/**
+ * Uhrzeiten eines stundenweisen Gleitzeitabbaus prüfen (#490).
+ * Liefert { zeiten } (null = ganzer Tag) oder { fehler }.
+ */
+function abbauZeitenAus(art, von, bis, zeitVon, zeitBis) {
+  if (!zeitVon && !zeitBis) return { zeiten: null };
+  if (art !== 'gleitzeitabbau') return { fehler: 'Uhrzeiten gibt es nur beim Gleitzeitabbau' };
+  if (von !== bis) return { fehler: 'Stundenweiser Abbau nur für einen einzelnen Tag' };
+  if (abbauDauer(zeitVon, zeitBis) === null) return { fehler: 'Uhrzeit ungültig (bis muss nach von liegen)' };
+  return { zeiten: { von: zeitVon.slice(0, 5), bis: zeitBis.slice(0, 5) } };
+}
 
 function dateOnly(d) {
   if (d instanceof Date) {
@@ -50,7 +63,9 @@ router.get('/arbeitstage', requireAuth, async (req, res) => {
     try {
       const empId = await getEmployeeId(req.session.user.authentikUid);
       if (!empId) return res.status(404).json({ error: 'Mitarbeiter nicht gefunden' });
-      const v = await gleitzeit.abbauVorschau(empId, von, bis);
+      const z = abbauZeitenAus(art, von, bis, req.query.zeit_von, req.query.zeit_bis);
+      if (z.fehler) return res.status(400).json({ error: z.fehler });
+      const v = await gleitzeit.abbauVorschau(empId, von, bis, z.zeiten);
       if (!v.aktiv) return res.status(409).json({ error: 'Kein Gleitzeitkonto aktiv' });
       return res.json({ tage: v.tage, feiertage: [], gleitzeit: v });
     } catch (err) { console.error(err); return res.status(500).json({ error: 'Fehler' }); }
@@ -104,7 +119,7 @@ router.get('/timeline', requireAuth, async (req, res) => {
     const from = req.query.from || new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
     const to   = req.query.to   || new Date(now.getFullYear(), now.getMonth() + 4, 0).toISOString().split('T')[0];
     const [rows] = await pool.query(
-      `SELECT vr.id, vr.art, vr.start_date, vr.end_date, vr.days_count,
+      `SELECT vr.id, vr.art, vr.start_date, vr.end_date, vr.abbau_von, vr.abbau_bis, vr.days_count,
               vr.status, vr.reason, vr.cancel_reason,
               e.id AS emp_id,
               COALESCE(e.display_name, e.full_name, e.username) AS emp_name,
@@ -155,22 +170,24 @@ router.post('/', requireAuth, async (req, res) => {
     if (!ARTEN.includes(art)) return res.status(400).json({ error: 'Unbekannte Art' });
     if (!start_date || !end_date) return res.status(400).json({ error: 'Datum fehlt' });
     if (!ISO_TAG.test(start_date) || !ISO_TAG.test(end_date)) return res.status(400).json({ error: 'Datum ungültig' });
+    const z = abbauZeitenAus(art, start_date, end_date, req.body.zeit_von, req.body.zeit_bis);
+    if (z.fehler) return res.status(400).json({ error: z.fehler });
     let days;
     if (art === 'gleitzeitabbau') {
       // Nur mit aktivem Konto; gezählt werden die vereinbarten Arbeitstage (#490)
       const konto = await gleitzeit.ladeKonto(empId);
       if (!konto.aktiv) return res.status(400).json({ error: 'Gleitzeitabbau ist nur mit aktivem Gleitzeitkonto möglich' });
-      days = (await gleitzeit.abbauTage(empId, start_date, end_date)).length;
-      if (days <= 0) return res.status(400).json({ error: 'Im Zeitraum liegt kein vereinbarter Arbeitstag' });
+      days = (await gleitzeit.abbauTage(empId, start_date, end_date, undefined, z.zeiten)).length;
+      if (days <= 0) return res.status(400).json({ error: z.zeiten ? 'Der Tag ist kein vereinbarter Arbeitstag' : 'Im Zeitraum liegt kein vereinbarter Arbeitstag' });
     } else {
       // Werktage Mo–Fr ohne gesetzliche Feiertage in Bayern (#490)
       days = arbeitstage(start_date, end_date).length;
       if (days <= 0) return res.status(400).json({ error: 'Kein gültiger Zeitraum' });
     }
     const [result] = await pool.query(
-      `INSERT INTO vacation_requests (employee_id, art, start_date, end_date, days_count, reason, status)
-       VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
-      [empId, art, start_date, end_date, days, reason || null]
+      `INSERT INTO vacation_requests (employee_id, art, start_date, end_date, abbau_von, abbau_bis, days_count, reason, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      [empId, art, start_date, end_date, z.zeiten?.von ?? null, z.zeiten?.bis ?? null, days, reason || null]
     );
     const [newReq] = await pool.query('SELECT * FROM vacation_requests WHERE id = ?', [result.insertId]);
     res.status(201).json(normalizeRow(newReq[0]));

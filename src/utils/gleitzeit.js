@@ -13,6 +13,9 @@
  *     Krankentage zählen nicht als Ist (sonst würden sie Plusstunden).
  *   - Gleitzeitabbau bucht das Tages-Soll ab, das ohne Abwesenheit gegolten hätte.
  *     Wird an einem Abbau-/Urlaubstag trotzdem gearbeitet, zählt das als Plus.
+ *   - Stundenweiser Abbau (ein Tag mit Uhrzeit von–bis): abgebucht wird die
+ *     Dauer, höchstens das Tages-Soll. Um genau diese Minuten sinkt das Soll
+ *     des Tages, der Rest muss gearbeitet werden.
  */
 const { feiertag } = require('./feiertage');
 
@@ -46,6 +49,19 @@ function regelSoll(arbeitszeit, tag) {
   return Math.round((arbeitszeit.wochenstunden * 60) / arbeitszeit.arbeitstage.length);
 }
 
+/** 'HH:MM' -> Minuten seit Mitternacht, sonst null. */
+function uhrzeitMinuten(text) {
+  const m = /^([01]\d|2[0-3]):([0-5]\d)(:00)?$/.exec(String(text || ''));
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+
+/** Dauer eines stundenweisen Abbaus in Minuten, oder null bei ungültigen Zeiten. */
+function abbauDauer(von, bis) {
+  const a = uhrzeitMinuten(von);
+  const b = uhrzeitMinuten(bis);
+  return a !== null && b !== null && b > a ? b - a : null;
+}
+
 /** Netto-Minuten eines Eintrags, auf 5 Minuten gerundet (wie zeit.rundeAufFuenf). */
 function eintragMinuten(spanneSekunden, pauseSekunden) {
   const netto = Math.max(0, spanneSekunden - (pauseSekunden || 0));
@@ -56,30 +72,38 @@ function eintragMinuten(spanneSekunden, pauseSekunden) {
  * Automatische Buchungen eines Tages.
  * abwesenheit: null | 'urlaub' | 'krankheit' | 'gleitzeitabbau'
  * referenzId: vacation_requests.id beim Abbau
+ * abbauMinuten: beim stundenweisen Abbau die beantragte Dauer, sonst null (ganzer Tag)
  * Liefert 0–2 Buchungen { art, minuten, soll_minuten?, ist_minuten?, referenz_id? }.
  */
-function tagesbuchungen({ tag, arbeitszeit, istMinuten = 0, abwesenheit = null, referenzId = null }) {
+function tagesbuchungen({ tag, arbeitszeit, istMinuten = 0, abwesenheit = null, referenzId = null, abbauMinuten = null }) {
   if (abwesenheit && !ABWESENHEIT.includes(abwesenheit)) {
     throw new Error(`Unbekannte Abwesenheit '${abwesenheit}'`);
   }
   const regel = regelSoll(arbeitszeit, tag);
-  const soll = abwesenheit ? 0 : regel;
+  const abbau = abwesenheit === 'gleitzeitabbau' ? abbauAmTag(regel, abbauMinuten) : 0;
+  const soll = abwesenheit === 'gleitzeitabbau' ? regel - abbau : abwesenheit ? 0 : regel;
   const buchungen = [];
 
   if (soll > 0 || istMinuten > 0) {
     buchungen.push({ art: 'tagessaldo', minuten: istMinuten - soll, soll_minuten: soll, ist_minuten: istMinuten });
   }
-  if (abwesenheit === 'gleitzeitabbau' && regel > 0) {
-    buchungen.push({ art: 'abbau', minuten: -regel, referenz_id: referenzId });
+  if (abbau > 0) {
+    buchungen.push({ art: 'abbau', minuten: -abbau, referenz_id: referenzId });
   }
   return buchungen;
+}
+
+/** Abgebuchte Minuten: ganzer Tag = Regel-Soll, stundenweise = Dauer, höchstens Regel-Soll. */
+function abbauAmTag(regel, abbauMinuten = null) {
+  if (regel <= 0) return 0;
+  return abbauMinuten === null || abbauMinuten === undefined ? regel : Math.min(Math.max(0, abbauMinuten), regel);
 }
 
 /**
  * Alle automatischen Buchungen für einen Zeitraum.
  * historie:      [{ gueltig_ab, wochenstunden, arbeitstage }]
  * istProTag:     Map tag -> Minuten (ohne Krankheit)
- * abwesenheiten: Map tag -> { art, referenzId }   (Krankheit, genehmigter Urlaub/Abbau)
+ * abwesenheiten: Map tag -> { art, referenzId, abbauMinuten? }   (Krankheit, genehmigter Urlaub/Abbau)
  */
 function zeitraumBuchungen({ von, bis, historie, istProTag, abwesenheiten }) {
   const ergebnis = [];
@@ -93,6 +117,7 @@ function zeitraumBuchungen({ von, bis, historie, istProTag, abwesenheiten }) {
       istMinuten: istProTag.get(tag) || 0,
       abwesenheit: abw ? abw.art : null,
       referenzId: abw ? abw.referenzId || null : null,
+      abbauMinuten: abw ? abw.abbauMinuten ?? null : null,
     })) {
       ergebnis.push({ datum: tag, ...b });
     }
@@ -109,5 +134,6 @@ function formatMinuten(min) {
 
 module.exports = {
   parseArbeitstage, arbeitszeitAm, regelSoll, eintragMinuten,
+  uhrzeitMinuten, abbauDauer, abbauAmTag,
   tagesbuchungen, zeitraumBuchungen, formatMinuten,
 };
