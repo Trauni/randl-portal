@@ -10,6 +10,9 @@ export default function Topbar({ user }) {
   const displayName = user?.display_name || user?.fullName || user?.username || '?';
   const initials = displayName.split(' ').filter(Boolean).slice(0,2).map(s=>s[0].toUpperCase()).join('');
   const groups = user?.groups || [];
+  // Externer Link zu OpenProject, nur Geschäftsführung und Backoffice
+  const tags = user?.accessTags || [];
+  const showProjekte = tags.includes('geschaeftsfuehrung') || tags.includes('backoffice');
   const roleLabel = ['Geschäftsführung','Backoffice'].some(g => groups.includes(g)) ? 'Administrator'
     : groups.includes('it') ? 'IT'
     : groups.includes('Gashandel') ? 'Gashandel'
@@ -29,6 +32,12 @@ export default function Topbar({ user }) {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
           <span>Doku</span>
         </a>
+        {showProjekte && (
+          <a href="https://projects.randlweb.de" target="_blank" rel="noreferrer" className="topbar-quicklink-btn" title="OpenProject">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            <span>Projekte</span>
+          </a>
+        )}
         <button className="topbar-theme-btn" title="Light/Dark wechseln"
           onClick={() => {
             const root = document.getElementById('root');
