@@ -100,3 +100,49 @@ test('formatMinuten', () => {
   assert.equal(g.formatMinuten(-185), '-3:05');
   assert.equal(g.formatMinuten(0), '0:00');
 });
+
+test('abbauDauer: Uhrzeiten von–bis in Minuten', () => {
+  assert.equal(g.abbauDauer('12:00', '16:00'), 240);
+  assert.equal(g.abbauDauer('07:30:00', '11:45:00'), 255);
+  assert.equal(g.abbauDauer('12:00', '12:00'), null);
+  assert.equal(g.abbauDauer('16:00', '12:00'), null);
+  assert.equal(g.abbauDauer('25:00', '26:00'), null);
+  assert.equal(g.abbauDauer(null, '12:00'), null);
+});
+
+test('tagesbuchungen: stundenweiser Abbau senkt das Soll um die Dauer', () => {
+  const az = { wochenstunden: 40, arbeitstage: [1, 2, 3, 4, 5] }; // 8:00 pro Tag
+  // Vormittag gearbeitet (4:00), Nachmittag 4:00 Abbau -> Tag ausgeglichen
+  assert.deepEqual(
+    g.tagesbuchungen({ tag: '2026-11-10', arbeitszeit: az, istMinuten: 240, abwesenheit: 'gleitzeitabbau', referenzId: 9, abbauMinuten: 240 }),
+    [
+      { art: 'tagessaldo', minuten: 0, soll_minuten: 240, ist_minuten: 240 },
+      { art: 'abbau', minuten: -240, referenz_id: 9 },
+    ]);
+  // Mehr als das Tages-Soll beantragt -> höchstens das Soll, kein Rest-Soll
+  assert.deepEqual(
+    g.tagesbuchungen({ tag: '2026-11-10', arbeitszeit: az, abwesenheit: 'gleitzeitabbau', referenzId: 9, abbauMinuten: 600 }),
+    [{ art: 'abbau', minuten: -480, referenz_id: 9 }]);
+  // Nicht gearbeitet trotz Rest-Soll -> Minus
+  assert.deepEqual(
+    g.tagesbuchungen({ tag: '2026-11-10', arbeitszeit: az, abwesenheit: 'gleitzeitabbau', referenzId: 9, abbauMinuten: 120 }),
+    [
+      { art: 'tagessaldo', minuten: -360, soll_minuten: 360, ist_minuten: 0 },
+      { art: 'abbau', minuten: -120, referenz_id: 9 },
+    ]);
+  // Feiertag: nichts abzubauen
+  assert.deepEqual(
+    g.tagesbuchungen({ tag: '2026-12-25', arbeitszeit: az, abwesenheit: 'gleitzeitabbau', referenzId: 9, abbauMinuten: 240 }), []);
+});
+
+test('zeitraumBuchungen: stundenweiser Abbau aus der Abwesenheitsliste', () => {
+  const b = g.zeitraumBuchungen({
+    von: '2026-11-10', bis: '2026-11-10', historie: VOLLZEIT,
+    istProTag: new Map([['2026-11-10', 300]]),
+    abwesenheiten: new Map([['2026-11-10', { art: 'gleitzeitabbau', referenzId: 4, abbauMinuten: 180 }]]),
+  });
+  assert.deepEqual(b, [
+    { datum: '2026-11-10', art: 'tagessaldo', minuten: 0, soll_minuten: 300, ist_minuten: 300 },
+    { datum: '2026-11-10', art: 'abbau', minuten: -180, referenz_id: 4 },
+  ]);
+});

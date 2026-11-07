@@ -11,7 +11,11 @@ const fmtMin = (m) => {
 
 export default function Vacation() {
   const [requests, setRequests] = useState([])
-  const [form, setForm] = useState({ art: 'urlaub', start_date: '', end_date: '' })
+  const LEER = { art: 'urlaub', start_date: '', end_date: '', zeit_von: '', zeit_bis: '' }
+  const [form, setForm] = useState(LEER)
+  const [fehler, setFehler] = useState('')
+  // Stundenweiser Gleitzeitabbau (#490): nur ein Tag, Bis = Von
+  const stundenweise = form.art === 'gleitzeitabbau' && (form.zeit_von || form.zeit_bis)
   // Gleitzeitabbau (#490) nur anbieten, wenn ein Gleitzeitkonto aktiv ist
   const [konto, setKonto] = useState(null)
   useEffect(() => {
@@ -33,14 +37,22 @@ export default function Vacation() {
   const submit = async (e) => {
     e.preventDefault()
     setSubmitting(true)
-    await fetch('/api/vacation', {
+    setFehler('')
+    const { zeit_von, zeit_bis, ...rest } = form
+    const body = stundenweise ? { ...rest, end_date: rest.start_date, zeit_von, zeit_bis } : rest
+    const res = await fetch('/api/vacation', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify(body),
     })
     setSubmitting(false)
-    setForm({ art: 'urlaub', start_date: '', end_date: '' })
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}))
+      setFehler(e.error || 'Antrag fehlgeschlagen')
+      return
+    }
+    setForm(LEER)
     load()
   }
 
@@ -71,22 +83,42 @@ export default function Vacation() {
             onChange={(e) => setForm({ ...form, start_date: e.target.value })}
           />
         </label>
-        <label>
-          Bis
-          <input
-            type="date"
-            required
-            value={form.end_date}
-            onChange={(e) => setForm({ ...form, end_date: e.target.value })}
-          />
-        </label>
+        {!stundenweise && (
+          <label>
+            Bis
+            <input
+              type="date"
+              required
+              value={form.end_date}
+              onChange={(e) => setForm({ ...form, end_date: e.target.value })}
+            />
+          </label>
+        )}
+        {form.art === 'gleitzeitabbau' && (
+          <>
+            <label>
+              Frei ab (optional, nur ein Tag)
+              <input type="time" step="300" value={form.zeit_von}
+                onChange={(e) => setForm({ ...form, zeit_von: e.target.value })} />
+            </label>
+            <label>
+              Frei bis
+              <input type="time" step="300" value={form.zeit_bis} required={Boolean(form.zeit_von)}
+                onChange={(e) => setForm({ ...form, zeit_bis: e.target.value })} />
+            </label>
+          </>
+        )}
+        {fehler && <p className="card-sub" style={{ color: 'var(--red, #e05050)' }}>{fehler}</p>}
         <button type="submit" disabled={submitting}>Antrag stellen</button>
       </form>
 
       <ul className="card-list">
         {requests.map((r) => (
           <li key={r.id} className="card">
-            <span>{r.art === 'gleitzeitabbau' ? 'Gleitzeitabbau: ' : ''}{r.start_date} – {r.end_date}</span>
+            <span>
+              {r.art === 'gleitzeitabbau' ? 'Gleitzeitabbau: ' : ''}
+              {r.abbau_von ? `${r.start_date} ${String(r.abbau_von).slice(0, 5)}–${String(r.abbau_bis).slice(0, 5)} Uhr` : `${r.start_date} – ${r.end_date}`}
+            </span>
             <span className="card-sub">{r.status}</span>
             {r.status === 'pending' && (
               <button type="button" className="link-btn" onClick={() => cancel(r.id)}>Stornieren</button>

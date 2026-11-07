@@ -21,6 +21,7 @@
 const { getPool } = require('../db');
 const {
   zeitraumBuchungen, eintragMinuten, formatMinuten, arbeitszeitAm, regelSoll,
+  abbauDauer, abbauAmTag,
 } = require('../utils/gleitzeit');
 
 const AUTOMATISCH = ['tagessaldo', 'abbau'];
@@ -69,10 +70,14 @@ async function ladeZeiten(employeeId, von, bis, db) {
   return { istProTag, krank };
 }
 
-/** Genehmigte Urlaube/Abbau-Tage im Zeitraum: Map tag -> { art, referenzId }. */
+/**
+ * Genehmigte Urlaube/Abbau-Tage im Zeitraum: Map tag -> { art, referenzId, abbauMinuten }.
+ * abbauMinuten nur beim stundenweisen Abbau (abbau_von/abbau_bis gesetzt), sonst null.
+ */
 async function ladeAbwesenheiten(employeeId, von, bis, krank, db) {
   const [rows] = await db.query(
-    `SELECT id, art, DATE_FORMAT(start_date,'%Y-%m-%d') AS von, DATE_FORMAT(end_date,'%Y-%m-%d') AS bis
+    `SELECT id, art, DATE_FORMAT(start_date,'%Y-%m-%d') AS von, DATE_FORMAT(end_date,'%Y-%m-%d') AS bis,
+            TIME_FORMAT(abbau_von,'%H:%i') AS zeitVon, TIME_FORMAT(abbau_bis,'%H:%i') AS zeitBis
        FROM vacation_requests
       WHERE employee_id = ? AND status = 'approved' AND cancelled_at IS NULL
         AND start_date <= ? AND end_date >= ?`,
@@ -81,7 +86,12 @@ async function ladeAbwesenheiten(employeeId, von, bis, krank, db) {
   for (const r of rows) {
     const ende = new Date(minTag(r.bis, bis) + 'T12:00:00Z');
     for (let d = new Date(maxTag(r.von, von) + 'T12:00:00Z'); d <= ende; d = new Date(+d + 86400000)) {
-      map.set(d.toISOString().slice(0, 10), { art: r.art === 'gleitzeitabbau' ? 'gleitzeitabbau' : 'urlaub', referenzId: r.id });
+      const abbau = r.art === 'gleitzeitabbau';
+      map.set(d.toISOString().slice(0, 10), {
+        art: abbau ? 'gleitzeitabbau' : 'urlaub',
+        referenzId: r.id,
+        abbauMinuten: abbau && r.zeitVon ? abbauDauer(r.zeitVon, r.zeitBis) : null,
+      });
     }
   }
   // Krankheit schlägt Urlaub/Abbau: ein Krankentag im Urlaub bucht nichts ab.
@@ -238,16 +248,19 @@ async function tagesabschluss() {
 }
 
 /**
- * Tage eines Gleitzeitabbaus mit dem jeweils abgebuchten Regel-Soll:
+ * Tage eines Gleitzeitabbaus mit den jeweils abgebuchten Minuten:
  * nur Tage mit Soll > 0 (vereinbarter Arbeitstag, kein Feiertag).
+ * zeiten = { von: 'HH:MM', bis: 'HH:MM' } beim stundenweisen Abbau (nur ein Tag):
+ * dann die Dauer, höchstens das Tages-Soll.
  */
-async function abbauTage(employeeId, von, bis, db = getPool()) {
+async function abbauTage(employeeId, von, bis, db = getPool(), zeiten = null) {
   const historie = await ladeHistorie(employeeId, db);
+  const dauer = zeiten && zeiten.von ? abbauDauer(zeiten.von, zeiten.bis) : null;
   const tage = [];
   const ende = new Date(bis + 'T12:00:00Z');
   for (let d = new Date(von + 'T12:00:00Z'); d <= ende; d = new Date(+d + 86400000)) {
     const tag = d.toISOString().slice(0, 10);
-    const minuten = regelSoll(arbeitszeitAm(historie, tag), tag);
+    const minuten = abbauAmTag(regelSoll(arbeitszeitAm(historie, tag), tag), dauer);
     if (minuten > 0) tage.push({ tag, minuten });
   }
   return tage;
@@ -257,22 +270,24 @@ async function abbauTage(employeeId, von, bis, db = getPool()) {
  * Vorschau fürs Antragsformular: aktueller Stand, bereits geplanter Abbau
  * (offene und genehmigte Anträge ab heute, noch nicht gebucht) und Stand danach.
  */
-async function abbauVorschau(employeeId, von, bis) {
+async function abbauVorschau(employeeId, von, bis, zeiten = null) {
   const db = getPool();
   const konto = await ladeKonto(employeeId, db);
   if (!konto.aktiv) return { aktiv: false };
   const heute = heuteLokal();
-  const tage = await abbauTage(employeeId, von, bis, db);
+  const tage = await abbauTage(employeeId, von, bis, db, zeiten);
   const minuten = tage.reduce((s, t) => s + t.minuten, 0);
 
   const [antraege] = await db.query(
-    `SELECT DATE_FORMAT(start_date,'%Y-%m-%d') AS von, DATE_FORMAT(end_date,'%Y-%m-%d') AS bis
+    `SELECT DATE_FORMAT(start_date,'%Y-%m-%d') AS von, DATE_FORMAT(end_date,'%Y-%m-%d') AS bis,
+            TIME_FORMAT(abbau_von,'%H:%i') AS zeitVon, TIME_FORMAT(abbau_bis,'%H:%i') AS zeitBis
        FROM vacation_requests
       WHERE employee_id = ? AND art = 'gleitzeitabbau' AND status IN ('pending', 'approved')
         AND cancelled_at IS NULL AND end_date >= ?`, [employeeId, heute]);
   let geplant = 0;
   for (const a of antraege) {
-    for (const t of await abbauTage(employeeId, maxTag(a.von, heute), a.bis, db)) geplant += t.minuten;
+    const z = a.zeitVon ? { von: a.zeitVon, bis: a.zeitBis } : null;
+    for (const t of await abbauTage(employeeId, maxTag(a.von, heute), a.bis, db, z)) geplant += t.minuten;
   }
   const stand = await kontostand(employeeId);
   return {
