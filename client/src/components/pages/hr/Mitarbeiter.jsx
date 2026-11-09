@@ -513,7 +513,7 @@ export default function Mitarbeiter() {
           <span>
             {syncResult.error
               ? `Fehler: ${syncResult.error}`
-              : `✓ Sync abgeschlossen — ${syncResult.created} neu, ${syncResult.updated} aktualisiert, ${syncResult.total} gesamt`
+              : `✓ Sync abgeschlossen — ${syncResult.created} neu verknüpft, ${syncResult.updated} bereits verknüpft, ${syncResult.skipped || 0} übersprungen, ${syncResult.total} gesamt`
             }
           </span>
           <button onClick={() => setSyncResult(null)} style={{

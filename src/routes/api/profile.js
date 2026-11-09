@@ -64,7 +64,7 @@ router.put('/', requireAuth, async (req, res) => {
        WHERE authentik_uid = ?`,
       [display_name??null, phone??null, phone_mobile??null,
        address_street??null, address_zip??null, address_city??null,
-       address_country??null, email??null, uid]
+       address_country??null, email||null, uid]
     );
 
     // E-Mail nach Authentik (PATCH nur bei Abweichung, holt auch alte Altfaelle nach).

@@ -16,6 +16,7 @@ async function syncFromRentman() {
 
   let created = 0, updated = 0, errors = 0, skipped = 0;
   const konflikte = [];
+  const unbekannt = [];
 
   try {
     const res = await fetch(`${RENTMAN_URL}/crew`, {
@@ -36,41 +37,19 @@ async function syncFromRentman() {
       // Ohne E-Mail: Support-/Entwicklungs-Account in Rentman, nicht importieren
       if (!m.email) { skipped++; continue; }
       try {
-        // #500: vorhandenen Portal-User (z. B. aus SSO-Login) über E-Mail an die Rentman-ID hängen,
-        // statt einen zweiten anzulegen. Mehrdeutig -> melden, nicht anlegen.
+        // Portal führt (#498): Der Sync legt niemanden mehr an und überschreibt keine Stammdaten
+        // (Name, E-Mail, Telefon). Er verknüpft nur vorhandene Portal-User mit ihrer Rentman-ID
+        // und merkt sich den Sync-Zeitpunkt. Unbekannte Crew-Mitglieder werden nur gemeldet.
         const { row, via, konflikt } = await findeMitarbeiter(getPool(), { rentmanId: m.id, email: m.email });
-        if (row && row.is_demo) { skipped++; continue; }
         if (konflikt) { konflikte.push(`Rentman ${m.id}: ${konflikt}`); skipped++; continue; }
-        if (row && row.status === 'inaktiv' && m.active) {
+        if (!row) { unbekannt.push(`${m.displayname || m.id} <${m.email}>`); skipped++; continue; }
+        if (row.is_demo) { skipped++; continue; }
+        if (row.status === 'inaktiv' && m.active) {
           konflikte.push(`Rentman ${m.id}: im Portal inaktiv, in Rentman aktiv (Abweichung, nicht geändert)`);
         }
-        if (row && via === 'email') {
-          await getPool().execute('UPDATE employees SET rentman_id = ? WHERE id = ?', [m.id, row.id]);
-        }
-        const [result] = await getPool().execute(`
-          INSERT INTO employees
-            (rentman_id, displayname, firstname, lastname, email, phone, active, rentman_synced_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
-          ON DUPLICATE KEY UPDATE
-            displayname        = VALUES(displayname),
-            firstname          = VALUES(firstname),
-            lastname           = VALUES(lastname),
-            email              = VALUES(email),
-            phone              = VALUES(phone),
-            active             = IF(status = 'inaktiv', 0, VALUES(active)),
-            rentman_synced_at  = NOW()
-        `, [
-          m.id,
-          m.displayname || `${m.firstname} ${m.lastname}`.trim(),
-          m.firstname || '',
-          m.lastname || '',
-          m.email || null,
-          m.phone || null,
-          m.active ? 1 : 0
-        ]);
-
-        if (result.affectedRows === 1) created++;
-        else updated++;
+        await getPool().execute(
+          'UPDATE employees SET rentman_id = ?, rentman_synced_at = NOW() WHERE id = ?', [m.id, row.id]);
+        if (via === 'email') created++; else updated++; // created = neu verknüpft
       } catch (err) {
         console.error(`[Rentman] Fehler bei ID ${m.id}:`, err.message);
         errors++;
@@ -78,8 +57,9 @@ async function syncFromRentman() {
     }
 
     console.log(`[Rentman] Sync fertig: +${created} neu, ~${updated} aktualisiert, ${errors} Fehler, ${skipped} uebersprungen`);
+    if (unbekannt.length) console.warn('[Rentman] Nicht im Portal:', unbekannt.join(' | '));
     if (konflikte.length) console.warn('[Rentman] Konflikte:', konflikte.join(' | '));
-    return { created, updated, errors, skipped, konflikte, total: crew.length };
+    return { created, updated, errors, skipped, konflikte, unbekannt, total: crew.length };
 
   } catch (err) {
     console.error('[Rentman] Sync-Fehler:', err.message);

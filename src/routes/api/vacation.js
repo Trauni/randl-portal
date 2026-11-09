@@ -212,11 +212,17 @@ router.patch('/:id/approve', requireAuth, async (req, res) => {
     // liste auf der Zeiterfassungsseite zeigt den Rueckstand.
     if (antwort && antwort.status === 'approved') {
       try {
+        const [[rm]] = await pool.query('SELECT rentman_id FROM employees WHERE id = ?', [rows[0].employee_id]);
+        if (!rm || !rm.rentman_id) throw Object.assign(new Error('keine rentman_id'), { ohneRentman: true });
         // Urlaub mit 13-Wochen-Schnitt, Gleitzeitabbau als Kompensation (#490)
         antwort.rentman = await urlaub.nachRentman(Number(req.params.id));
       } catch (e) {
-        console.error(`[vacation] Antrag ${req.params.id} nicht nach Rentman uebertragen: ${e.message}`);
-        antwort.rentman = { fehler: e.message };
+        if (e.ohneRentman) {
+          antwort.rentman = { uebersprungen: true }; // Mitarbeiter ohne Rentman: nichts zu spiegeln
+        } else {
+          console.error(`[vacation] Antrag ${req.params.id} nicht nach Rentman uebertragen: ${e.message}`);
+          antwort.rentman = { fehler: e.message };
+        }
       }
       // An genehmigten Urlaubstagen entfaellt das Gleitzeit-Soll (#490).
       // Wirkt nur fuer vergangene Tage, kuenftige bucht der Tagesabschluss.
