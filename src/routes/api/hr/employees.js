@@ -61,8 +61,8 @@ router.post('/', async (req, res) => {
     }
     const authentik = await createUser({ username, name: fullName, email });
     const [ins] = await pool.execute(
-      `INSERT INTO employees (username, full_name, firstname, lastname, displayname, email, role, vacation_days_total, active, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 'aktiv')`,
+      `INSERT INTO employees (username, full_name, firstname, lastname, displayname, email, role, vacation_days_total, active, status, zeiterfassung_quelle)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 'aktiv', 'portal')`,
       [username, fullName, firstname, lastname, fullName, email, role, b.vacation_days_total ?? 30]
     );
     for (const t of tags) {
