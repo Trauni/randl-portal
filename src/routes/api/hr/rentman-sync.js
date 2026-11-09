@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getPool } = require('../../../db');
 const cron = require('node-cron');
+const { findeMitarbeiter } = require('../../../services/mitarbeiterMatch');
 
 const RENTMAN_URL = process.env.RENTMAN_API_URL || 'https://api.rentman.net';
 const RENTMAN_TOKEN = process.env.RENTMAN_API_TOKEN;
@@ -14,6 +15,7 @@ async function syncFromRentman() {
   }
 
   let created = 0, updated = 0, errors = 0, skipped = 0;
+  const konflikte = [];
 
   try {
     const res = await fetch(`${RENTMAN_URL}/crew`, {
@@ -34,6 +36,13 @@ async function syncFromRentman() {
       // Ohne E-Mail: Support-/Entwicklungs-Account in Rentman, nicht importieren
       if (!m.email) { skipped++; continue; }
       try {
+        // #500: vorhandenen Portal-User (z. B. aus SSO-Login) über E-Mail an die Rentman-ID hängen,
+        // statt einen zweiten anzulegen. Mehrdeutig -> melden, nicht anlegen.
+        const { row, via, konflikt } = await findeMitarbeiter(getPool(), { rentmanId: m.id, email: m.email });
+        if (konflikt) { konflikte.push(`Rentman ${m.id}: ${konflikt}`); skipped++; continue; }
+        if (row && via === 'email') {
+          await getPool().execute('UPDATE employees SET rentman_id = ? WHERE id = ?', [m.id, row.id]);
+        }
         const [result] = await getPool().execute(`
           INSERT INTO employees
             (rentman_id, displayname, firstname, lastname, email, phone, active, rentman_synced_at)
@@ -65,7 +74,8 @@ async function syncFromRentman() {
     }
 
     console.log(`[Rentman] Sync fertig: +${created} neu, ~${updated} aktualisiert, ${errors} Fehler, ${skipped} uebersprungen`);
-    return { created, updated, errors, skipped, total: crew.length };
+    if (konflikte.length) console.warn('[Rentman] Konflikte:', konflikte.join(' | '));
+    return { created, updated, errors, skipped, konflikte, total: crew.length };
 
   } catch (err) {
     console.error('[Rentman] Sync-Fehler:', err.message);
