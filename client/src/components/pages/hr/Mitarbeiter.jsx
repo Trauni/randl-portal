@@ -334,12 +334,73 @@ function MitarbeiterModal({ emp, departments, onClose, onSave }) {
 }
 
 // ── Hauptseite ────────────────────────────────────────────────────────────────
+const ANLEGEN_TAGS = [['geschaeftsfuehrung', 'Geschäftsführung'], ['backoffice', 'Backoffice'], ['gashandel', 'Gashandel'],
+  ['zeltverleih', 'Zeltverleih'], ['metallarbeiten', 'Maschinenbau']];
+
+function AnlegenModal({ onClose, onCreated }) {
+  const [f, setF] = useState({ firstname: '', lastname: '', email: '', role: 'mitarbeiter', vacation_days_total: 30, accessTags: [] });
+  const [busy, setBusy] = useState(false);
+  const [fehler, setFehler] = useState(null);
+  const [ergebnis, setErgebnis] = useState(null);
+  const set = (k, v) => setF(prev => ({ ...prev, [k]: v }));
+  const inp = { width: '100%', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '8px', color: 'var(--text1)', fontSize: '13px', marginBottom: '10px', boxSizing: 'border-box' };
+
+  const speichern = async () => {
+    setBusy(true); setFehler(null);
+    try {
+      const r = await fetch('/api/hr/employees', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setFehler(d.error || 'Fehlgeschlagen'); return; }
+      setErgebnis(d); onCreated();
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+      <div style={{ background: 'var(--bg1)', border: '1px solid var(--border)', borderRadius: '10px', padding: '20px', width: '100%', maxWidth: '440px', maxHeight: '90vh', overflow: 'auto' }}>
+        <h2 style={{ margin: '0 0 14px', fontSize: '16px', color: 'var(--text1)' }}>Mitarbeiter anlegen</h2>
+        {ergebnis ? (
+          <div style={{ fontSize: '13px', color: 'var(--text1)' }}>
+            <p>Angelegt. {ergebnis.mailVersandt ? 'Der Link zum Passwort-Setzen wurde per E-Mail verschickt.' : 'Link zum Passwort-Setzen (einmalig weitergeben):'}</p>
+            {!ergebnis.mailVersandt && ergebnis.recoveryLink && <input readOnly value={ergebnis.recoveryLink} style={inp} onFocus={e => e.target.select()} />}
+            {ergebnis.warnung && <p style={{ color: 'var(--red2)' }}>{ergebnis.warnung}</p>}
+            {ergebnis.push && ergebnis.push.ok === false && <p style={{ color: 'var(--red2)' }}>Gruppen in Authentik nicht gesetzt: {ergebnis.push.error}</p>}
+            <button onClick={onClose} style={{ ...inp, background: 'var(--r)', color: '#fff', cursor: 'pointer', border: 'none' }}>Schließen</button>
+          </div>
+        ) : (
+          <>
+            <input style={inp} placeholder="Vorname" value={f.firstname} onChange={e => set('firstname', e.target.value)} />
+            <input style={inp} placeholder="Nachname" value={f.lastname} onChange={e => set('lastname', e.target.value)} />
+            <input style={inp} placeholder="E-Mail" type="email" value={f.email} onChange={e => set('email', e.target.value)} />
+            <select style={inp} value={f.role} onChange={e => set('role', e.target.value)}>
+              <option value="mitarbeiter">Mitarbeiter</option><option value="freelancer">Freelancer</option><option value="extern">Extern</option>
+            </select>
+            <input style={inp} type="number" placeholder="Urlaubstage" value={f.vacation_days_total} onChange={e => set('vacation_days_total', Number(e.target.value))} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '12px', fontSize: '12px', color: 'var(--text2)' }}>
+              {ANLEGEN_TAGS.map(([k, l]) => (
+                <label key={k}><input type="checkbox" checked={f.accessTags.includes(k)}
+                  onChange={() => set('accessTags', f.accessTags.includes(k) ? f.accessTags.filter(x => x !== k) : [...f.accessTags, k])} /> {l}</label>
+              ))}
+            </div>
+            {fehler && <div style={{ color: 'var(--red2)', fontSize: '12px', marginBottom: '10px' }}>{fehler}</div>}
+            <button onClick={speichern} disabled={busy} style={{ ...inp, background: 'var(--r)', color: '#fff', border: 'none', cursor: busy ? 'not-allowed' : 'pointer', fontWeight: 600 }}>
+              {busy ? 'Lege an...' : 'Anlegen (Portal + Authentik)'}
+            </button>
+            <button onClick={onClose} style={{ ...inp, background: 'transparent', cursor: 'pointer', marginBottom: 0 }}>Abbrechen</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Mitarbeiter() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [anlegen, setAnlegen] = useState(false);
   const [filter, setFilter] = useState('active'); // 'all' | 'active' | 'inactive'
   const [search, setSearch] = useState('');
   const [lastSync, setLastSync] = useState(null);
@@ -417,6 +478,11 @@ export default function Mitarbeiter() {
             Letzter Rentman-Sync: {formatDate(lastSync)}
           </div>
         </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+        <button onClick={() => setAnlegen(true)} style={{
+          background: 'var(--r)', border: 'none', borderRadius: '7px', padding: '9px 16px',
+          color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer'
+        }}>+ Mitarbeiter anlegen</button>
         <button
           onClick={handleSync}
           disabled={syncing}
@@ -431,7 +497,9 @@ export default function Mitarbeiter() {
         >
           <IconSync /> {syncing ? 'Sync läuft...' : 'Sync mit Rentman'}
         </button>
+        </div>
       </div>
+      {anlegen && <AnlegenModal onClose={() => setAnlegen(false)} onCreated={loadEmployees} />}
 
       {/* Sync-Ergebnis Banner */}
       {syncResult && (
