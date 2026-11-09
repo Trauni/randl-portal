@@ -229,7 +229,7 @@ async function tagesabschluss() {
     `SELECT e.id,
             (SELECT COUNT(*) FROM gleitzeit_buchungen b WHERE b.employee_id = e.id AND b.art = 'tagessaldo') AS gebucht
        FROM employees e
-      WHERE e.gleitzeit_aktiv = 1 AND e.gleitzeit_seit IS NOT NULL AND e.zeiterfassung_quelle = 'portal'`);
+      WHERE e.is_demo = 0 AND e.gleitzeit_aktiv = 1 AND e.gleitzeit_seit IS NOT NULL AND e.zeiterfassung_quelle = 'portal'`);
   const heute = heuteLokal();
   const ergebnis = [];
   for (const k of konten) {

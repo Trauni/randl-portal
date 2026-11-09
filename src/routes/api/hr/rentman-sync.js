@@ -39,7 +39,11 @@ async function syncFromRentman() {
         // #500: vorhandenen Portal-User (z. B. aus SSO-Login) über E-Mail an die Rentman-ID hängen,
         // statt einen zweiten anzulegen. Mehrdeutig -> melden, nicht anlegen.
         const { row, via, konflikt } = await findeMitarbeiter(getPool(), { rentmanId: m.id, email: m.email });
+        if (row && row.is_demo) { skipped++; continue; }
         if (konflikt) { konflikte.push(`Rentman ${m.id}: ${konflikt}`); skipped++; continue; }
+        if (row && row.status === 'inaktiv' && m.active) {
+          konflikte.push(`Rentman ${m.id}: im Portal inaktiv, in Rentman aktiv (Abweichung, nicht geändert)`);
+        }
         if (row && via === 'email') {
           await getPool().execute('UPDATE employees SET rentman_id = ? WHERE id = ?', [m.id, row.id]);
         }
@@ -53,7 +57,7 @@ async function syncFromRentman() {
             lastname           = VALUES(lastname),
             email              = VALUES(email),
             phone              = VALUES(phone),
-            active             = VALUES(active),
+            active             = IF(status = 'inaktiv', 0, VALUES(active)),
             rentman_synced_at  = NOW()
         `, [
           m.id,

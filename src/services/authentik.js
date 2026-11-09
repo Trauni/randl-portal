@@ -97,4 +97,20 @@ async function updateUserEmail({ username, oldEmail, email }) {
   return { username: user.username, geaendert: true };
 }
 
-module.exports = { syncEmployeeGroups, getGroups, updateUserEmail };
+// #502: Konto sperren/entsperren. Beim Sperren werden die Sitzungen des Nutzers beendet.
+async function setUserActive({ username, email, active }) {
+  const user = await findUser({ username, email });
+  if (!user) throw new Error(`Kein Authentik-Konto fuer ${username || email}`);
+  if (user.is_active !== active) {
+    await api(`/core/users/${user.pk}/`, { method: 'PATCH', body: JSON.stringify({ is_active: active }) });
+  }
+  if (!active) {
+    const s = await api(`/core/authenticated_sessions/?user=${user.pk}&page_size=200`).catch(() => null);
+    for (const sess of (s && s.results) || []) {
+      await api(`/core/authenticated_sessions/${sess.uuid}/`, { method: 'DELETE' }).catch(() => {});
+    }
+  }
+  return { username: user.username, aktiv: active };
+}
+
+module.exports = { syncEmployeeGroups, getGroups, updateUserEmail, setUserActive };
