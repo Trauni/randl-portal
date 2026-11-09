@@ -2,6 +2,7 @@ const express = require('express');
 const { Issuer, generators } = require('openid-client');
 const db = require('../db');
 const { roleFromGroups, tagsFromGroups } = require('../utils/permissions');
+const { namenAusClaims } = require('../services/mitarbeiterMatch');
 const router = express.Router();
 
 let oidcClient = null;
@@ -96,7 +97,8 @@ router.get('/callback', async (req, res, next) => {
     // Benutzer in DB upserten
     const authentikUid = claims.sub;
     const username = claims.preferred_username || claims.email;
-    const fullName = claims.name || username;
+    const claimName = namenAusClaims(claims); // leer, wenn Authentik nur den Benutzernamen liefert (#500)
+    let fullName = claimName || username;
     const email = claims.email || '';
 
     let employee;
@@ -104,7 +106,7 @@ router.get('/callback', async (req, res, next) => {
       employee = await db.upsertEmployee({
         authentikUid,
         username,
-        fullName,
+        fullName: claimName,
         email,
         groups,
       });
@@ -112,6 +114,8 @@ router.get('/callback', async (req, res, next) => {
       console.error('DB upsert fehlgeschlagen:', dbErr.message);
       // Trotzdem weitermachen — Session ohne DB-ID
     }
+
+    if (employee?.full_name) fullName = employee.full_name;
 
     // Initialen für Avatar berechnen
     const parts = fullName.split(' ');

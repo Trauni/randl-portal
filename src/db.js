@@ -1,4 +1,5 @@
 const mysql = require('mysql2/promise');
+const { findeMitarbeiter } = require('./services/mitarbeiterMatch');
 
 let pool = null;
 
@@ -23,32 +24,32 @@ async function upsertEmployee({ authentikUid, username, fullName, email, groups 
   const db = getPool();
   const groupsJson = JSON.stringify(groups || []);
 
-  // E-Mail-Fallback: bereits vorhandene Zeile (z. B. aus dem Rentman-Sync) adoptieren,
-  // statt beim ersten Login eine zweite anzulegen.
-  if (email) {
-    await db.execute(
-      'UPDATE employees SET authentik_uid = ? WHERE email = ? AND authentik_uid IS NULL',
-      [authentikUid, email]
-    );
-  }
-  const [rows] = await db.execute(
-    `INSERT INTO employees (authentik_uid, username, full_name, email, authentik_groups)
-     VALUES (?, ?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE
-       username         = VALUES(username),
-       full_name        = VALUES(full_name),
-       email            = VALUES(email),
-       authentik_groups = VALUES(authentik_groups),
-       updated_at       = NOW()`,
-    [authentikUid, username, fullName, email, groupsJson]
-  );
+  // #500: erst über feste IDs, dann über E-Mail (case-insensitive) zuordnen, nie doppelt anlegen.
+  // fullName ist leer, wenn Authentik keinen echten Namen liefert -> vorhandenen Namen behalten.
+  const { row, konflikt } = await findeMitarbeiter(db, { authentikUid, email });
+  if (konflikt) throw new Error(`Mitarbeiter-Zuordnung mehrdeutig: ${konflikt}`);
 
-  // Nach Upsert den aktuellen Datensatz holen
-  const [found] = await db.execute(
-    'SELECT * FROM employees WHERE authentik_uid = ?',
-    [authentikUid]
+  if (row) {
+    await db.execute(
+      `UPDATE employees SET
+         authentik_uid    = ?,
+         username         = COALESCE(NULLIF(?, ''), username),
+         full_name        = COALESCE(NULLIF(?, ''), full_name),
+         email            = COALESCE(NULLIF(?, ''), email),
+         authentik_groups = ?,
+         updated_at       = NOW()
+       WHERE id = ?`,
+      [authentikUid, username || '', fullName || '', email || '', groupsJson, row.id]
+    );
+    return getEmployeeById(row.id);
+  }
+
+  await db.execute(
+    `INSERT INTO employees (authentik_uid, username, full_name, email, authentik_groups)
+     VALUES (?, ?, ?, ?, ?)`,
+    [authentikUid, username, fullName || username, email, groupsJson]
   );
-  return found[0] || null;
+  return getEmployeeByUid(authentikUid);
 }
 
 async function getEmployeeById(id) {
