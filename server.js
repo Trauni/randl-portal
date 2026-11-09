@@ -219,6 +219,8 @@ app.listen(PORT, '127.0.0.1', () => {
 
 // Metall-Sync (#363): Lexware-Belege der Metallkunden, nur mit METALL_SYNC_AKTIV=1
 if (process.env.METALL_SYNC_AKTIV === '1') require('./src/services/metallSync').starteZeitplan();
+// Urlaub: vorlaeufige Werte abschliessen (#491), abschaltbar mit URLAUB_NACHTJOB=0
+require('./src/services/urlaub').starteZeitplan();
 // Kundenmails Fertigung/neue Fotos (#377), nur mit METALL_KUNDENMAILS_AKTIV=1
 require('./src/services/metallBenachrichtigung').starteZeitplan();
 

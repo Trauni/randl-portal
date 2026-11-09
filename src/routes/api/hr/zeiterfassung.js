@@ -114,7 +114,9 @@ auswertung.get('/urlaub-abgleich', async (req, res) => {
     const heute = new Date().toISOString().slice(0, 10);
     res.json(offen.map((r) => ({
       ...r,
-      grund: r.rentman_leaverequest_id ? 'Wert noch vorlaeufig' : 'nie uebertragen',
+      grund: r.stunden_sekunden === null || r.stunden_sekunden === undefined
+        ? 'nie berechnet'
+        : r.rentman_leaverequest_id ? 'Wert noch vorlaeufig' : 'nie nach Rentman uebertragen',
       artLabel: r.art === 'gleitzeitabbau' ? 'Gleitzeitabbau' : 'Urlaub',
       vergangen: r.bis < heute,
     })));

@@ -207,22 +207,19 @@ router.patch('/:id/approve', requireAuth, async (req, res) => {
     );
     const [rows] = await pool.query('SELECT * FROM vacation_requests WHERE id=?', [req.params.id]);
     const antwort = normalizeRow(rows[0]);
-    // Nach Rentman schreiben. Ein Fehler darf die Genehmigung nicht
-    // scheitern lassen: der naechtliche Job holt es nach, und die Abgleichs-
-    // liste auf der Zeiterfassungsseite zeigt den Rueckstand.
+    // Urlaub im Portal berechnen und festhalten, danach (nur mit rentman_id)
+    // nach Rentman spiegeln. Ein Fehler darf die Genehmigung nicht scheitern
+    // lassen: der naechtliche Job holt es nach, und die Abgleichsliste auf der
+    // Zeiterfassungsseite zeigt den Rueckstand.
     if (antwort && antwort.status === 'approved') {
       try {
-        const [[rm]] = await pool.query('SELECT rentman_id FROM employees WHERE id = ?', [rows[0].employee_id]);
-        if (!rm || !rm.rentman_id) throw Object.assign(new Error('keine rentman_id'), { ohneRentman: true });
-        // Urlaub mit 13-Wochen-Schnitt, Gleitzeitabbau als Kompensation (#490)
-        antwort.rentman = await urlaub.nachRentman(Number(req.params.id));
+        // Urlaub mit 13-Wochen-Schnitt, Gleitzeitabbau als Kompensation (#490, #491)
+        antwort.verbuchung = await urlaub.nachRentman(Number(req.params.id));
+        antwort.rentman = antwort.verbuchung.rentman;
       } catch (e) {
-        if (e.ohneRentman) {
-          antwort.rentman = { uebersprungen: true }; // Mitarbeiter ohne Rentman: nichts zu spiegeln
-        } else {
-          console.error(`[vacation] Antrag ${req.params.id} nicht nach Rentman uebertragen: ${e.message}`);
-          antwort.rentman = { fehler: e.message };
-        }
+        console.error(`[vacation] Antrag ${req.params.id} nicht verbucht: ${e.message}`);
+        antwort.verbuchung = { fehler: e.message };
+        antwort.rentman = { fehler: e.message };
       }
       // An genehmigten Urlaubstagen entfaellt das Gleitzeit-Soll (#490).
       // Wirkt nur fuer vergangene Tage, kuenftige bucht der Tagesabschluss.

@@ -1,8 +1,10 @@
 /**
- * Urlaub — Berechnung der Urlaubsstunden und Rückschreiben nach Rentman.
+ * Urlaub — Berechnung der Urlaubsstunden im Portal, optional gespiegelt nach Rentman.
  *
- * Das Portal ist führend für Urlaub, Rentman für die Arbeitszeit. Bei der
- * Genehmigung legt das Portal in Rentman einen Abwesenheitsantrag mit einem
+ * Das Portal ist führend für Urlaub und Arbeitszeit (#491); Rentman ist nur noch
+ * Spiegel für Personen, die in beiden Systemen existieren. Berechnung und Nachweis
+ * (Schnitt, Fenster, Quelle, Stunden je Tag) liegen vollständig im Portal. Bei der
+ * Genehmigung legt das Portal für Personen mit rentman_id in Rentman einen Abwesenheitsantrag mit einem
  * Zeiteintrag je Werktag an. Die angerechneten Stunden sind der Durchschnitt
  * pro Arbeitstag aus den 13 Wochen vor dem Urlaubsbeginn (§ 11 BUrlG).
  *
@@ -29,6 +31,7 @@
 const { getPool } = require('../db');
 const { arbeitstage } = require('../utils/feiertage');
 const gleitzeit = require('./gleitzeit');
+const { eintragMinuten, arbeitszeitAm } = require('../utils/gleitzeit');
 
 const BASE = 'https://api.rentman.net';
 const FENSTER_TAGE = 91;              // 13 Wochen
@@ -67,14 +70,40 @@ function werktage(von, bis) {
 const tagVor = (tag, n = 1) =>
   new Date(+new Date(tag + 'T12:00:00Z') - n * TAG_MS).toISOString().slice(0, 10);
 
-/**
- * Durchschnittliche Arbeitszeit pro Arbeitstag im Fenster vor dem Urlaubsbeginn.
- * Nur `leavetype 1` — sonst rechnen sich Urlaub und Krankheit in ihre eigene
- * Bemessungsgrundlage hinein. Nenner sind verschiedene Kalendertage, keine
- * Buchungen: zwei Buchungen an einem Tag würden den Schnitt sonst halbieren.
- */
-async function bemessung(rentmanId, beginn) {
-  const von = tagVor(beginn, FENSTER_TAGE);
+/** Fasst Sekunden je Kalendertag zum Schnitt zusammen. Nenner sind Tage, keine Buchungen. */
+function schnittAusTagen(proTag, von, beginn, quelle) {
+  const tage = Object.keys(proTag);
+  const sekunden = tage.reduce((s, t) => s + proTag[t], 0);
+  return {
+    von,
+    bis: tagVor(beginn),
+    tage: tage.length,
+    sekunden,
+    schnitt: tage.length ? Math.round(sekunden / tage.length) : 0,
+    quelle,
+  };
+}
+
+/** Arbeitszeit je Tag aus der Portal-Zeiterfassung (#491). Krankheit zählt nicht mit. */
+async function arbeitszeitAusPortal(employeeId, von, beginn) {
+  const [rows] = await getPool().query(
+    `SELECT DATE_FORMAT(tag,'%Y-%m-%d') AS tag, pause_sekunden,
+            TIMESTAMPDIFF(SECOND, start, ende) AS spanne
+       FROM time_entries
+      WHERE employee_id = ? AND tag >= ? AND tag < ?
+        AND eintrag_typ = 'arbeitszeit'
+        AND ende IS NOT NULL AND status IN ('abgeschlossen', 'auto_beendet')`,
+    [employeeId, von, beginn]);
+  const proTag = {};
+  for (const r of rows) {
+    const minuten = eintragMinuten(Number(r.spanne), Number(r.pause_sekunden));
+    proTag[r.tag] = (proTag[r.tag] || 0) + minuten * 60;
+  }
+  return proTag;
+}
+
+/** Arbeitszeit je Tag aus Rentman, nur für Mitarbeiter, die noch nicht im Portal buchen. */
+async function arbeitszeitAusRentman(rentmanId, von, beginn) {
   const eintraege = await api('GET', '/timeregistration?crewmember='
     + encodeURIComponent('/crew/' + rentmanId) + '&limit=500');
   const proTag = {};
@@ -84,15 +113,48 @@ async function bemessung(rentmanId, beginn) {
     if (!tag || tag < von || tag >= beginn) continue;
     proTag[tag] = (proTag[tag] || 0) + Number(e.duration || 0);
   }
-  const tage = Object.keys(proTag);
-  const sekunden = tage.reduce((s, t) => s + proTag[t], 0);
-  return {
-    von,
-    bis: tagVor(beginn),
-    tage: tage.length,
-    sekunden,
-    schnitt: tage.length ? Math.round(sekunden / tage.length) : 0,
-  };
+  return proTag;
+}
+
+/**
+ * Durchschnittliche Arbeitszeit pro Arbeitstag im Fenster vor dem Urlaubsbeginn (#491).
+ * Quelle ist die Portal-Zeiterfassung; Rentman ist dort nur Spiegel. Nur wer noch
+ * `zeiterfassung_quelle = 'rentman'` hat, wird bis zur Umstellung weiter aus Rentman
+ * gerechnet. Nur Arbeitszeit — sonst rechnen sich Urlaub und Krankheit in ihre eigene
+ * Bemessungsgrundlage hinein. Nenner sind verschiedene Kalendertage, keine Buchungen:
+ * zwei Buchungen an einem Tag würden den Schnitt sonst halbieren.
+ * mitarbeiter: { employee_id, zeiterfassung_quelle, rentman_id }
+ */
+async function bemessung(mitarbeiter, beginn) {
+  const von = tagVor(beginn, FENSTER_TAGE);
+  let proTag;
+  const quelle = mitarbeiter.zeiterfassung_quelle === 'portal' ? 'portal' : 'rentman';
+  if (quelle === 'portal') {
+    proTag = await arbeitszeitAusPortal(mitarbeiter.employee_id, von, beginn);
+  } else {
+    if (!mitarbeiter.rentman_id) {
+      throw new Error('Zeiterfassung läuft über Rentman, aber keine rentman_id hinterlegt');
+    }
+    proTag = await arbeitszeitAusRentman(mitarbeiter.rentman_id, von, beginn);
+  }
+  return schnittAusTagen(proTag, von, beginn, quelle);
+}
+
+/**
+ * Ersatz, wenn im Fenster keine Arbeitszeit liegt (neu eingestellt, lange krank):
+ * der vertraglich vereinbarte Tagesumfang aus der Arbeitszeit-Historie. Ohne
+ * Historie gibt es keinen belastbaren Wert, dann bleibt es beim Fehler.
+ */
+async function bemessungAusVertrag(employeeId, beginn, leer) {
+  const [rows] = await getPool().query(
+    `SELECT DATE_FORMAT(gueltig_ab,'%Y-%m-%d') AS gueltig_ab, wochenstunden, arbeitstage
+       FROM gleitzeit_arbeitszeit WHERE employee_id = ?`, [employeeId]);
+  const az = arbeitszeitAm(rows, beginn);
+  if (!az) {
+    throw new Error(`Keine Arbeitszeit zwischen ${leer.von} und ${leer.bis} und keine vereinbarte Wochenarbeitszeit hinterlegt — Schnitt nicht berechenbar`);
+  }
+  const schnitt = Math.round((az.wochenstunden * 3600) / az.arbeitstage.length);
+  return { ...leer, schnitt, quelle: 'vertrag' };
 }
 
 async function ladeAntrag(antragId) {
@@ -103,7 +165,7 @@ async function ladeAntrag(antragId) {
             DATE_FORMAT(vr.end_date,   '%Y-%m-%d') AS bis,
             TIME_FORMAT(vr.abbau_von, '%H:%i') AS zeitVon,
             TIME_FORMAT(vr.abbau_bis, '%H:%i') AS zeitBis,
-            e.rentman_id, e.full_name,
+            e.rentman_id, e.full_name, e.zeiterfassung_quelle,
             (SELECT rentman_id FROM employees WHERE id = vr.approved_by) AS pruefer
        FROM vacation_requests vr
        JOIN employees e ON e.id = vr.employee_id
@@ -136,9 +198,8 @@ async function vorschau(antragId) {
       vorgehen: a.lrId ? 'bereits als Kompensation übertragen' : 'als Kompensation anlegen und genehmigen',
     };
   }
-  if (!a.rentman_id) throw new Error(`${a.full_name} hat keine rentman_id`);
   const tage = werktage(a.von, a.bis);
-  const b = await bemessung(a.rentman_id, a.von);
+  const b = await bemessung(a, a.von);
   const rmStatus = await rentmanStatus(a.lrId);
   const heute = new Date().toISOString().slice(0, 10);
   const vorlaeufig = heute < a.von;
@@ -155,14 +216,18 @@ async function vorschau(antragId) {
   };
 }
 
-/** Legt den Urlaub in Rentman an oder aktualisiert ihn. */
-async function urlaubNachRentman(antragId) {
+/**
+ * Rechnet den Urlaub und hält das Ergebnis im Portal fest (#491). Das Portal ist
+ * die Akte: Schnitt, Bemessungsfenster, Quelle und Stunden je Tag stehen hier,
+ * unabhängig davon, ob es Rentman noch gibt. Wird bei Neuberechnung überschrieben,
+ * nicht vervielfacht.
+ */
+async function urlaubBerechnen(antragId) {
   const db = getPool();
   const a = await ladeAntrag(antragId);
 
   if (a.status !== 'approved') throw new Error(`Antrag ${antragId} ist ${a.status}, nicht approved`);
-  if (a.art !== 'urlaub') throw new Error(`Antrag ${antragId} ist ${a.art}, kein Urlaub — kompensationNachRentman() verwenden`);
-  if (!a.rentman_id) throw new Error(`${a.full_name} hat keine rentman_id`);
+  if (a.art !== 'urlaub') throw new Error(`Antrag ${antragId} ist ${a.art}, kein Urlaub`);
 
   const tage = werktage(a.von, a.bis);
   if (!tage.length) throw new Error(`Antrag ${antragId} enthält keine Werktage`);
@@ -170,14 +235,61 @@ async function urlaubNachRentman(antragId) {
     console.warn(`[urlaub] Antrag ${antragId}: ${tage.length} Werktage berechnet, days_count sagt ${a.days_count}`);
   }
 
-  const b = await bemessung(a.rentman_id, a.von);
-  if (!b.tage) throw new Error(`Keine Arbeitszeit zwischen ${b.von} und ${b.bis} — Schnitt nicht berechenbar`);
+  let b = await bemessung(a, a.von);
+  if (!b.tage) b = await bemessungAusVertrag(a.employee_id, a.von, b);
 
   const heute = new Date().toISOString().slice(0, 10);
   const vorlaeufig = heute < a.von ? 1 : 0;
+
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    for (const tag of tage) {
+      await conn.execute(
+        `INSERT INTO vacation_request_days (vacation_request_id, tag, stunden_sekunden)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE stunden_sekunden = VALUES(stunden_sekunden)`,
+        [antragId, tag, b.schnitt]);
+    }
+    // Tage mit Rentman-Zeiteintrag räumt erst der Spiegel ab, nachdem er sie dort gelöscht hat.
+    await conn.query(
+      `DELETE FROM vacation_request_days
+        WHERE vacation_request_id = ? AND rentman_timeregistration_id IS NULL AND tag NOT IN (?)`,
+      [antragId, tage]);
+    await conn.execute(
+      `UPDATE vacation_requests
+          SET stunden_sekunden = ?, vorlaeufig = ?, bemessung_von = ?, bemessung_bis = ?,
+              bemessung_tage = ?, bemessung_sekunden = ?, bemessung_quelle = ?, berechnet_am = NOW()
+        WHERE id = ?`,
+      [b.schnitt, vorlaeufig, b.von, b.bis, b.tage, b.sekunden, b.quelle, antragId]);
+    await conn.commit();
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
+  }
+
+  return { antragId, tage: tage.length, schnitt: b.schnitt, vorlaeufig: Boolean(vorlaeufig), bemessung: b };
+}
+
+/**
+ * Spiegelt einen bereits im Portal berechneten Urlaub nach Rentman (nur Mitarbeiter
+ * mit rentman_id). Schlägt das fehl, bleibt der Portal-Stand unberührt.
+ */
+async function urlaubNachRentman(antragId, berechnung) {
+  const db = getPool();
+  const a = await ladeAntrag(antragId);
+  if (!a.rentman_id) throw new Error(`${a.full_name} hat keine rentman_id`);
+
+  const tage = werktage(a.von, a.bis);
+  const b = berechnung.bemessung;
+  const vorlaeufig = berechnung.vorlaeufig ? 1 : 0;
   const bemerkung = vorlaeufig
     ? `VORLAEUFIG - Neuberechnung am ${a.von} (Mitarbeiterportal)`
-    : `Urlaub, Schnitt aus ${b.tage} Arbeitstagen ${b.von} bis ${b.bis} (Mitarbeiterportal)`;
+    : b.quelle === 'vertrag'
+      ? `Urlaub, vereinbarte Tagesarbeitszeit, keine Arbeitszeit ${b.von} bis ${b.bis} (Mitarbeiterportal)`
+      : `Urlaub, Schnitt aus ${b.tage} Arbeitstagen ${b.von} bis ${b.bis} (Mitarbeiterportal)`;
 
   const crew = '/crew/' + a.rentman_id;
   const pruefer = a.pruefer ? '/crew/' + a.pruefer : crew;
@@ -206,7 +318,8 @@ async function urlaubNachRentman(antragId) {
         });
       }
       console.warn(`[urlaub] Antrag ${antragId}: leaverequest ${lrId} war ${rmStatus}, wird ersetzt`);
-      await db.execute('DELETE FROM vacation_request_days WHERE vacation_request_id = ?', [antragId]);
+      // Die Tage selbst gehören dem Portal und bleiben; nur der Rentman-Bezug fällt weg.
+      await db.execute('UPDATE vacation_request_days SET rentman_timeregistration_id = NULL WHERE vacation_request_id = ?', [antragId]);
       lrId = null;
     }
   }
@@ -234,16 +347,11 @@ async function urlaubNachRentman(antragId) {
     const alt = bekannt.get(tag);
     if (alt && alt.tr) {
       await api('PUT', '/timeregistration/' + alt.tr, koerper);
-      await db.execute('UPDATE vacation_request_days SET stunden_sekunden = ? WHERE id = ?', [b.schnitt, alt.id]);
     } else {
       const neu = await api('POST', '/leaverequest/' + lrId + '/timeregistration', koerper);
       await db.execute(
-        `INSERT INTO vacation_request_days
-           (vacation_request_id, tag, rentman_timeregistration_id, stunden_sekunden)
-         VALUES (?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE rentman_timeregistration_id = VALUES(rentman_timeregistration_id),
-                                 stunden_sekunden = VALUES(stunden_sekunden)`,
-        [antragId, tag, neu.id, b.schnitt]);
+        'UPDATE vacation_request_days SET rentman_timeregistration_id = ? WHERE vacation_request_id = ? AND tag = ?',
+        [neu.id, antragId, tag]);
     }
     bekannt.delete(tag);
   }
@@ -261,19 +369,27 @@ async function urlaubNachRentman(antragId) {
       { requested_for: crew, approval_status: 'approved', reviewer: pruefer, description: titel });
   }
 
-  await db.execute(
-    `UPDATE vacation_requests
-        SET stunden_sekunden = ?, vorlaeufig = ?, bemessung_von = ?, bemessung_bis = ?,
-            bemessung_tage = ?, bemessung_sekunden = ?, berechnet_am = NOW()
-      WHERE id = ?`,
-    [b.schnitt, vorlaeufig, b.von, b.bis, b.tage, b.sekunden, antragId]);
-
   return {
-    antragId, leaverequestId: lrId, neuAngelegt,
-    tage: tage.length, schnitt: b.schnitt, vorlaeufig,
+    leaverequestId: lrId, neuAngelegt,
     rentmanStatus: vorlaeufig ? 'pending (Wert noch vorläufig)' : 'approved',
-    bemessung: b,
   };
+}
+
+/**
+ * Urlaub verbuchen: erst im Portal, dann — falls es Rentman für diese Person
+ * gibt — als Spiegel dorthin. Ein Rentman-Fehler macht die Berechnung nicht
+ * ungeschehen, er steht im Ergebnis unter `rentman.fehler`.
+ */
+async function urlaubVerbuchen(antragId) {
+  const berechnung = await urlaubBerechnen(antragId);
+  const a = await ladeAntrag(antragId);
+  if (!a.rentman_id) return { ...berechnung, rentman: { uebersprungen: true } };
+  try {
+    return { ...berechnung, rentman: await urlaubNachRentman(antragId, berechnung) };
+  } catch (e) {
+    console.error(`[urlaub] Antrag ${antragId} nicht nach Rentman gespiegelt: ${e.message}`);
+    return { ...berechnung, rentman: { fehler: e.message } };
+  }
 }
 
 /**
@@ -330,10 +446,16 @@ function abbauZeiten(a) {
   return a.zeitVon && a.zeitBis ? { von: a.zeitVon, bis: a.zeitBis } : null;
 }
 
-/** Genehmigten Antrag je nach Art übertragen: Urlaub oder Gleitzeitabbau (#490). */
+/**
+ * Genehmigten Antrag verbuchen: Urlaub (Portal-Berechnung, dann Spiegel) oder
+ * Gleitzeitabbau (#490). Der Abbau wird im Portal über das Gleitzeitkonto geführt
+ * und braucht Rentman nur als Spiegel — ohne rentman_id bleibt nichts zu tun.
+ */
 async function nachRentman(antragId) {
   const a = await ladeAntrag(antragId);
-  return a.art === 'gleitzeitabbau' ? kompensationNachRentman(antragId) : urlaubNachRentman(antragId);
+  if (a.art !== 'gleitzeitabbau') return urlaubVerbuchen(antragId);
+  if (!a.rentman_id) return { antragId, rentman: { uebersprungen: true } };
+  return kompensationNachRentman(antragId);
 }
 
 /**
@@ -384,7 +506,7 @@ async function betroffeneUrlaubeNeuberechnen(employeeId, tag) {
   const ergebnisse = [];
   for (const r of rows) {
     try {
-      const res = await urlaubNachRentman(r.id);
+      const res = await urlaubVerbuchen(r.id);
       ergebnisse.push({ antragId: r.id, von: r.von, altSekunden: r.alt, neuSekunden: res.schnitt });
     } catch (e) {
       console.error(`[urlaub] Auto-Neuberechnung Antrag ${r.id} fehlgeschlagen: ${e.message}`);
@@ -399,13 +521,14 @@ async function offeneNeuberechnungen() {
     `SELECT vr.id, vr.employee_id, vr.art, e.full_name,
             DATE_FORMAT(vr.start_date, '%Y-%m-%d') AS von,
             DATE_FORMAT(vr.end_date,   '%Y-%m-%d') AS bis,
-            vr.stunden_sekunden, vr.berechnet_am, vr.rentman_leaverequest_id
+            vr.stunden_sekunden, vr.berechnet_am, vr.rentman_leaverequest_id,
+            e.rentman_id IS NOT NULL AS hat_rentman
        FROM vacation_requests vr
        JOIN employees e ON e.id = vr.employee_id
       WHERE vr.status = 'approved' AND vr.cancelled_at IS NULL
-        AND e.rentman_id IS NOT NULL
-        AND ( vr.rentman_leaverequest_id IS NULL
-              OR (vr.art = 'urlaub' AND vr.vorlaeufig = 1 AND vr.start_date <= CURDATE()) )
+        AND ( (vr.art = 'urlaub' AND (vr.stunden_sekunden IS NULL
+                                      OR (vr.vorlaeufig = 1 AND vr.start_date <= CURDATE())))
+              OR (e.rentman_id IS NOT NULL AND vr.rentman_leaverequest_id IS NULL) )
       ORDER BY vr.start_date`);
   return rows;
 }
@@ -425,10 +548,32 @@ async function faelligeNeuberechnung() {
   return ergebnis;
 }
 
+/**
+ * Nächtlicher Lauf (#491): schließt vorläufige Urlaube ab, sobald der Urlaub
+ * begonnen hat, und holt Liegengebliebenes nach. Läuft im Portal-Prozess und
+ * braucht Rentman nicht. Mehrfachläufe sind unschädlich (idempotent).
+ * Abschalten mit URLAUB_NACHTJOB=0.
+ */
+function starteZeitplan() {
+  if (process.env.URLAUB_NACHTJOB === '0') return;
+  const cron = require('node-cron');
+  cron.schedule('30 3 * * *', async () => {
+    try {
+      const r = await faelligeNeuberechnung();
+      const fehler = r.filter((x) => x.fehler || (x.rentman && x.rentman.fehler)).length;
+      console.log(`[urlaub] Nachtlauf: ${r.length} Antraege, ${fehler} mit Fehler`);
+    } catch (err) {
+      console.error('[urlaub] Nachtlauf fehlgeschlagen:', err.message);
+    }
+  });
+  console.log('[urlaub] Nachtlauf aktiv (03:30)');
+}
+
 module.exports = {
+  starteZeitplan,
   betroffeneUrlaubeNeuberechnen,
   bemessung, werktage, offsetFuer, vorschau, rentmanStatus,
-  urlaubNachRentman, urlaubStornieren, kompensationNachRentman, nachRentman,
+  urlaubBerechnen, urlaubVerbuchen, urlaubNachRentman, urlaubStornieren, kompensationNachRentman, nachRentman,
   offeneNeuberechnungen, faelligeNeuberechnung,
 };
 
