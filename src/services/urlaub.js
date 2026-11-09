@@ -403,6 +403,7 @@ async function offeneNeuberechnungen() {
        FROM vacation_requests vr
        JOIN employees e ON e.id = vr.employee_id
       WHERE vr.status = 'approved' AND vr.cancelled_at IS NULL
+        AND e.rentman_id IS NOT NULL
         AND ( vr.rentman_leaverequest_id IS NULL
               OR (vr.art = 'urlaub' AND vr.vorlaeufig = 1 AND vr.start_date <= CURDATE()) )
       ORDER BY vr.start_date`);
