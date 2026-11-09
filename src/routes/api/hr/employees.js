@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getPool } = require('../../../db');
-const { syncEmployeeGroups, setUserActive } = require('../../../services/authentik');
+const { syncEmployeeGroups, setUserActive, createUser } = require('../../../services/authentik');
 
 const ROLES = ['mitarbeiter', 'freelancer', 'extern'];
 const TAGS  = ['geschaeftsfuehrung', 'backoffice', 'gashandel', 'zeltverleih', 'metallarbeiten'];
@@ -31,6 +31,50 @@ router.get('/', async (req, res) => {
       authentik_groups: parseGroups(r.authentik_groups),
       access_tags: r.access_tags_raw ? r.access_tags_raw.split(',') : [],
     })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// #501: Mitarbeiter im Portal anlegen; das Portal legt das Authentik-Konto an.
+// authentik_uid bleibt leer und wird beim ersten SSO-Login ueber die E-Mail gesetzt (sub ist massgeblich).
+router.post('/', async (req, res) => {
+  if (!req.session?.user) return res.status(401).json({ error: 'Nicht eingeloggt' });
+  const b = req.body || {};
+  const firstname = String(b.firstname || '').trim();
+  const lastname = String(b.lastname || '').trim();
+  const email = String(b.email || '').trim();
+  const role = b.role || 'mitarbeiter';
+  const tags = Array.isArray(b.accessTags) ? b.accessTags.filter(t => TAGS.includes(t)) : [];
+  if (!firstname || !lastname || !/^\S+@\S+\.\S+$/.test(email)) {
+    return res.status(400).json({ error: 'Vor-/Nachname und gültige E-Mail erforderlich' });
+  }
+  if (!ROLES.includes(role)) return res.status(400).json({ error: 'Unbekannte Rolle: ' + role });
+  const username = String(b.username || '').trim() || email;
+  const fullName = `${firstname} ${lastname}`;
+  const pool = getPool();
+  try {
+    const { findeMitarbeiter } = require('../../../services/mitarbeiterMatch');
+    const { row, konflikt } = await findeMitarbeiter(pool, { email });
+    if (row || konflikt) {
+      return res.status(409).json({ error: konflikt || `Es gibt schon einen Mitarbeiter mit dieser E-Mail (ID ${row.id})` });
+    }
+    const authentik = await createUser({ username, name: fullName, email });
+    const [ins] = await pool.execute(
+      `INSERT INTO employees (username, full_name, firstname, lastname, displayname, email, role, vacation_days_total, active, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 'aktiv')`,
+      [username, fullName, firstname, lastname, fullName, email, role, b.vacation_days_total ?? 30]
+    );
+    for (const t of tags) {
+      await pool.execute('INSERT INTO employee_access (employee_id, tag) VALUES (?, ?)', [ins.insertId, t]);
+    }
+    let push;
+    try {
+      push = { ok: true, ...(await syncEmployeeGroups({ username, email, role, accessTags: tags })) };
+    } catch (e) {
+      push = { ok: false, error: e.message };
+    }
+    res.status(201).json({ ok: true, id: ins.insertId, recoveryLink: authentik.link, mailVersandt: authentik.mailVersandt, warnung: authentik.warnung, push });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

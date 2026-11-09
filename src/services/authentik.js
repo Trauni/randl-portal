@@ -113,4 +113,30 @@ async function setUserActive({ username, email, active }) {
   return { username: user.username, aktiv: active };
 }
 
-module.exports = { syncEmployeeGroups, getGroups, updateUserEmail, setUserActive };
+// #501: Konto in Authentik anlegen und Recovery-Link zum Passwort-Setzen erzeugen.
+// Mit AUTHENTIK_RECOVERY_EMAIL_STAGE (Slug der E-Mail-Stage) wird der Link zusaetzlich per Mail verschickt.
+async function createUser({ username, name, email }) {
+  if (await findUser({ username, email })) {
+    throw new Error(`In Authentik gibt es schon ein Konto fuer ${username} / ${email}`);
+  }
+  const user = await api('/core/users/', {
+    method: 'POST',
+    body: JSON.stringify({ username, name, email, is_active: true, path: 'users' }),
+  });
+  let link = null;
+  let mailVersandt = false;
+  try {
+    const r = await api(`/core/users/${user.pk}/recovery/`, { method: 'POST' });
+    link = r && r.link;
+    const stage = process.env.AUTHENTIK_RECOVERY_EMAIL_STAGE;
+    if (stage) {
+      await api(`/core/users/${user.pk}/recovery_email/?email_stage=${encodeURIComponent(stage)}`, { method: 'POST' });
+      mailVersandt = true;
+    }
+  } catch (e) {
+    return { pk: user.pk, username: user.username, link, mailVersandt, warnung: 'Recovery-Link: ' + e.message };
+  }
+  return { pk: user.pk, username: user.username, link, mailVersandt };
+}
+
+module.exports = { syncEmployeeGroups, getGroups, updateUserEmail, setUserActive, createUser };
