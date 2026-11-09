@@ -238,7 +238,7 @@ async function spiegelNachRentman(entryId) {
        FROM time_entries te JOIN employees emp ON emp.id = te.employee_id
       WHERE te.id = ?`, [entryId]);
   if (!e) throw new Error(`Zeiteintrag ${entryId} nicht gefunden`);
-  if (!e.rentman_id) throw new Error(`Mitarbeiter zu Eintrag ${entryId} hat keine rentman_id`);
+  if (!e.rentman_id) return null; // Portal-only-Mitarbeiter: nichts zu spiegeln (#498)
   if (!e.ende_str) throw new Error(`Eintrag ${entryId} laeuft noch, kein Ende gesetzt`);
 
   const crew = '/crew/' + e.rentman_id;
@@ -380,6 +380,8 @@ async function portalEintraegeFuerMonat({ employeeId, jahr, monat }) {
       pause: r.pause_sekunden,
       status: r.status,
       quelle: 'portal',
+      aktivitaeten: 0,
+      aktivitaetenDetails: [],
       zeitEintragId: r.id,
     });
   }

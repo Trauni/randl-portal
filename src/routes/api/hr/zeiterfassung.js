@@ -47,19 +47,15 @@ async function report(res, employeeId, jahr, monat) {
     [employeeId]
   );
   if (!emp) return res.status(404).json({ error: 'Mitarbeiter nicht gefunden' });
-  if (!emp.rentman_id) {
-    return res.status(409).json({
-      error: 'Fuer diesen Mitarbeiter ist keine Rentman-Zuordnung hinterlegt',
-      hinweis: 'employees.rentman_id ist leer - der Rentman-Sync verknuepft ueber die E-Mail-Adresse',
-    });
-  }
-
-  const daten = await zeitreport({ rentmanId: emp.rentman_id, jahr, monat });
+  // Ohne Rentman-Zuordnung (z. B. neu im Portal angelegt, #498): Bericht nur aus den Portal-Eintraegen.
+  const daten = emp.rentman_id
+    ? await zeitreport({ rentmanId: emp.rentman_id, jahr, monat })
+    : { jahr, monat, rentmanId: null, eintraege: [], summe: 0, aktivitaetenSumme: 0, summenTypen: [1, 2, 3, 4] };
 
   // Portal-Eintraege draufmischen -- Rentman bleibt die durchgehende Quelle.
   // Bereits gespiegelte Rentman-Zeilen bekommen ihre time_entries.id zurueck
   // (zeitEintragId), damit sie ueber die Portal-UI korrigierbar bleiben.
-  if (emp.zeiterfassung_quelle === 'portal') {
+  if (emp.zeiterfassung_quelle === 'portal' || !emp.rentman_id) {
     const { ungespiegelt, gespiegeltMap } = await zeit.portalEintraegeFuerMonat({ employeeId: emp.id, jahr, monat });
     for (const e of daten.eintraege) {
       if (gespiegeltMap.has(e.id)) e.zeitEintragId = gespiegeltMap.get(e.id);
@@ -84,7 +80,7 @@ auswertung.get('/mitarbeiter', async (req, res) => {
     const [rows] = await getPool().execute(`
       SELECT id, COALESCE(full_name, displayname) AS name, rentman_id, active
       FROM employees
-      WHERE rentman_id IS NOT NULL AND is_demo = 0
+      WHERE (rentman_id IS NOT NULL OR zeiterfassung_quelle = 'portal') AND is_demo = 0
       ORDER BY active DESC, name ASC
     `);
     res.json(rows);
