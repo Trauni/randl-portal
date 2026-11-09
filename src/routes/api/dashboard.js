@@ -99,7 +99,7 @@ router.get('/', async (req, res, next) => {
     };
 
     if (darf(u, 'hr.mitarbeiter')) {
-      const [[r]] = await pool.execute('SELECT COUNT(*) AS n FROM employees WHERE active = true');
+      const [[r]] = await pool.execute('SELECT COUNT(*) AS n FROM employees WHERE active = true AND is_demo = 0');
       antwort.kacheln.mitarbeiter = r.n;
     }
 

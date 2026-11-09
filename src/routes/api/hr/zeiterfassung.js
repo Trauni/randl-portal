@@ -84,7 +84,7 @@ auswertung.get('/mitarbeiter', async (req, res) => {
     const [rows] = await getPool().execute(`
       SELECT id, COALESCE(full_name, displayname) AS name, rentman_id, active
       FROM employees
-      WHERE rentman_id IS NOT NULL
+      WHERE rentman_id IS NOT NULL AND is_demo = 0
       ORDER BY active DESC, name ASC
     `);
     res.json(rows);

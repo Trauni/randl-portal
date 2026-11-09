@@ -50,6 +50,25 @@ function MitarbeiterModal({ emp, departments, onClose, onSave }) {
   const taken = emp.vacation_taken || 0;
   const remaining = days - taken;
 
+  const handleToggleActive = async () => {
+    const aktiv = !!emp.active;
+    const frage = aktiv
+      ? `${emp.full_name || emp.displayname} deaktivieren? Das Authentik-Konto wird gesperrt, Zeit- und Urlaubsdaten bleiben erhalten.`
+      : `${emp.full_name || emp.displayname} wieder aktivieren?`;
+    if (!window.confirm(frage)) return;
+    setSaving(true);
+    try {
+      const resp = await fetch(`/api/hr/employees/${emp.id}/${aktiv ? 'deaktivieren' : 'reaktivieren'}`, { method: 'POST' });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) { setPushInfo(data.error || 'Fehlgeschlagen'); return; }
+      onSave();
+      if (data.authentik && data.authentik.ok === false) { setPushInfo(data.authentik.error); return; }
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -295,6 +314,18 @@ function MitarbeiterModal({ emp, departments, onClose, onSave }) {
             }}
           >
             {saving ? 'Speichern...' : 'Speichern'}
+          </button>
+          <button
+            onClick={handleToggleActive}
+            disabled={saving}
+            style={{
+              width: '100%', marginTop: '8px', background: 'transparent',
+              border: '1px solid var(--border)', borderRadius: '6px', padding: '8px',
+              color: emp.active ? 'var(--red2)' : 'var(--green)', fontSize: '12px',
+              cursor: saving ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {emp.active ? 'Mitarbeiter deaktivieren' : 'Mitarbeiter reaktivieren'}
           </button>
         </div>
       </div>

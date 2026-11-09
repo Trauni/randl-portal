@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getPool } = require('../../../db');
-const { syncEmployeeGroups } = require('../../../services/authentik');
+const { syncEmployeeGroups, setUserActive } = require('../../../services/authentik');
 
 const ROLES = ['mitarbeiter', 'freelancer', 'extern'];
 const TAGS  = ['geschaeftsfuehrung', 'backoffice', 'gashandel', 'zeltverleih', 'metallarbeiten'];
@@ -23,7 +23,7 @@ router.get('/', async (req, res) => {
         COALESCE((SELECT GROUP_CONCAT(a.tag ORDER BY a.tag)
                   FROM employee_access a WHERE a.employee_id = e.id), '') AS access_tags_raw
       FROM employees e
-      WHERE e.email IS NOT NULL
+      WHERE e.email IS NOT NULL AND e.is_demo = 0
       ORDER BY e.active DESC, e.lastname ASC, e.firstname ASC
     `);
     res.json(rows.map(r => ({
@@ -35,6 +35,33 @@ router.get('/', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// #502: Deaktivieren/Reaktivieren statt Löschen. Daten bleiben, Authentik-Konto wird gesperrt.
+// Rentman wird nicht angefasst (Sync meldet nur Abweichungen).
+const umschalten = (aktiv) => async (req, res) => {
+  if (!req.session?.user) return res.status(401).json({ error: 'Nicht eingeloggt' });
+  const pool = getPool();
+  try {
+    const [[emp]] = await pool.execute('SELECT id, username, email, status FROM employees WHERE id = ?', [req.params.id]);
+    if (!emp) return res.status(404).json({ error: 'Nicht gefunden' });
+    if (!aktiv && emp.id === req.session.user.id) {
+      return res.status(400).json({ error: 'Du kannst dich nicht selbst deaktivieren' });
+    }
+    await pool.execute('UPDATE employees SET status = ?, active = ? WHERE id = ?',
+      [aktiv ? 'aktiv' : 'inaktiv', aktiv ? 1 : 0, emp.id]);
+    let authentik = { ok: true };
+    try {
+      await setUserActive({ username: emp.username, email: emp.email, active: aktiv });
+    } catch (err) {
+      authentik = { ok: false, error: err.message };
+    }
+    res.json({ ok: true, status: aktiv ? 'aktiv' : 'inaktiv', authentik });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+router.post('/:id/deaktivieren', umschalten(false));
+router.post('/:id/reaktivieren', umschalten(true));
 
 // GET /api/hr/employees/:id
 router.get('/:id', async (req, res) => {
