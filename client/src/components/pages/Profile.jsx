@@ -134,7 +134,7 @@ export default function Profile() {
         <div className="card pf-card">
           <div className="pf-card-header"><h2 className="pf-card-title">Zeiterfassung</h2></div>
           <div className="pf-fields">
-            <label style={{display:'flex',alignItems:'center',gap:8,cursor:pauseBusy?'wait':'pointer'}}>
+            <label style={{display:'flex',alignItems:'center',gap:8,color:'var(--text1)',fontSize:13,cursor:pauseBusy?'wait':'pointer'}}>
               <input type="checkbox" checked={Boolean(Number(profile?.auto_pause_30))} disabled={pauseBusy} onChange={e=>setzePause(e.target.checked)}/>
               Automatisch 30 Minuten Pause buchen
             </label>
