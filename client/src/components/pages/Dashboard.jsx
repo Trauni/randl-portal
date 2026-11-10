@@ -294,6 +294,7 @@ export default function Dashboard() {
   // Projekte aus Rentman sieht jeder; die Seite Zeltprojekte nur mit eigenem Bereich
   const zeltSeite = hasArea('zeltverleih.projekte') ? '/zeltverleih/projekte' : undefined;
   const darfGas = hasArea('gashandel');
+  const darfZelte = hasArea('zeltverleih.projekte'); // Zeltprojekte/-kacheln nur mit eigenem Bereich
 
   const [daten, setDaten] = useState(null);
   const [abwesend, setAbwesend] = useState(null);
@@ -325,16 +326,17 @@ export default function Dashboard() {
   useEffect(() => { hol('/api/dashboard/abwesend', setAbwesend); }, []);
   useEffect(() => { hol('/api/dashboard/doku', setDoku); }, []);
   useEffect(() => {
-    hol('/api/dashboard/projekte/naechste?limit=10', setNaechste);
-  }, []);
+    if (darfZelte) hol('/api/dashboard/projekte/naechste?limit=10', setNaechste);
+  }, [darfZelte]);
   useEffect(() => {
     if (darfGas) hol('/api/dashboard/bestellungen?limit=10', setBestellungen);
   }, [darfGas]);
 
   const holKalender = useCallback(() => {
+    if (!darfZelte) return;
     setKalender(null);
     hol(`/api/dashboard/projekte?jahr=${kalJahr}&monat=${kalMonat}`, setKalender);
-  }, [kalJahr, kalMonat]);
+  }, [kalJahr, kalMonat, darfZelte]);
   useEffect(() => { holKalender(); }, [holKalender]);
 
   const blaettern = (schritt) => {
@@ -410,7 +412,7 @@ export default function Dashboard() {
   ].filter(Boolean);
 
   const zeigeRechts = !!bestellungen?.bestellungen || hasArea('notizen') || doku?.seiten?.length > 0;
-  const rasterKlasse = 'dash-grid' + ' dash-mit-projekten' + (zeigeRechts ? ' dash-drei' : '');
+  const rasterKlasse = 'dash-grid' + (darfZelte ? ' dash-mit-projekten' : ' dash-ohne-projekte') + (zeigeRechts ? ' dash-drei' : '');
 
   return (
     <div style={{ padding: '20px 24px', maxWidth: '1900px' }}>
@@ -501,8 +503,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Mitte: Projekte aus Rentman (ohne GF/Backoffice nur Zelte) */}
-        {(
+        {/* Mitte: Projekte aus Rentman, nur mit Bereich zeltverleih.projekte (ohne GF/Backoffice nur Zelte) */}
+        {darfZelte && (
           <div className="dash-spalte">
             <div style={karte}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', gap: '8px', flexWrap: 'wrap' }}>
