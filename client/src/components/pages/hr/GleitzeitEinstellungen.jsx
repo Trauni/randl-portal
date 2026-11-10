@@ -201,6 +201,11 @@ export default function GleitzeitEinstellungen({ employeeId }) {
           <input type="checkbox" checked={aktiv} disabled={!portal && !aktiv} onChange={(e) => setAktiv(e.target.checked)} />
           Konto aktiv
         </label>
+        {!portal && (
+          <div style={{ ...S.hinweis, marginTop: 0, padding: '8px 0', color: 'var(--red2)' }}>
+            Gesperrt: Die Zeiterfassung dieses Mitarbeiters läuft noch über Rentman, nicht über das Portal. Erst auf Portal umstellen lassen.
+          </div>
+        )}
       </div>
       <div style={S.hinweis}>
         Ab „Aktiv seit“ wird das Konto rückwirkend aus der Zeiterfassung berechnet.

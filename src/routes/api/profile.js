@@ -18,8 +18,8 @@ router.get('/', requireAuth, async (req, res) => {
     );
     if (!rows.length) {
       await pool.query(
-        `INSERT INTO employees (authentik_uid, username, full_name, email)
-         VALUES (?, ?, ?, ?)
+        `INSERT INTO employees (authentik_uid, username, full_name, email, zeiterfassung_quelle)
+         VALUES (?, ?, ?, ?, 'portal')
          ON DUPLICATE KEY UPDATE username=VALUES(username)`,
         [uid,
          req.session.user.preferred_username || req.session.user.email,
