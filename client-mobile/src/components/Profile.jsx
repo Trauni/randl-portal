@@ -25,6 +25,17 @@ export default function Profile() {
       .then((p) => { setProfile(p); setForm(Object.fromEntries(FELDER.map(([k]) => [k, p[k] || '']))) })
   }, [])
 
+  const pauseSetzen = async (an) => {
+    setMeldung(null)
+    const res = await fetch('/api/profile', {
+      method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ auto_pause_30: an }),
+    })
+    const d = await res.json().catch(() => ({}))
+    if (!res.ok) { setMeldung({ fehler: d.error || 'Speichern fehlgeschlagen' }); return }
+    setProfile(d)
+  }
+
   if (!profile) return <p>Lädt…</p>
 
   const speichern = async (e) => {
@@ -69,6 +80,11 @@ export default function Profile() {
         {meldung?.ok && <p className="hint">{meldung.ok}</p>}
         <button type="submit" disabled={saving}>{saving ? 'Speichere…' : 'Speichern'}</button>
       </form>
+      <label className="note-label" style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16 }}>
+        <input type="checkbox" checked={Boolean(Number(profile.auto_pause_30))} onChange={(e) => pauseSetzen(e.target.checked)} />
+        Automatisch 30 Minuten Pause buchen
+      </label>
+      <p className="hint">Pausenfeld ist vorbelegt; beim Stopp mindestens 30 Minuten Pause bei mehr als 6 Stunden.</p>
       <p className="hint">v{__APP_VERSION__} · {__APP_COMMIT__}</p>
     </section>
   )

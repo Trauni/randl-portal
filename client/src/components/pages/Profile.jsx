@@ -43,6 +43,14 @@ export default function Profile() {
     setSuccess('Profil gespeichert.');setTimeout(()=>setSuccess(''),3500);
     }catch(e){setError(e.message);}finally{setSaving(false);}
   };
+  const [pauseBusy,setPauseBusy]=useState(false);
+  const setzePause=async(an)=>{
+    setPauseBusy(true);setError('');
+    try{const r=await fetch('/api/profile',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({auto_pause_30:an})});
+    if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||'Speichern fehlgeschlagen');}
+    setProfile(await r.json());
+    }catch(e){setError(e.message);}finally{setPauseBusy(false);}
+  };
   const cancel=()=>{setEditMode(false);setError('');load();};
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
 
@@ -121,6 +129,16 @@ export default function Profile() {
                 <div>{profile.address_country||'Deutschland'}</div>
               </div>
             )}
+          </div>
+        </div>
+        <div className="card pf-card">
+          <div className="pf-card-header"><h2 className="pf-card-title">Zeiterfassung</h2></div>
+          <div className="pf-fields">
+            <label style={{display:'flex',alignItems:'center',gap:8,cursor:pauseBusy?'wait':'pointer'}}>
+              <input type="checkbox" checked={Boolean(Number(profile?.auto_pause_30))} disabled={pauseBusy} onChange={e=>setzePause(e.target.checked)}/>
+              Automatisch 30 Minuten Pause buchen
+            </label>
+            <span className="pf-hint">Das Pausenfeld bei „Zeit nachtragen“ ist dann mit 30 Minuten vorbelegt, und beim Ausstempeln werden bei mehr als 6 Stunden mindestens 30 Minuten Pause abgezogen. Wirkt sofort, ohne Bearbeiten-Knopf.</span>
           </div>
         </div>
         <div className="card pf-card">

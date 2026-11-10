@@ -25,6 +25,14 @@ export default function Vacation() {
       .catch(() => {})
   }, [])
   const [submitting, setSubmitting] = useState(false)
+  const [saldo, setSaldo] = useState(null)
+  const ladeSaldo = () => {
+    fetch('/api/vacation/saldo', { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then(setSaldo)
+      .catch(() => {})
+  }
+  useEffect(ladeSaldo, [])
 
   const load = () => {
     fetch('/api/vacation', { credentials: 'include' })
@@ -54,16 +62,28 @@ export default function Vacation() {
     }
     setForm(LEER)
     load()
+    ladeSaldo()
   }
 
   const cancel = async (id) => {
     await fetch(`/api/vacation/${id}/cancel`, { method: 'PATCH', credentials: 'include' })
     load()
+    ladeSaldo()
   }
 
   return (
     <section>
       <h2>Mein Urlaub</h2>
+      {saldo && (
+        <div className="card" style={{ marginBottom: 12 }}>
+          <strong style={{ fontSize: 22, color: saldo.rest < 0 ? 'var(--red, #e05050)' : undefined }}>{String(saldo.rest).replace('.', ',')}</strong>{' '}
+          Resturlaubstage {saldo.jahr}
+          <span className="card-sub" style={{ display: 'block' }}>
+            Anspruch {String(saldo.anspruch).replace('.', ',')} · genehmigt {String(saldo.genehmigt).replace('.', ',')}
+            {saldo.beantragt > 0 && <> · beantragt {String(saldo.beantragt).replace('.', ',')}</>}
+          </span>
+        </div>
+      )}
       <form onSubmit={submit} className="vacation-form">
         {konto && (
           <label>

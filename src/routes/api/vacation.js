@@ -91,6 +91,25 @@ router.get('/gleitzeit', requireAuth, async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Fehler' }); }
 });
 
+// GET /api/vacation/saldo — Resturlaub im laufenden Jahr (Anspruch minus genehmigter Urlaub)
+router.get('/saldo', requireAuth, async (req, res) => {
+  try {
+    const empId = await getEmployeeId(req.session.user.authentikUid);
+    if (!empId) return res.status(404).json({ error: 'Mitarbeiter nicht gefunden' });
+    const [[r]] = await pool.query(
+      `SELECT e.vacation_days_total AS anspruch,
+              COALESCE(SUM(CASE WHEN v.status = 'approved' THEN v.days_count END), 0) AS genehmigt,
+              COALESCE(SUM(CASE WHEN v.status = 'pending'  THEN v.days_count END), 0) AS beantragt
+         FROM employees e
+         LEFT JOIN vacation_requests v ON v.employee_id = e.id AND v.art = 'urlaub'
+              AND v.cancelled_at IS NULL AND YEAR(v.start_date) = YEAR(CURDATE())
+        WHERE e.id = ?`, [empId]);
+    const anspruch = Number(r.anspruch ?? 30);
+    const genehmigt = Number(r.genehmigt);
+    res.json({ jahr: new Date().getFullYear(), anspruch, genehmigt, beantragt: Number(r.beantragt), rest: anspruch - genehmigt });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Fehler' }); }
+});
+
 // GET /api/vacation — eigene Anträge
 router.get('/', requireAuth, async (req, res) => {
   try {

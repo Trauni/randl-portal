@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import Stempeluhr from './Stempeluhr.jsx'
 import {
   Gauge, Users, CalendarClock, PackageX, Package,
   Building2, ShoppingBag, Plane, AlertTriangle, UploadCloud, FileUp,
@@ -32,6 +33,8 @@ export default function MiniDashboard({ hasArea }) {
   const [error, setError] = useState(null)
 
   const darfGashandel = typeof hasArea === 'function' && hasArea('gashandel')
+  // Zeltprojekte nur mit eigenem Bereich (wie die Seite Zeltprojekte am PC)
+  const darfZelte = typeof hasArea === 'function' && hasArea('zeltverleih.projekte')
 
   // Wichtige Notiz (11.08.2026): am Handy angelegte Kunden/Bestellungen loesen KEINEN
   // automatischen SER-/Lexware-Push aus -- das passiert bewusst separat am PC. Damit das
@@ -135,10 +138,12 @@ export default function MiniDashboard({ hasArea }) {
       .then(setData)
       .catch(() => setError('Dashboard konnte nicht geladen werden.'))
 
-    fetch('/api/dashboard/projekte/naechste?limit=5', { credentials: 'include' })
-      .then((res) => res.json())
-      .then((d) => setProjekte(d.projekte || []))
-      .catch(() => {})
+    if (darfZelte) {
+      fetch('/api/dashboard/projekte/naechste?limit=5', { credentials: 'include' })
+        .then((res) => res.json())
+        .then((d) => setProjekte(d.projekte || []))
+        .catch(() => {})
+    }
 
     if (darfGashandel) {
       fetch('/api/dashboard/bestellungen?limit=5', { credentials: 'include' })
@@ -148,16 +153,25 @@ export default function MiniDashboard({ hasArea }) {
     }
   }
 
-  useEffect(() => { loadDashboard() }, [darfGashandel])
+  useEffect(() => { loadDashboard() }, [darfGashandel, darfZelte])
 
   if (error) return <p className="error">{error}</p>
   if (!data) return <p>Lädt…</p>
 
   const k = data.kacheln || {}
   const antraege = data.meineAntraege || []
+  // Kennzahlen nur, wenn der Server sie für diese Person liefert (Bereich vorhanden)
+  const kennzahlen = [
+    [k.mitarbeiter, Users, 'Mitarbeiter (aktiv)'],
+    [k.offeneAntraege, CalendarClock, 'Offene Urlaubsanträge'],
+    [k.bestellungenOhneSer, PackageX, 'Ohne SER-Übertragung'],
+    [k.bestellungenOffen, Package, 'Offene Bestellungen'],
+  ].filter(([wert]) => wert !== undefined)
+  const zeigeStoppuhr = data.persoenlich?.zeitQuelle === 'portal'
 
   return (
     <section>
+      {zeigeStoppuhr && <Stempeluhr />}
       {darfGashandel && (
         <div className="sync-panel">
           {(k.bestellungenOhneSer > 0 || pendingCustomers > 0) && (
@@ -185,40 +199,36 @@ export default function MiniDashboard({ hasArea }) {
         </div>
       )}
 
-      <h2 className="section-title"><Gauge size={17} />Kennzahlen</h2>
-      <div className="metric-grid">
-        <div className="metric-card">
-          <Users size={18} />
-          <span className="metric-value">{k.mitarbeiter ?? '–'}</span>
-          <span className="metric-label">Mitarbeiter (aktiv)</span>
-        </div>
-        <div className="metric-card">
-          <CalendarClock size={18} />
-          <span className="metric-value">{k.offeneAntraege ?? '–'}</span>
-          <span className="metric-label">Offene Urlaubsanträge</span>
-        </div>
-        <div className="metric-card">
-          <PackageX size={18} />
-          <span className="metric-value">{k.bestellungenOhneSer ?? '–'}</span>
-          <span className="metric-label">Ohne SER-Übertragung</span>
-        </div>
-        <div className="metric-card">
-          <Package size={18} />
-          <span className="metric-value">{k.bestellungenOffen ?? '–'}</span>
-          <span className="metric-label">Offene Bestellungen</span>
-        </div>
-      </div>
+      {kennzahlen.length > 0 && (
+        <>
+          <h2 className="section-title"><Gauge size={17} />Kennzahlen</h2>
+          <div className="metric-grid">
+            {kennzahlen.map(([wert, Icon, label]) => (
+              <div key={label} className="metric-card">
+                <Icon size={18} />
+                <span className="metric-value">{wert ?? '–'}</span>
+                <span className="metric-label">{label}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
-      <h2 className="section-title"><Building2 size={17} />Nächste Projekte</h2>
-      <ul className="card-list">
-        {projekte.slice(0, 5).map((p) => (
-          <li key={p.id} className="card">
-            <a href={p.link} target="_blank" rel="noreferrer">{p.name}</a>
-            <span className="card-sub">{formatDate(p.von)} – {formatDate(p.bis)} · {p.status}</span>
-          </li>
-        ))}
-        {projekte.length === 0 && <li className="card-empty">Keine anstehenden Projekte.</li>}
-      </ul>
+      {darfZelte && (
+        <>
+        <h2 className="section-title"><Building2 size={17} />Nächste Projekte</h2>
+        <ul className="card-list">
+          {projekte.slice(0, 5).map((p) => (
+            <li key={p.id} className="card">
+              <a href={p.link} target="_blank" rel="noreferrer">{p.name}</a>
+              <span className="card-sub">{formatDate(p.von)} – {formatDate(p.bis)} · {p.status}</span>
+            </li>
+          ))}
+          {projekte.length === 0 && <li className="card-empty">Keine anstehenden Projekte.</li>}
+        </ul>
+
+        </>
+      )}
 
       {darfGashandel && (
         <>

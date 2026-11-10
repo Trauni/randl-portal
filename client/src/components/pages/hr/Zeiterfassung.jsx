@@ -205,6 +205,15 @@ export default function Zeiterfassung({ eigen = false }) {
   const [fehler, setFehler] = useState(null);
   const [manuellOffen, setManuellOffen] = useState(false);
   const [manuellForm, setManuellForm] = useState({ tag: '', start: '', ende: '', pauseMinuten: '' });
+  // Profil: "Automatisch 30 Minuten Pause buchen" -> Pausenfeld vorbefüllt
+  const [autoPause, setAutoPause] = useState(false);
+  useEffect(() => {
+    fetch('/api/profile').then(r => (r.ok ? r.json() : null)).then(pf => {
+      if (!pf || !Number(pf.auto_pause_30)) return;
+      setAutoPause(true);
+      setManuellForm(f => (f.pauseMinuten === '' ? { ...f, pauseMinuten: '30' } : f));
+    }).catch(() => {});
+  }, []);
   const [manuellBusy, setManuellBusy] = useState(false);
   const [manuellMeldung, setManuellMeldung] = useState(null);
   const [fremdOffen, setFremdOffen] = useState(false);
@@ -272,7 +281,7 @@ export default function Zeiterfassung({ eigen = false }) {
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || 'Fehlgeschlagen');
       setManuellMeldung({ ok: true, text: 'Eintrag gespeichert.' });
-      setManuellForm({ tag: '', start: '', ende: '', pauseMinuten: '' });
+      setManuellForm({ tag: '', start: '', ende: '', pauseMinuten: autoPause ? '30' : '' });
       setManuellOffen(false);
       await laden_();
     } catch (err) {
