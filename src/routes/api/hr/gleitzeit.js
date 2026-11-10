@@ -34,6 +34,15 @@ async function ladeArbeitszeit(employeeId) {
   }));
 }
 
+const FREISTELLUNG_ARTEN = ['elternzeit', 'sonderurlaub'];
+
+async function ladeFreistellungen(employeeId) {
+  const [rows] = await getPool().query(
+    `SELECT id, art, notiz, DATE_FORMAT(von,'%Y-%m-%d') AS von, DATE_FORMAT(bis,'%Y-%m-%d') AS bis
+       FROM gleitzeit_freistellung WHERE employee_id = ? ORDER BY von DESC`, [employeeId]);
+  return rows;
+}
+
 async function uebersicht(employeeId) {
   const konto = await gleitzeit.ladeKonto(employeeId);
   return {
@@ -46,6 +55,7 @@ async function uebersicht(employeeId) {
     },
     wirksam: konto.aktiv,
     arbeitszeit: await ladeArbeitszeit(employeeId),
+    freistellungen: await ladeFreistellungen(employeeId),
     stand: await gleitzeit.kontostand(employeeId),
   };
 }
@@ -136,6 +146,41 @@ einstellungen.delete('/:employeeId/arbeitszeit/:gueltigAb', async (req, res) => 
       'DELETE FROM gleitzeit_arbeitszeit WHERE employee_id = ? AND gueltig_ab = ?', [employeeId, gueltigAb]);
     if (!r.affectedRows) return res.status(404).json({ error: 'Eintrag nicht gefunden' });
     const neuberechnung = await gleitzeit.neuberechnen(employeeId, { von: gueltigAb });
+    res.json({ ...(await uebersicht(employeeId)), neuberechnung });
+  } catch (err) { fehler(res, err); }
+});
+
+// POST /:employeeId/freistellung — { von, bis, art: 'elternzeit'|'sonderurlaub', notiz? }
+// Soll 0 im Zeitraum; Urlaubstage und Rentman bleiben unberührt.
+einstellungen.post('/:employeeId/freistellung', async (req, res) => {
+  const employeeId = Number(req.params.employeeId);
+  const { von, bis, art, notiz } = req.body || {};
+  if (!ISO_TAG.test(von || '') || !ISO_TAG.test(bis || '')) return res.status(400).json({ error: 'Von/bis ist kein gültiges Datum' });
+  if (bis < von) return res.status(400).json({ error: '„Bis“ liegt vor „Von“' });
+  if (!FREISTELLUNG_ARTEN.includes(art)) return res.status(400).json({ error: 'Art muss Elternzeit oder Sonderurlaub sein' });
+  try {
+    await gleitzeit.ladeKonto(employeeId); // 404, falls es den Mitarbeiter nicht gibt
+    const [[doppelt]] = await getPool().execute(
+      'SELECT COUNT(*) AS n FROM gleitzeit_freistellung WHERE employee_id = ? AND von <= ? AND bis >= ?',
+      [employeeId, bis, von]);
+    if (Number(doppelt.n)) return res.status(409).json({ error: 'Im Zeitraum gibt es schon eine Freistellung' });
+    await getPool().execute(
+      `INSERT INTO gleitzeit_freistellung (employee_id, von, bis, art, notiz, erstellt_von) VALUES (?, ?, ?, ?, ?, ?)`,
+      [employeeId, von, bis, art, String(notiz || '').trim().slice(0, 255) || null, await sessionEmployeeId(req)]);
+    const neuberechnung = await gleitzeit.neuberechnen(employeeId, { von, bis });
+    res.status(201).json({ ...(await uebersicht(employeeId)), neuberechnung });
+  } catch (err) { fehler(res, err); }
+});
+
+einstellungen.delete('/:employeeId/freistellung/:id', async (req, res) => {
+  const employeeId = Number(req.params.employeeId);
+  try {
+    const [[f]] = await getPool().execute(
+      `SELECT DATE_FORMAT(von,'%Y-%m-%d') AS von, DATE_FORMAT(bis,'%Y-%m-%d') AS bis
+         FROM gleitzeit_freistellung WHERE id = ? AND employee_id = ?`, [Number(req.params.id), employeeId]);
+    if (!f) return res.status(404).json({ error: 'Freistellung nicht gefunden' });
+    await getPool().execute('DELETE FROM gleitzeit_freistellung WHERE id = ?', [Number(req.params.id)]);
+    const neuberechnung = await gleitzeit.neuberechnen(employeeId, { von: f.von, bis: f.bis });
     res.json({ ...(await uebersicht(employeeId)), neuberechnung });
   } catch (err) { fehler(res, err); }
 });

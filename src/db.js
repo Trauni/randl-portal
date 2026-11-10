@@ -45,8 +45,8 @@ async function upsertEmployee({ authentikUid, username, fullName, email, groups 
   }
 
   await db.execute(
-    `INSERT INTO employees (authentik_uid, username, full_name, email, authentik_groups)
-     VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO employees (authentik_uid, username, full_name, email, authentik_groups, zeiterfassung_quelle)
+     VALUES (?, ?, ?, ?, ?, 'portal')`,
     [authentikUid, username, fullName || username, email, groupsJson]
   );
   return getEmployeeByUid(authentikUid);

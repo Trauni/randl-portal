@@ -19,7 +19,7 @@
  */
 const { feiertag } = require('./feiertage');
 
-const ABWESENHEIT = ['urlaub', 'krankheit', 'gleitzeitabbau'];
+const ABWESENHEIT = ['urlaub', 'krankheit', 'gleitzeitabbau', 'freistellung'];
 
 /** '1,2,3,4,5' -> [1,2,3,4,5]; ungültige Werte fallen raus. */
 function parseArbeitstage(text) {
@@ -70,7 +70,8 @@ function eintragMinuten(spanneSekunden, pauseSekunden) {
 
 /**
  * Automatische Buchungen eines Tages.
- * abwesenheit: null | 'urlaub' | 'krankheit' | 'gleitzeitabbau'
+ * abwesenheit: null | 'urlaub' | 'krankheit' | 'gleitzeitabbau' | 'freistellung'
+ *   (freistellung = Elternzeit/Sonderurlaub: Soll 0, keine Buchung; Arbeit an dem Tag zählt als Plus)
  * referenzId: vacation_requests.id beim Abbau
  * abbauMinuten: beim stundenweisen Abbau die beantragte Dauer, sonst null (ganzer Tag)
  * Liefert 0–2 Buchungen { art, minuten, soll_minuten?, ist_minuten?, referenz_id? }.

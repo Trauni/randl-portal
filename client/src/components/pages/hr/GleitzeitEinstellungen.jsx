@@ -64,6 +64,12 @@ export default function GleitzeitEinstellungen({ employeeId }) {
   const [stdText, setStdText] = useState('40');
   const [tage, setTage] = useState([1, 2, 3, 4, 5]);
 
+  // Neue Freistellung
+  const [frVon, setFrVon] = useState('');
+  const [frBis, setFrBis] = useState('');
+  const [frArt, setFrArt] = useState('elternzeit');
+  const [frNotiz, setFrNotiz] = useState('');
+
   const uebernehmen = (d) => {
     setDaten(d);
     setAktiv(d.einstellungen.aktiv);
@@ -82,7 +88,8 @@ export default function GleitzeitEinstellungen({ employeeId }) {
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || 'Fehler');
       uebernehmen(d);
-    } catch (e) { setFehler(e.message); } finally { setBusy(false); }
+      return true;
+    } catch (e) { setFehler(e.message); return false; } finally { setBusy(false); }
   }, [employeeId]);
 
   useEffect(() => { anfrage(); }, [anfrage]);
@@ -103,6 +110,14 @@ export default function GleitzeitEinstellungen({ employeeId }) {
   };
   const arbeitszeitSpeichern = () => {
     anfrage('/arbeitszeit', { method: 'POST', body: JSON.stringify({ gueltigAb: abDatum, wochenstunden: std, arbeitstage: tage }) });
+  };
+  const freistellungSpeichern = () => {
+    anfrage('/freistellung', { method: 'POST', body: JSON.stringify({ von: frVon, bis: frBis, art: frArt, notiz: frNotiz }) })
+      .then((ok) => { if (ok) { setFrVon(''); setFrBis(''); setFrNotiz(''); } });
+  };
+  const freistellungLoeschen = (f) => {
+    if (!window.confirm(`Freistellung ${fmtDatum(f.von)} bis ${fmtDatum(f.bis)} löschen? Das Konto wird für den Zeitraum neu berechnet.`)) return;
+    anfrage(`/freistellung/${f.id}`, { method: 'DELETE' });
   };
   const arbeitszeitLoeschen = (ab) => {
     if (!window.confirm(`Arbeitszeit ab ${fmtDatum(ab)} löschen? Das Konto wird ab diesem Tag neu berechnet.`)) return;
@@ -186,6 +201,51 @@ export default function GleitzeitEinstellungen({ employeeId }) {
           style={S.knopf(false, busy || sollTag === null)}>Arbeitszeit speichern</button>
       </div>
 
+      {/* Freistellung */}
+      <label style={S.label}>Freistellung (Elternzeit, Sonderurlaub)</label>
+      {daten.freistellungen?.length > 0 ? (
+        <div style={{ marginBottom: '8px' }}>
+          {daten.freistellungen.map((f) => (
+            <div key={f.id} style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px',
+              fontSize: '12px', color: 'var(--text1)', padding: '4px 0',
+            }}>
+              <span>{fmtDatum(f.von)} – {fmtDatum(f.bis)}: <strong>{f.art === 'elternzeit' ? 'Elternzeit' : 'Sonderurlaub'}</strong>{f.notiz ? ` · ${f.notiz}` : ''}</span>
+              <button type="button" disabled={busy} onClick={() => freistellungLoeschen(f)}
+                style={{ ...S.knopf(false, busy), padding: '3px 8px', fontWeight: 400 }}>Löschen</button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ ...S.hinweis, marginTop: 0, marginBottom: '8px' }}>Keine Freistellung eingetragen.</div>
+      )}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'flex-end', marginBottom: '6px' }}>
+        <div>
+          <label style={S.label}>Von</label>
+          <input type="date" value={frVon} onChange={(e) => setFrVon(e.target.value)} style={{ ...S.input, width: '150px' }} />
+        </div>
+        <div>
+          <label style={S.label}>Bis</label>
+          <input type="date" value={frBis} onChange={(e) => setFrBis(e.target.value)} style={{ ...S.input, width: '150px' }} />
+        </div>
+        <div>
+          <label style={S.label}>Art</label>
+          <select value={frArt} onChange={(e) => setFrArt(e.target.value)} style={{ ...S.input, width: '140px' }}>
+            <option value="elternzeit">Elternzeit</option>
+            <option value="sonderurlaub">Sonderurlaub</option>
+          </select>
+        </div>
+        <div>
+          <label style={S.label}>Notiz (optional)</label>
+          <input value={frNotiz} onChange={(e) => setFrNotiz(e.target.value)} style={{ ...S.input, width: '160px' }} />
+        </div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+        <span style={{ ...S.hinweis, marginTop: 0 }}>Soll ist in dem Zeitraum 0. Urlaubstage und Rentman bleiben unberührt.</span>
+        <button type="button" disabled={busy || !frVon || !frBis} onClick={freistellungSpeichern}
+          style={S.knopf(false, busy || !frVon || !frBis)}>Freistellung speichern</button>
+      </div>
+
       {/* Konto */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'flex-end' }}>
         <div>
@@ -201,6 +261,11 @@ export default function GleitzeitEinstellungen({ employeeId }) {
           <input type="checkbox" checked={aktiv} disabled={!portal && !aktiv} onChange={(e) => setAktiv(e.target.checked)} />
           Konto aktiv
         </label>
+        {!portal && (
+          <div style={{ ...S.hinweis, marginTop: 0, padding: '8px 0', color: 'var(--red2)' }}>
+            Gesperrt: Die Zeiterfassung dieses Mitarbeiters läuft noch über Rentman, nicht über das Portal. Erst auf Portal umstellen lassen.
+          </div>
+        )}
       </div>
       <div style={S.hinweis}>
         Ab „Aktiv seit“ wird das Konto rückwirkend aus der Zeiterfassung berechnet.

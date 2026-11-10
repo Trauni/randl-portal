@@ -94,6 +94,17 @@ async function ladeAbwesenheiten(employeeId, von, bis, krank, db) {
       });
     }
   }
+  // Freistellung (Elternzeit/Sonderurlaub) schlägt Urlaub/Abbau: es wird nichts abgebucht.
+  const [freie] = await db.query(
+    `SELECT DATE_FORMAT(von,'%Y-%m-%d') AS von, DATE_FORMAT(bis,'%Y-%m-%d') AS bis
+       FROM gleitzeit_freistellung WHERE employee_id = ? AND von <= ? AND bis >= ?`,
+    [employeeId, bis, von]);
+  for (const f of freie) {
+    const ende = new Date(minTag(f.bis, bis) + 'T12:00:00Z');
+    for (let d = new Date(maxTag(f.von, von) + 'T12:00:00Z'); d <= ende; d = new Date(+d + 86400000)) {
+      map.set(d.toISOString().slice(0, 10), { art: 'freistellung' });
+    }
+  }
   // Krankheit schlägt Urlaub/Abbau: ein Krankentag im Urlaub bucht nichts ab.
   for (const tag of krank) map.set(tag, { art: 'krankheit' });
   return map;
