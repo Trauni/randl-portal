@@ -43,7 +43,7 @@ async function pruefeEigentum(entryId, employeeId, res) {
 
 async function report(res, employeeId, jahr, monat) {
   const [[emp]] = await getPool().execute(
-    'SELECT id, COALESCE(full_name, displayname) AS name, rentman_id, zeiterfassung_quelle FROM employees WHERE id = ?',
+    'SELECT id, COALESCE(full_name, displayname) AS name, rentman_id, zeiterfassung_quelle, minijob, minijob_max_stunden_monat FROM employees WHERE id = ?',
     [employeeId]
   );
   if (!emp) return res.status(404).json({ error: 'Mitarbeiter nicht gefunden' });
@@ -66,7 +66,10 @@ async function report(res, employeeId, jahr, monat) {
   }
 
   res.json({
-    mitarbeiter: { id: emp.id, name: emp.name, rentman_id: emp.rentman_id, zeiterfassung_quelle: emp.zeiterfassung_quelle },
+    mitarbeiter: {
+      id: emp.id, name: emp.name, rentman_id: emp.rentman_id, zeiterfassung_quelle: emp.zeiterfassung_quelle,
+      minijob: emp.minijob ? { maxStunden: Number(emp.minijob_max_stunden_monat) || null } : null,
+    },
     ...daten,
   });
 }
