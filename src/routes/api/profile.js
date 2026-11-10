@@ -13,7 +13,7 @@ router.get('/', requireAuth, async (req, res) => {
       `SELECT id, authentik_uid, username, full_name, display_name,
               email, phone, phone_mobile, position_title, department,
               start_date, address_street, address_zip, address_city,
-              address_country, created_at, updated_at
+              address_country, auto_pause_30, created_at, updated_at
        FROM employees WHERE authentik_uid = ?`, [uid]
     );
     if (!rows.length) {
@@ -40,7 +40,7 @@ router.put('/', requireAuth, async (req, res) => {
   try {
     const uid = req.session.user.authentikUid;
     const { display_name, phone, phone_mobile, address_street,
-            address_zip, address_city, address_country, email } = req.body;
+            address_zip, address_city, address_country, email, auto_pause_30 } = req.body;
 
     if (display_name !== undefined && display_name.trim() === '')
       return res.status(400).json({ error: 'Anzeigename darf nicht leer sein.' });
@@ -60,11 +60,13 @@ router.put('/', requireAuth, async (req, res) => {
          address_zip     = COALESCE(?, address_zip),
          address_city    = COALESCE(?, address_city),
          address_country = COALESCE(?, address_country),
-         email           = COALESCE(?, email)
+         email           = COALESCE(?, email),
+         auto_pause_30   = COALESCE(?, auto_pause_30)
        WHERE authentik_uid = ?`,
       [display_name??null, phone??null, phone_mobile??null,
        address_street??null, address_zip??null, address_city??null,
-       address_country??null, email||null, uid]
+       address_country??null, email||null,
+       auto_pause_30 === undefined ? null : (auto_pause_30 ? 1 : 0), uid]
     );
 
     // E-Mail nach Authentik (PATCH nur bei Abweichung, holt auch alte Altfaelle nach).
@@ -85,7 +87,7 @@ router.put('/', requireAuth, async (req, res) => {
       `SELECT id, authentik_uid, username, full_name, display_name,
               email, phone, phone_mobile, position_title, department,
               start_date, address_street, address_zip, address_city,
-              address_country, updated_at
+              address_country, auto_pause_30, updated_at
        FROM employees WHERE authentik_uid = ?`, [uid]
     );
     res.json(updated[0]);

@@ -28,6 +28,9 @@ export default function VacationRequest() {
   const einTag=form.start_date&&(!form.end_date||form.end_date===form.start_date);
   const stunden=form.art==='gleitzeitabbau'&&form.stundenweise&&einTag;
   const zeitOk=!stunden||(form.zeit_von&&form.zeit_bis&&form.zeit_bis>form.zeit_von);
+  const [saldo,setSaldo]=useState(null); // Resturlaub im laufenden Jahr
+  const ladeSaldo=()=>{fetch('/api/vacation/saldo').then(r=>r.ok?r.json():null).then(setSaldo).catch(()=>{});};
+  useEffect(()=>{ladeSaldo();},[]);
   const [konto,setKonto]=useState(null); // eigenes Gleitzeitkonto, null = keins aktiv
   useEffect(()=>{fetch('/api/vacation/gleitzeit').then(r=>r.ok?r.json():null).then(k=>setKonto(k&&k.aktiv?k:null)).catch(()=>{});},[]);
 
@@ -54,7 +57,7 @@ export default function VacationRequest() {
       ...(stunden?{zeit_von:form.zeit_von,zeit_bis:form.zeit_bis}:{})};
     try{const r=await fetch('/api/vacation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(!r.ok){const e=await r.json();throw new Error(e.error);}
-    setSuccess(form.art==='gleitzeitabbau'?'Gleitzeitabbau beantragt.':'Urlaubsantrag eingereicht.');setShowForm(false);setForm(LEER);await load();setTimeout(()=>setSuccess(''),4000);
+    setSuccess(form.art==='gleitzeitabbau'?'Gleitzeitabbau beantragt.':'Urlaubsantrag eingereicht.');setShowForm(false);setForm(LEER);await load();ladeSaldo();setTimeout(()=>setSuccess(''),4000);
     }catch(e){setError(e.message);}finally{setSubmitting(false);}
   };
 
@@ -62,7 +65,7 @@ export default function VacationRequest() {
     if(!cancelDlg)return;setCancelling(cancelDlg.id);
     try{const r=await fetch(`/api/vacation/${cancelDlg.id}/cancel`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason:cancelReason})});
     if(!r.ok){const e=await r.json();throw new Error(e.error);}
-    setSuccess('Urlaub storniert.');setCancelDlg(null);await load();setTimeout(()=>setSuccess(''),4000);
+    setSuccess('Urlaub storniert.');setCancelDlg(null);await load();ladeSaldo();setTimeout(()=>setSuccess(''),4000);
     }catch(e){setError(e.message);}finally{setCancelling(null);}
   };
 
@@ -74,6 +77,12 @@ export default function VacationRequest() {
           {showForm?'Abbrechen':'+ Antrag stellen'}
         </button>
       </div>
+      {saldo&&(
+        <div className="card" style={{display:'flex',flexWrap:'wrap',gap:'8px 28px',alignItems:'baseline',padding:'14px 18px',marginBottom:14}}>
+          <div><span style={{fontSize:26,fontWeight:700,color:saldo.rest<0?'#e05050':'var(--text1)'}}>{String(saldo.rest).replace('.',',')}</span> <span style={{color:'var(--text2)'}}>Resturlaubstage {saldo.jahr}</span></div>
+          <div style={{fontSize:12.5,color:'var(--text3)'}}>Anspruch {String(saldo.anspruch).replace('.',',')} · genehmigt {String(saldo.genehmigt).replace('.',',')}{saldo.beantragt>0?` · beantragt ${String(saldo.beantragt).replace('.',',')}`:''}</div>
+        </div>
+      )}
       {error&&<div className="alert alert--error">{error}</div>}
       {success&&<div className="alert alert--success">{success}</div>}
       {showForm&&(

@@ -132,6 +132,13 @@ async function stoppen(entryId) {
     [jetztLokal(), entryId]);
   if (r.affectedRows === 0) throw new Error('Eintrag laeuft nicht');
 
+  // Profil-Einstellung "Automatisch 30 Minuten Pause": bei mehr als 6 Stunden mindestens 30 Minuten
+  await db.execute(
+    `UPDATE time_entries te JOIN employees e ON e.id = te.employee_id
+        SET te.pause_sekunden = 1800
+      WHERE te.id = ? AND e.auto_pause_30 = 1 AND te.pause_sekunden < 1800
+        AND TIMESTAMPDIFF(SECOND, te.start, te.ende) > 21600`, [entryId]);
+
   await rundenUndSpiegeln(entryId);
 }
 
