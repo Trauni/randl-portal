@@ -146,3 +146,21 @@ test('zeitraumBuchungen: stundenweiser Abbau aus der Abwesenheitsliste', () => {
     { datum: '2026-11-10', art: 'abbau', minuten: -180, referenz_id: 4 },
   ]);
 });
+
+test('tagesbuchungen: Freistellung (Elternzeit/Sonderurlaub) hat kein Soll', () => {
+  const az = { wochenstunden: 40, arbeitstage: [1, 2, 3, 4, 5] };
+  assert.deepEqual(g.tagesbuchungen({ tag: '2026-11-10', arbeitszeit: az, abwesenheit: 'freistellung' }), []);
+  // Arbeit während der Freistellung zählt als Plus
+  assert.deepEqual(
+    g.tagesbuchungen({ tag: '2026-11-10', arbeitszeit: az, istMinuten: 120, abwesenheit: 'freistellung' }),
+    [{ art: 'tagessaldo', minuten: 120, soll_minuten: 0, ist_minuten: 120 }]);
+});
+
+test('zeitraumBuchungen: Freistellung einer Woche ohne Zeiten bucht nichts', () => {
+  const abw = new Map();
+  for (const t of ['2026-04-27', '2026-04-28', '2026-04-29', '2026-04-30', '2026-05-01']) abw.set(t, { art: 'freistellung' });
+  const b = g.zeitraumBuchungen({
+    von: '2026-04-27', bis: '2026-05-03', historie: VOLLZEIT, istProTag: new Map(), abwesenheiten: abw,
+  });
+  assert.deepEqual(b, []);
+});
