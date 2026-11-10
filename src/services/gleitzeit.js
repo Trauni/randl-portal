@@ -36,12 +36,12 @@ const minTag = (a, b) => (a < b ? a : b);
 /** Kontodaten des Mitarbeiters; aktiv = Konto wird tatsächlich gerechnet. */
 async function ladeKonto(employeeId, db = getPool()) {
   const [[e]] = await db.query(
-    `SELECT id, COALESCE(full_name, username) AS name, zeiterfassung_quelle,
+    `SELECT id, COALESCE(full_name, username) AS name, zeiterfassung_quelle, minijob,
             gleitzeit_aktiv, DATE_FORMAT(gleitzeit_seit,'%Y-%m-%d') AS seit,
             gleitzeit_startsaldo_minuten AS startsaldo
        FROM employees WHERE id = ?`, [employeeId]);
   if (!e) throw new Error(`Mitarbeiter ${employeeId} nicht gefunden`);
-  e.aktiv = Boolean(e.gleitzeit_aktiv && e.seit && e.zeiterfassung_quelle === 'portal');
+  e.aktiv = Boolean(e.gleitzeit_aktiv && e.seit && e.zeiterfassung_quelle === 'portal' && !e.minijob);
   return e;
 }
 
@@ -240,7 +240,7 @@ async function tagesabschluss() {
     `SELECT e.id,
             (SELECT COUNT(*) FROM gleitzeit_buchungen b WHERE b.employee_id = e.id AND b.art = 'tagessaldo') AS gebucht
        FROM employees e
-      WHERE e.is_demo = 0 AND e.gleitzeit_aktiv = 1 AND e.gleitzeit_seit IS NOT NULL AND e.zeiterfassung_quelle = 'portal'`);
+      WHERE e.is_demo = 0 AND e.gleitzeit_aktiv = 1 AND e.gleitzeit_seit IS NOT NULL AND e.zeiterfassung_quelle = 'portal' AND e.minijob = 0`);
   const heute = heuteLokal();
   const ergebnis = [];
   for (const k of konten) {

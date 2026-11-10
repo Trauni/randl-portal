@@ -687,6 +687,15 @@ export default function Zeiterfassung({ eigen = false }) {
                 </td>
                 <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: 'var(--text1)', fontVariantNumeric: 'tabular-nums' }}>
                   {hhmm(daten.summe)}
+                  {daten.mitarbeiter?.minijob?.maxStunden > 0 && (() => {
+                    const grenze = daten.mitarbeiter.minijob.maxStunden * 3600;
+                    const anteil = daten.summe / grenze;
+                    return (
+                      <span style={{ marginLeft: '8px', fontWeight: 600, color: anteil >= 1 ? 'var(--red2)' : anteil >= 0.9 ? 'var(--amber, #d89614)' : 'var(--text3)' }}>
+                        von {String(daten.mitarbeiter.minijob.maxStunden).replace('.', ',')} h (Minijob)
+                      </span>
+                    );
+                  })()}
                 </td>
                 <td style={td} />
                 <td style={td} />

@@ -52,6 +52,7 @@ async function uebersicht(employeeId) {
       seit: konto.seit,
       startsaldoMinuten: Number(konto.startsaldo || 0),
       zeiterfassungQuelle: konto.zeiterfassung_quelle,
+      minijob: Boolean(konto.minijob),
     },
     wirksam: konto.aktiv,
     arbeitszeit: await ladeArbeitszeit(employeeId),
@@ -89,6 +90,9 @@ einstellungen.put('/:employeeId', async (req, res) => {
       return res.status(400).json({ error: 'Startsaldo ungültig (ganze Minuten, höchstens ±1000 Stunden)' });
     }
     if (aktiv) {
+      if (konto.minijob) {
+        return res.status(409).json({ error: 'Minijobber haben kein Gleitzeitkonto (Monatslimit statt Regeltage)' });
+      }
       if (konto.zeiterfassung_quelle !== 'portal') {
         return res.status(409).json({
           error: 'Gleitzeitkonto nur bei Zeiterfassung im Portal möglich',
