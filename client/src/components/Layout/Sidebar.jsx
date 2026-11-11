@@ -80,7 +80,7 @@ const SECTION_DEFAULT = { persoenlich: true };
 const SECTION_KEY = 'sidebar-sections';
 // Welcher Bereich zu einer URL gehört — damit der Bereich der aktiven Seite aufgeht.
 const SECTION_PFADE = [
-  ['gashandel', '/finance/'],
+  ['gashandel', '/finance/'], ['gashandel', '/gashandel/'],
   ['zeltverleih', '/zeltverleih/'],
   ['maschinenbau', '/metallarbeiten/'],
   ['hr', '/hr/'],
@@ -119,6 +119,7 @@ export default function Sidebar({ user }) {
   const can    = (area) => hasArea(role, tags, area);
 
   const showGashandel = can('gashandel');
+  const showGasAuswertung = can('gashandel.auswertung');
   const showZeltplaner = can('zeltplanung');
   const showZeltprojekte = can('zeltverleih.projekte');
   const showZeltverleih = showZeltplaner || showZeltprojekte;
@@ -203,6 +204,8 @@ export default function Sidebar({ user }) {
             <NavItem to="/finance/info-mail"    icon="documents" label="Info-Mail Rollout" collapsed={collapsed}/>
             <NavItem to="/finance/produkte"     icon="products"  label="Produkte"          collapsed={collapsed}/>
             <NavItem to="/finance/widmann-bestand" icon="products" label="Widmann-Bestand" collapsed={collapsed}/>
+            {showGasAuswertung && <NavItem to="/gashandel/auswertung" icon="documents" label="Gas-Auswertung" collapsed={collapsed}/>}
+            {showGasAuswertung && <NavItem to="/gashandel/einkaufspreise" icon="products" label="Einkaufspreise" collapsed={collapsed}/>}
           </NavSection>
         )}
 
