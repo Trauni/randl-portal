@@ -24,7 +24,7 @@ function ekJeFlasche(ekZeilen, artikel, tag) {
 
 const STAFFEL_S = [[11, 19.9], [33, 14.9], [66, 9.9], [99, 4.9], [Infinity, 0]];
 const STAFFEL_SPLUS = [[11, 24.9], [33, 19.9], [66, 14.9], [99, 9.9], [Infinity, 4.9]];
-const OHNE = [[Infinity, 0]];
+const OHNE = [[11, 0], [33, 0], [66, 0], [99, 0], [Infinity, 0]];
 const pauschale = (staffel, kg) => staffel.find(([bis]) => kg <= bis)[1];
 
 const LIEFERKOSTEN_DEFAULT = { km_je_stopp: 12.65, eur_je_km: 0.4, fahr_min: 15.4, stand_min: 9, min_je_flasche: 0.6, eur_je_h: 20 };
