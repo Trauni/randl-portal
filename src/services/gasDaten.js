@@ -61,9 +61,12 @@ async function preismodell(db, eingabe = {}) {
     staffel = GRENZEN.map((g, i) => [g, Number(eingabe.staffel[i])]);
   }
   const basis = { stichtag, vergleichStichtag: vergleich, lieferkostenParam: b.lkParam };
+  const betraege = (st) => st.map(([, b]) => b);
   return {
     stichtag, vergleichStichtag: vergleich,
-    varianten: P.VARIANTEN.map((v) => ({ name: v.name, ...P.rechneVariante(b.klass, b.ek, { ...basis, senkung: v.senkung, staffel: v.staffel }) })),
+    staffeln: { ohne: betraege(P.OHNE), S: betraege(P.STAFFEL_S), 'S+': betraege(P.STAFFEL_SPLUS) },
+    simulator_staffel: betraege(staffel),
+    varianten: P.VARIANTEN.map((v) => ({ name: v.name, senkung: v.senkung, staffel: betraege(v.staffel), ...P.rechneVariante(b.klass, b.ek, { ...basis, senkung: v.senkung, staffel: v.staffel }) })),
     simulator: P.rechneVariante(b.klass, b.ek, { ...basis, senkung, staffel }),
   };
 }

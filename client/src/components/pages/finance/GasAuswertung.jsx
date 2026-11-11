@@ -220,9 +220,17 @@ function Preismodell() {
         Rechnet mit den Einkaufspreisen, die am {d.stichtag.split('-').reverse().join('.')} gelten (<Link to="/gashandel/einkaufspreise" style={{ color: ROT }}>Einkaufspreise pflegen</Link>).
         Verkaufspreise Stand Oktober 2026, Basis 01.01.–03.11.2026.
       </p>
-      <h2 style={{ ...h2, marginTop: '.5rem' }}>Varianten</h2>
-      <Tabelle kopf={['Variante', 'Rohertrag', 'Δ zum Vergleichsstand', 'Pauschalen', 'Kunden günstiger', 'Kunden teurer', 'über +10 %']} rechts={[1, 2, 3, 4, 5, 6]}
-        zeilen={d.varianten.map((v) => [v.name, eur(v.rohertrag_neu), eur(v.rohertrag_neu - v.rohertrag_vergleich), eur(v.pauschalen), zahl(v.kunden_guenstiger), zahl(v.kunden_teurer), zahl(v.kunden_ueber_10)])} />
+      <h2 style={{ ...h2, marginTop: '.5rem' }}>Pauschale je Stopp (Staffeln)</h2>
+      <p style={{ color: 'var(--text2)', fontSize: '.8rem', margin: '0 0 .5rem' }}>
+        Die Pauschale wird je Stopp einmal berechnet, nach den Propan-kg, die an diesem Stopp geliefert werden. Netto. Abholer im Lager zahlen keine.
+      </p>
+      <Tabelle kopf={['Staffel', ...KLASSEN_KOPF]} rechts={[1, 2, 3, 4, 5]}
+        zeilen={[['ohne Pauschale', ...d.staffeln.ohne.map((b) => eur(b, 2))], ['Staffel S', ...d.staffeln.S.map((b) => eur(b, 2))], ['Staffel S+', ...d.staffeln['S+'].map((b) => eur(b, 2))],
+          ['Simulator (aktuell eingestellt)', ...d.simulator_staffel.map((b) => eur(b, 2))]]} />
+
+      <h2 style={h2}>Varianten</h2>
+      <Tabelle kopf={['Variante', 'Gaspreis', 'Pauschale (bis 11 / 33 / 66 / 99 / ab 100 kg)', 'Rohertrag', 'Δ zum Vergleichsstand', 'Pauschalen gesamt', 'Kunden günstiger', 'Kunden teurer', 'über +10 %']} rechts={[1, 3, 4, 5, 6, 7, 8]}
+        zeilen={d.varianten.map((v) => [v.name, v.senkung ? `−${zahl(v.senkung * 100, 0)} %` : '±0', v.staffel.every((b) => b === 0) ? 'keine' : v.staffel.map((b) => zahl(b, 2)).join(' / ') + ' €', eur(v.rohertrag_neu), eur(v.rohertrag_neu - v.rohertrag_vergleich), eur(v.pauschalen), zahl(v.kunden_guenstiger), zahl(v.kunden_teurer), zahl(v.kunden_ueber_10)])} />
 
       <h2 style={h2}>Simulator</h2>
       <div style={{ ...card, display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '1rem' }}>
@@ -233,12 +241,18 @@ function Preismodell() {
         </div>
         <div>
           <label style={{ fontSize: '.68rem', color: 'var(--text3)', textTransform: 'uppercase' }}>Pauschale je Stufe</label>
-          <select style={{ ...inp, width: '100%' }} value={staffel} onChange={(e) => setStaffel(e.target.value)}><option value="ohne">ohne</option><option value="S">Staffel S</option><option value="S+">Staffel S+</option><option value="eigene">eigene Beträge</option></select>
-          {staffel === 'eigene' && (
-            <div style={{ display: 'flex', gap: '.3rem', marginTop: '.4rem' }}>
-              {['bis 11', '33', '66', '99', 'ab 100'].map((l, i) => <input key={l} title={`${l} kg`} style={{ ...inp, width: '100%', minWidth: 0 }} value={betraege[i]} onChange={(e) => setBetraege((b) => b.map((x, j) => (j === i ? e.target.value : x)))} />)}
-            </div>
-          )}
+          <select style={{ ...inp, width: '100%' }} value={staffel} onChange={(e) => { const v = e.target.value; if (v === 'eigene' && d) setBetraege(d.simulator_staffel.map((b) => zahl(b, 2))); setStaffel(v); }}><option value="ohne">ohne</option><option value="S">Staffel S</option><option value="S+">Staffel S+</option><option value="eigene">eigene Beträge</option></select>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '.3rem', marginTop: '.4rem' }}>
+            {KLASSEN_KOPF.map((l, i) => (
+              <div key={l}>
+                <div style={{ fontSize: '.6rem', color: 'var(--text3)' }}>{l}</div>
+                {staffel === 'eigene'
+                  ? <input style={{ ...inp, width: '100%', minWidth: 0 }} value={betraege[i]} onChange={(e) => setBetraege((b) => b.map((x, j) => (j === i ? e.target.value : x)))} />
+                  : <div style={{ ...inp, ...tab, opacity: 0.8 }}>{zahl(d.simulator_staffel[i], 2)}</div>}
+              </div>
+            ))}
+          </div>
+          {staffel !== 'eigene' && <div style={{ fontSize: '.7rem', color: 'var(--text3)', marginTop: '.3rem' }}>Für eigene Beträge „eigene Beträge“ wählen.</div>}
         </div>
         <div>
           <label style={{ fontSize: '.68rem', color: 'var(--text3)', textTransform: 'uppercase' }}>Vergleichsstand Einkauf</label>
@@ -267,6 +281,7 @@ function Preismodell() {
     </>
   );
 }
+const KLASSEN_KOPF = ['bis 11 kg', 'bis 33 kg', 'bis 66 kg', 'bis 99 kg', 'ab 100 kg'];
 const VK = { 7801000: 14.97, 7801800: 14.97, 7801050: 18.48, 7801100: 30.80, 7801200: 30.80, 7801250: 30.80, 7801300: 98.30, 7802000: 35.13, 7802010: 37.22 };
 
 // ── Methodik ────────────────────────────────────────────────────────────
