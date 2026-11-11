@@ -33,18 +33,20 @@ function status(n) {
   return { text: 'sichtbar', color: 'var(--green, #1d7a3e)' };
 }
 
-const EMPTY = { title: '', body: '', category: 'info', visible_from: '', visible_until: '', pinned: false };
+const EMPTY = { title: '', body: '', category: 'info', visible_from: '', visible_until: '', pinned: false, notify_mail: true };
 
 function NewsForm({ initial, onSave, onCancel, saving, error }) {
   const [f, setF] = useState(() => initial ? {
     title: initial.title, body: initial.body, category: initial.category,
-    visible_from: toLocalInput(initial.visible_from), visible_until: toLocalInput(initial.visible_until), pinned: !!initial.pinned,
+    visible_from: toLocalInput(initial.visible_from), visible_until: toLocalInput(initial.visible_until), pinned: !!initial.pinned, notify_mail: true,
   } : { ...EMPTY, visible_from: toLocalInput(new Date()) });
+  // Mail geht automatisch raus, sobald die Mitteilung sichtbar wird – danach gibt es nichts mehr abzuwählen
+  const mailOffen = !initial || !initial.mailed_at;
   const upd = k => e => setF(p => ({ ...p, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
   function submit(e) {
     e.preventDefault();
     onSave({
-      title: f.title, body: f.body, category: f.category, pinned: f.pinned,
+      title: f.title, body: f.body, category: f.category, pinned: f.pinned, notify_mail: !mailOffen || f.notify_mail,
       visible_from: f.visible_from ? new Date(f.visible_from).toISOString() : null,
       visible_until: f.visible_until ? new Date(f.visible_until).toISOString() : null,
     });
@@ -81,6 +83,12 @@ function NewsForm({ initial, onSave, onCancel, saving, error }) {
       <label style={{ display: 'flex', alignItems: 'center', gap: '.45rem', fontSize: '.82rem', color: 'var(--text1)', marginBottom: '.8rem' }}>
         <input type="checkbox" checked={f.pinned} onChange={upd('pinned')} /> Oben anheften
       </label>
+      {mailOffen && (
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: '.45rem', fontSize: '.82rem', color: 'var(--text1)', marginBottom: '.8rem' }}>
+          <input type="checkbox" checked={f.notify_mail} onChange={upd('notify_mail')} style={{ marginTop: '.15rem' }} />
+          <span>Kunden per E-Mail benachrichtigen<br /><span style={{ fontSize: '.72rem', color: 'var(--text3)' }}>Geht ohne Preise und ohne Text an alle Kunden mit Mailadresse, die es nicht abbestellt haben – sobald die Mitteilung sichtbar ist.</span></span>
+        </label>
+      )}
       {error && <div style={{ color: 'var(--red2, #c40000)', fontSize: '.8rem', marginBottom: '.6rem' }}>{error}</div>}
       <div style={{ display: 'flex', gap: '.5rem' }}>
         <button type="submit" style={S.btnPrimary} disabled={saving}>{saving ? "Speichere…" : 'Speichern'}</button>
@@ -157,6 +165,7 @@ export default function ShopNews() {
             <span style={{ ...S.chip, ...(n.category === 'wichtig' ? { borderColor: 'var(--r, #c40000)', color: 'var(--r, #c40000)' } : {}) }}>{CAT_LABEL[n.category] || n.category}</span>
             {n.pinned && <span style={S.chip}>angeheftet</span>}
             <span style={{ fontSize: '.72rem', color: status(n).color, fontWeight: 600 }}>{status(n).text}</span>
+            {n.mailed_at && <span style={S.chip}>Mail erledigt</span>}
             <span style={{ fontSize: '.72rem', color: 'var(--text3)' }}>
               ab {fmt(n.visible_from)}{n.visible_until ? ' bis ' + fmt(n.visible_until) : ''} · gelesen von {n.read_count || 0} Kunden
             </span>
