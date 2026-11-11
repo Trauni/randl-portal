@@ -1,0 +1,997 @@
+<meta name="dash-one-writer">
+<style>
+#dash-root .ga { display: grid; gap: var(--cds-gap-lg); font-family: var(--font-anthropic-sans); font-variant-numeric: tabular-nums; }
+#dash-root .ga-head { display: grid; gap: var(--cds-gap-xs); }
+#dash-root .ga-eyebrow { font-size: var(--cds-font-size-caption); letter-spacing: .12em; text-transform: uppercase; color: var(--color-fg-muted); margin: 0; }
+#dash-root .ga-title { font-family: var(--font-anthropic-serif); font-size: var(--cds-font-size-title); font-weight: 700; letter-spacing: .02em; text-transform: uppercase; margin: 0; line-height: 1.1; }
+#dash-root .ga-lead { margin: 0; max-width: 62ch; color: var(--color-fg); font-size: var(--cds-font-size-body); line-height: 1.5; }
+#dash-root .ga .ga-lead b, #dash-root .ga .ga-note b { font-weight: 600; }
+#dash-root .ga-tabs { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs); border-bottom: 1px solid var(--color-border-line); }
+#dash-root .ga-tab { appearance: none; background: none; border: 0; border-bottom: 2px solid transparent; padding: var(--cds-pad-sm) var(--cds-pad-md); font: inherit; font-size: var(--cds-font-size-body); color: var(--color-fg-muted); cursor: pointer; margin-bottom: -1px; }
+#dash-root .ga-tab[aria-selected="true"] { color: var(--color-fg); border-bottom-color: var(--color-bad); font-weight: var(--cds-font-weight-medium); }
+#dash-root .ga-tab:focus-visible, #dash-root .ga-btn:focus-visible { outline: 2px solid var(--color-bad); outline-offset: 2px; }
+#dash-root .ga-page { display: grid; gap: var(--cds-gap-lg); }
+#dash-root .ga-h2 { font-family: var(--font-anthropic-serif); font-size: var(--cds-font-size-heading); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin: 0; }
+#dash-root .ga-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: var(--cds-gap-md); }
+#dash-root .ga-tile { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-md); display: grid; gap: var(--cds-gap-xs); align-content: start; min-height: 6.5rem; }
+#dash-root .ga-tile-label { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); text-transform: uppercase; letter-spacing: .06em; }
+#dash-root .ga-tile-value { font-family: var(--font-anthropic-serif); font-size: var(--cds-font-size-title); font-weight: 700; line-height: 1.1; }
+#dash-root .ga-tile-sub { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+#dash-root .ga-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: var(--cds-gap-md); }
+#dash-root .ga-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); display: grid; gap: var(--cds-gap-sm); align-content: start; min-width: 0; }
+#dash-root .ga-card h3 { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); margin: 0; }
+#dash-root .ga-note { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: 0; line-height: 1.45; }
+#dash-root .ga-chart { position: relative; min-height: 240px; }
+#dash-root .ga-chart.ga-small { min-height: 120px; }
+#dash-root .ga-minis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: var(--cds-gap-md); }
+#dash-root .ga-mini-label { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: 0; }
+#dash-root .ga-tip { position: absolute; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); border-radius: var(--cds-radius); box-shadow: var(--cds-shadow-popover); padding: var(--cds-pad-xs) var(--cds-pad-sm); font-size: var(--cds-font-size-caption); white-space: nowrap; z-index: 2; }
+#dash-root .ga-tip .k { color: var(--cds-text-secondary); }
+#dash-root .ga-tablewrap { overflow-x: auto; }
+#dash-root .ga-table { width: 100%; border-collapse: collapse; font-size: var(--cds-font-size-body); }
+#dash-root .ga-table th { text-align: left; font-weight: var(--cds-font-weight-medium); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+#dash-root .ga-table td { padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+#dash-root .ga-table .num { text-align: right; }
+#dash-root .ga-table tbody tr:last-child td { border-bottom: 0; }
+#dash-root .ga-pos { color: var(--color-bad); }
+#dash-root .ga-neg { color: var(--color-ok); }
+#dash-root .ga-sim { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: var(--cds-gap-lg); }
+#dash-root .ga-controls { display: grid; gap: var(--cds-gap-sm); }
+#dash-root .ga-presets { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs); }
+#dash-root .ga-btn { appearance: none; font: inherit; font-size: var(--cds-font-size-caption); padding: var(--cds-pad-xs) var(--cds-pad-sm); border: 1px solid var(--color-border-line); background: var(--color-bg); color: var(--color-fg); border-radius: var(--cds-radius); cursor: pointer; }
+#dash-root .ga-btn:hover { border-color: var(--color-fg-muted); }
+#dash-root .ga-field { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: var(--cds-gap-sm); font-size: var(--cds-font-size-body); }
+#dash-root .ga-field input[type="number"] { width: 6.5rem; font: inherit; padding: var(--cds-pad-xs) var(--cds-pad-sm); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); background: var(--color-bg); color: var(--color-fg); text-align: right; }
+#dash-root .ga-range { display: grid; gap: var(--cds-gap-xs); }
+#dash-root .ga-range input { width: 100%; accent-color: var(--color-bad); }
+#dash-root .ga-range-row { display: flex; justify-content: space-between; font-size: var(--cds-font-size-body); }
+#dash-root .ga-results { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: var(--cds-gap-sm); }
+#dash-root .ga-res { border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-sm) var(--cds-pad-md); display: grid; gap: 2px; }
+#dash-root .ga-res-v { font-family: var(--font-anthropic-serif); font-size: var(--cds-font-size-heading); font-weight: 700; }
+#dash-root .ga-dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--cds-gap-xs) var(--cds-gap-md); margin: 0; font-size: var(--cds-font-size-body); }
+#dash-root .ga-dl dt { color: var(--color-fg-muted); }
+#dash-root .ga-dl dd { margin: 0; text-align: right; }
+#dash-root .ga-prose { display: grid; gap: var(--cds-gap-sm); max-width: 70ch; font-size: var(--cds-font-size-body); line-height: 1.55; }
+#dash-root .ga-prose p, #dash-root .ga-prose ul { margin: 0; }
+#dash-root .ga-prose ul { padding-left: 1.2em; display: grid; gap: var(--cds-gap-xs); }
+#dash-root .ga-filter { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm); align-items: end; }
+#dash-root .ga-filter label { display: grid; gap: 2px; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+#dash-root .ga-filter select, #dash-root .ga-filter input { font: inherit; font-size: var(--cds-font-size-body); color: var(--color-fg); background: var(--color-bg); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-xs) var(--cds-pad-sm); min-width: 9rem; }
+#dash-root .ga-filter input[type="search"] { min-width: 14rem; }
+#dash-root .ga-table th.ga-sort { cursor: pointer; user-select: none; }
+#dash-root .ga-table th.ga-sort:hover { color: var(--color-fg); }
+#dash-root .ga-table th[aria-sort="ascending"]::after { content: " ▲"; }
+#dash-root .ga-table th[aria-sort="descending"]::after { content: " ▼"; }
+#dash-root .ga-sum { font-size: var(--cds-font-size-body); margin: 0; }
+#dash-root [data-dash-source-state=empty] { color: transparent; }
+#dash-root [data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
+</style>
+
+<div class="ga" id="gas">
+  <header class="ga-head" id="kopf">
+    <p class="ga-eyebrow">Randl Gashandel · Auswertung 2026</p>
+    <h1 class="ga-title">Gas-Auswertung</h1>
+    <p class="ga-lead">Ab 15.11.2026 steigt der Einkauf bei Tyczka um rund 10 %. Ohne Preisänderung fällt der Propan-Rohertrag von <b data-draw="kpi" data-fmt="teur" data-source="propan" data-field="rohertrag_vor">—</b> auf <b data-draw="kpi" data-fmt="teur" data-source="propan" data-field="rohertrag">—</b>. Variante C hält ihn mit Gaspreis +1,5 % und einer Lieferpauschale nach Staffel S (<b data-draw="kpi" data-fmt="teur" data-source="varianten" data-where="variante=C Gaspreis +1,5 %25 + Staffel S" data-field="rohertrag_neu">—</b>).</p>
+  </header>
+
+  <nav class="ga-tabs" role="tablist" aria-label="Bereiche">
+    <button class="ga-tab" role="tab" type="button" id="tab-ueberblick" data-tab="ueberblick" aria-selected="true">Überblick</button>
+    <button class="ga-tab" role="tab" type="button" id="tab-flaschen" data-tab="flaschen" aria-selected="false">Flaschen</button>
+    <button class="ga-tab" role="tab" type="button" id="tab-preismodell" data-tab="preismodell" aria-selected="false">Preismodell</button>
+    <button class="ga-tab" role="tab" type="button" id="tab-methodik" data-tab="methodik" aria-selected="false">Methodik</button>
+  </nav>
+
+  <section class="ga-page" id="ueberblick" data-page="ueberblick">
+    <div class="ga-tiles" id="kennzahlen">
+      <div class="ga-tile"><span class="ga-tile-label">Umsatz alle Gase</span><span class="ga-tile-value" data-draw="kpi" data-fmt="teur" data-source="summe" data-field="umsatz">—</span><span class="ga-tile-sub">Jan.–Okt. 2026, Listenpreis netto</span></div>
+      <div class="ga-tile"><span class="ga-tile-label">Touren</span><span class="ga-tile-value" data-draw="kpi" data-fmt="int" data-source="summe" data-field="touren">—</span><span class="ga-tile-sub">Ø <span data-draw="kpi" data-fmt="dec1" data-source="summe" data-field="stopps_je_tour">—</span> Stopps je Tour</span></div>
+      <div class="ga-tile"><span class="ga-tile-label">Stopps</span><span class="ga-tile-value" data-draw="kpi" data-fmt="int" data-source="summe" data-field="stopps">—</span><span class="ga-tile-sub">Lieferungen mit Ware</span></div>
+      <div class="ga-tile"><span class="ga-tile-label">Kilometer</span><span class="ga-tile-value" data-draw="kpi" data-fmt="int" data-source="summe" data-field="km">—</span><span class="ga-tile-sub">optimale Route, Ø <span data-draw="kpi" data-fmt="int" data-source="summe" data-field="km_je_tour">—</span> km je Tour</span></div>
+      <div class="ga-tile"><span class="ga-tile-label">Lieferkosten</span><span class="ga-tile-value" data-draw="kpi" data-fmt="teur" data-source="summe" data-field="lieferkosten">—</span><span class="ga-tile-sub"><span data-draw="kpi" data-fmt="pct1" data-source="summe" data-field="lk_anteil">—</span> vom Tourumsatz (Modell)</span></div>
+      <div class="ga-tile"><span class="ga-tile-label">Flaschen alle Gase</span><span class="ga-tile-value" data-draw="kpi" data-fmt="int" data-source="flaschensumme" data-field="voll">—</span><span class="ga-tile-sub">Ø <span data-draw="kpi" data-fmt="int" data-source="flaschensumme" data-field="woche_avg">—</span> je Woche, Tour und Lager</span></div>
+      <div class="ga-tile"><span class="ga-tile-label">Rohertrag Propan</span><span class="ga-tile-value" data-draw="kpi" data-fmt="teur" data-source="rohertragsumme" data-field="rohertrag">—</span><span class="ga-tile-sub"><span data-draw="kpi" data-fmt="pct1" data-source="rohertragsumme" data-field="marge">—</span> Marge, Jan.–Okt. geschätzt</span></div>
+    </div>
+
+    <div class="ga-grid">
+      <div class="ga-card" id="karte-umsatz">
+        <h3>Umsatz je Monat</h3>
+        <p class="ga-note">Alle Gase zu den am Belegtag gültigen Listenpreisen, netto. Dunkel: über Touren, hell: Lager und Abholung.</p>
+        <div class="ga-chart" data-draw="umsatzchart" data-source="monate"></div>
+      </div>
+      <div class="ga-card" id="karte-touren">
+        <h3>Touren, Stopps und Kilometer je Monat</h3>
+        <p class="ga-note">Kilometer als optimale Route (OSRM) vom Lager Hemhof über alle Stopps zurück.</p>
+        <div class="ga-minis">
+          <div><p class="ga-mini-label">Touren</p><div class="ga-chart ga-small" data-draw="mini" data-spalte="touren" data-source="monate"></div></div>
+          <div><p class="ga-mini-label">Stopps</p><div class="ga-chart ga-small" data-draw="mini" data-spalte="stopps" data-source="monate"></div></div>
+          <div><p class="ga-mini-label">Kilometer</p><div class="ga-chart ga-small" data-draw="mini" data-spalte="km" data-source="monate"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ga-grid">
+      <div class="ga-card" id="karte-produkte">
+        <h3>Umsatz nach Produktgruppe</h3>
+        <p class="ga-note">01.01.–03.11.2026, Listenpreis netto. Propan macht den größten Teil aus.</p>
+        <div class="ga-chart" data-draw="produktchart" data-source="produkte"></div>
+      </div>
+      <div class="ga-card" id="karte-klassen">
+        <h3>Propan-Lieferungen nach Menge je Stopp</h3>
+        <p class="ga-note">Rohertrag und Lieferkosten je Stopp, heutige VK/EK. Kleine Lieferungen tragen ihre Lieferkosten kaum.</p>
+        <div class="ga-tablewrap">
+          <table class="ga-table" data-source="stoppklassen" data-row-key="klasse">
+            <thead><tr><th data-field="klasse">kg je Stopp</th><th class="num" data-field="stopps">Stopps</th><th class="num" data-field="umsatz">Umsatz</th><th class="num" data-field="re_je_stopp">Rohertrag/Stopp</th><th class="num" data-field="lk_je_stopp">Lieferk./Stopp</th><th class="num" data-field="rest_je_stopp">Übrig/Stopp</th></tr></thead>
+            <tbody data-draw="klassentabelle" data-source="stoppklassen"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="ga-grid">
+      <div class="ga-card" id="karte-rohertrag">
+        <h3>Rohertrag Propan je Monat</h3>
+        <p class="ga-note">Geschätzt: Einkauf je Tyczka-Periode, Verkaufspreise aus den Barbelegen, bekannte Sonderpreise abgezogen. Zahl über dem Balken: Marge.</p>
+        <div class="ga-chart" data-draw="rohertragchart" data-source="rohertrag"></div>
+      </div>
+      <div class="ga-card" id="karte-einkauf">
+        <h3>Einkaufspreise Tyczka</h3>
+        <p class="ga-note">Netto je Füllung, gültig ab Datum. Die Erhöhung zum 15.11.2026 liegt bei rund 10 %.</p>
+        <div class="ga-tablewrap">
+          <table class="ga-table" data-source="ekhistorie" data-row-key="gueltig_ab">
+            <thead><tr><th data-field="gueltig_ab">Gültig ab</th><th class="num" data-field="ek_5kg">5 kg</th><th class="num" data-field="ek_11kg">11 kg</th><th class="num" data-field="ek_33kg">33 kg</th><th class="num" data-field="ek_motogas">Motogas</th></tr></thead>
+            <tbody data-draw="ektabelle" data-source="ekhistorie"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ga-page" id="flaschen" data-page="flaschen" hidden>
+    <p class="ga-note">Alle Gase, Touren und Lager zusammen: ausgegebene volle Flaschen (nach Rücknahmen) 01.01.–03.11.2026. Wochenwerte aus den vollen Kalenderwochen KW 2–44, Monatswerte Januar–Oktober. Grundlage für den Bedarf bei einem Anbieterwechsel.</p>
+    <div class="ga-tiles" id="flaschen-kennzahlen">
+      <div class="ga-tile"><span class="ga-tile-label">Volle Flaschen</span><span class="ga-tile-value" data-draw="kpi" data-fmt="int" data-source="flaschensumme" data-field="voll">—</span><span class="ga-tile-sub"><span data-draw="kpi" data-fmt="int" data-source="flaschensumme" data-field="leer">—</span> leere zurück</span></div>
+      <div class="ga-tile"><span class="ga-tile-label">Je Woche</span><span class="ga-tile-value" data-draw="kpi" data-fmt="int" data-source="flaschensumme" data-field="woche_avg">—</span><span class="ga-tile-sub">Ø, 90 % der Wochen bis <span data-draw="kpi" data-fmt="int" data-source="flaschensumme" data-field="woche_p90">—</span></span></div>
+      <div class="ga-tile"><span class="ga-tile-label">Je Monat</span><span class="ga-tile-value" data-draw="kpi" data-fmt="int" data-source="flaschensumme" data-field="monat_avg">—</span><span class="ga-tile-sub">Ø, höchster Monat <span data-draw="kpi" data-fmt="int" data-source="flaschensumme" data-field="monat_max">—</span></span></div>
+      <div class="ga-tile"><span class="ga-tile-label">Propan gesamt</span><span class="ga-tile-value" data-draw="kpi" data-fmt="t1" data-source="flaschensumme" data-field="propan_kg">—</span><span class="ga-tile-sub">inkl. Treibgas, Füllmenge</span></div>
+      <div class="ga-tile"><span class="ga-tile-label">Propan je Woche</span><span class="ga-tile-value" data-draw="kpi" data-fmt="t1" data-source="flaschensumme" data-field="propan_kg_woche">—</span><span class="ga-tile-sub">Ø, höchste Woche <span data-draw="kpi" data-fmt="t1" data-source="flaschensumme" data-field="propan_kg_woche_max">—</span></span></div>
+    </div>
+
+    <div class="ga-card" id="karte-gasarten">
+      <h3>Bedarf je Gasart</h3>
+      <p class="ga-note">Flaschen je Gasart mit Wochen- und Monatswerten. „90 %-Woche“: in 9 von 10 Wochen reichte diese Menge. kg nur für Gase, die nach Füllgewicht verkauft werden.</p>
+      <div class="ga-tablewrap">
+        <table class="ga-table" data-source="gasarten" data-row-key="gasart">
+          <thead><tr><th data-field="gasart">Gasart</th><th class="num" data-field="voll">Flaschen</th><th class="num" data-field="woche_avg">Ø Woche</th><th class="num" data-field="woche_p90">90 %-Woche</th><th class="num" data-field="woche_max">Max. Woche</th><th class="num" data-field="monat_avg">Ø Monat</th><th class="num" data-field="monat_max">Max. Monat</th><th class="num" data-field="kg">kg gesamt</th><th class="num" data-field="kg_woche_avg">Ø kg/Woche</th></tr></thead>
+          <tbody data-draw="fl-gasarten" data-source="gasarten"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="ga-card" id="karte-bedarf-verlauf">
+      <div class="ga-range-row"><h3>Verlauf: <span data-draw="fl-auswahl">—</span></h3><select id="fl-gas" data-draw="fl-gas" aria-label="Gasart" data-source="gasarten"></select></div>
+      <div class="ga-grid">
+        <div>
+          <p class="ga-note">Flaschen je Kalenderwoche. Linien: Durchschnitt und 90 %-Woche.</p>
+          <div class="ga-chart" data-draw="fl-woche" data-source="flaschenwoche"></div>
+        </div>
+        <div>
+          <p class="ga-note">Flaschen je Monat.</p>
+          <div class="ga-chart" data-draw="fl-monat" data-source="flaschenmonat"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ga-card" id="karte-artikel">
+      <h3>Je Artikel und Flaschengröße</h3>
+      <p class="ga-note">Propan umfasst Brenngas (Pfand, Camping, Alugas, BBQ) sowie Motogas und Bluetec, „Technisch und sonstige“ alle übrigen Gase. Spaltenköpfe sortieren. „Wochen mit Bedarf“: in wie vielen der 43 Wochen der Artikel mindestens einmal rausging.</p>
+      <div class="ga-filter" id="artikel-filter">
+        <label for="fa-kat">Kategorie
+          <select id="fa-kat" data-fparam="fa_kat">
+            <option value="">Alle</option>
+            <option value="propan">Propan</option>
+            <option value="technisch">Technisch und sonstige</option>
+          </select>
+        </label>
+        <label for="fa-gas">Gasart <select id="fa-gas" data-draw="fa-gas" data-source="flaschenartikel"></select></label>
+        <label for="fa-groesse">Größe <select id="fa-groesse" data-draw="fa-groesse" data-source="flaschenartikel"></select></label>
+        <label for="fa-q">Suche <input id="fa-q" type="search" placeholder="Artikel-Nr. oder Bezeichnung" data-fparam="fa_q"></label>
+        <button class="ga-btn" type="button" id="fa-reset">Filter zurücksetzen</button>
+      </div>
+      <p class="ga-sum" data-source="flaschenartikel"><b data-draw="fa-summe" data-key="n">—</b> Artikel · <b data-draw="fa-summe" data-key="voll">—</b> Flaschen · Ø <b data-draw="fa-summe" data-key="woche">—</b> je Woche · Ø <b data-draw="fa-summe" data-key="monat">—</b> je Monat · <b data-draw="fa-summe" data-key="kg">—</b></p>
+      <div class="ga-tablewrap">
+        <table class="ga-table" id="fa-tabelle" data-source="flaschenartikel" data-row-key="artikel">
+          <thead><tr><th class="ga-sort" data-field="artikel" data-sort="artikel">Artikel</th><th class="ga-sort" data-field="bezeichnung" data-sort="bezeichnung">Bezeichnung</th><th class="ga-sort" data-field="gasart" data-sort="gasart">Gasart</th><th class="ga-sort" data-field="groesse" data-sort="groesse">Größe</th><th class="num ga-sort" data-field="voll" data-sort="voll">Flaschen</th><th class="num ga-sort" data-field="leer" data-sort="leer">Leer zurück</th><th class="num ga-sort" data-field="monat_avg" data-sort="monat_avg">Ø Monat</th><th class="num ga-sort" data-field="woche_avg" data-sort="woche_avg">Ø Woche</th><th class="num ga-sort" data-field="woche_p90" data-sort="woche_p90">90 %-Woche</th><th class="num ga-sort" data-field="woche_max" data-sort="woche_max">Max. Woche</th><th class="num ga-sort" data-field="wochen_mit_bedarf" data-sort="wochen_mit_bedarf">Wochen mit Bedarf</th><th class="num ga-sort" data-field="kg" data-sort="kg">kg</th></tr></thead>
+          <tbody data-draw="fl-artikel" data-source="flaschenartikel"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="ga-page" id="preismodell" data-page="preismodell" hidden>
+    <div class="ga-card" id="karte-varianten">
+      <h3>Vier Varianten mit Einkauf ab 15.11.</h3>
+      <p class="ga-note">Gas- bzw. Abholpreis für alle, bei Lieferung zusätzlich eine Pauschale nach kg je Stopp. Preise netto, auf 10 Cent gerundet. Mengen 01.01.–03.11.2026, Verkaufspreise Oktober, Einkauf Tyczka ab 15.11.2026. Rohertrag-Vergleich gegen den Stand vor der Erhöhung.</p>
+      <div class="ga-tablewrap">
+        <table class="ga-table" data-source="varianten" data-row-key="variante">
+          <thead><tr><th data-field="variante">Variante</th><th data-field="staffel">Staffel</th><th class="num" data-field="senkung">Gaspreis</th><th class="num" data-field="preis_11kg">11 kg</th><th class="num" data-field="preis_33kg">33 kg</th><th class="num" data-field="pauschalen">Pauschalen</th><th class="num" data-field="rohertrag_neu">Rohertrag</th><th class="num" data-source="variantenvergleich" data-field="gegen_vor">Δ zu vor 15.11.</th><th class="num" data-field="ab100_stopp">Ab 100 kg je Stopp</th><th class="num" data-field="ueber10">Kunden über +10 %</th><th class="num" data-field="guenstiger_als_a">Günstiger als A</th></tr></thead>
+          <tbody data-draw="variantentabelle" data-source="varianten"></tbody>
+        </table>
+      </div>
+      <p class="ga-note">Staffel S: bis 11 kg 19,90 € · bis 33 kg 14,90 € · bis 66 kg 9,90 € · bis 99 kg 4,90 € · ab 100 kg frei. Staffel S+: 24,90 € · 19,90 € · 14,90 € · 9,90 € · 4,90 €. A ist die klassische Erhöhung ohne Pauschale; „Günstiger als A“ zählt Tourkunden, die in der Variante weniger zahlen als bei A.</p>
+    </div>
+
+    <div class="ga-card" id="simulator">
+      <h3>Simulator</h3>
+      <p class="ga-note">Gaspreis-Änderung und Pauschalen frei wählen, Einkauf ab 15.11. Der Simulator rechnet ohne Rundung der Preise, daher weichen die Werte leicht von der Tabelle oben ab.</p>
+      <div class="ga-sim">
+        <div class="ga-controls">
+          <div class="ga-presets">
+            <button class="ga-btn" type="button" data-preset="Ist">Heute</button>
+            <button class="ga-btn" type="button" data-preset="A Gaspreis +5,5 %">A</button>
+            <button class="ga-btn" type="button" data-preset="B Preis halten + Staffel S+">B</button>
+            <button class="ga-btn" type="button" data-preset="C Gaspreis +1,5 % + Staffel S">C</button>
+            <button class="ga-btn" type="button" data-preset="D Abholpreis −4 % + Staffel S">D</button>
+          </div>
+          <div class="ga-range">
+            <div class="ga-range-row"><label for="sim-cut">Gaspreis ändern um</label><b data-draw="simwert" data-key="cut">—</b></div>
+            <input id="sim-cut" type="range" min="-10" max="10" step="0.5" data-param="cut" data-invert="1">
+          </div>
+          <div class="ga-field"><label for="sim-f11">Pauschale bis 11 kg (€)</label><input id="sim-f11" type="number" min="0" max="99" step="0.1" data-param="f11"></div>
+          <div class="ga-field"><label for="sim-f33">bis 33 kg (€)</label><input id="sim-f33" type="number" min="0" max="99" step="0.1" data-param="f33"></div>
+          <div class="ga-field"><label for="sim-f66">bis 66 kg (€)</label><input id="sim-f66" type="number" min="0" max="99" step="0.1" data-param="f66"></div>
+          <div class="ga-field"><label for="sim-f99">bis 99 kg (€)</label><input id="sim-f99" type="number" min="0" max="99" step="0.1" data-param="f99"></div>
+          <div class="ga-field"><label for="sim-f100">ab 100 kg (€)</label><input id="sim-f100" type="number" min="0" max="99" step="0.1" data-param="f100"></div>
+        </div>
+        <div class="ga-controls" data-source="stopps abholung">
+          <div class="ga-results">
+            <div class="ga-res"><span class="ga-tile-label">Δ zu vor 15.11.</span><span class="ga-res-v" data-draw="simwert" data-key="delta">—</span></div>
+            <div class="ga-res"><span class="ga-tile-label">Rohertrag neu</span><span class="ga-res-v" data-draw="simwert" data-key="re">—</span></div>
+            <div class="ga-res"><span class="ga-tile-label">Pauschalen</span><span class="ga-res-v" data-draw="simwert" data-key="pauschalen">—</span></div>
+            <div class="ga-res"><span class="ga-tile-label">Nötige Gaspreisänderung</span><span class="ga-res-v" data-draw="simwert" data-key="neutral">—</span></div>
+            <div class="ga-res"><span class="ga-tile-label">Kunden günstiger als heute</span><span class="ga-res-v" data-draw="simwert" data-key="guenstiger">—</span></div>
+            <div class="ga-res"><span class="ga-tile-label">Kunden über +10 %</span><span class="ga-res-v" data-draw="simwert" data-key="ueber10">—</span></div>
+          </div>
+          <p class="ga-note">„Nötige Gaspreisänderung“: Änderung, mit der diese Staffel den Rohertrag von vor dem 15.11. genau hält. Mehrabsatz, um einen Verlust auszugleichen: <b data-draw="simwert" data-key="mengenplus">—</b>.</p>
+          <div class="ga-tablewrap">
+            <table class="ga-table" data-source="preise" data-row-key="groesse">
+              <thead><tr><th data-field="groesse">Flasche</th><th class="num" data-field="vk">VK heute</th><th class="num">Gaspreis neu</th><th class="num">+ Pauschale 1 Fl.</th><th class="num" data-field="ek">EK ab 15.11.</th><th class="num">Rohertrag/Fl.</th></tr></thead>
+              <tbody data-draw="simpreise" data-source="preise"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ga-grid">
+      <div class="ga-card" id="karte-wirkung">
+        <h3>Wirkung je Stopp nach Liefermenge</h3>
+        <p class="ga-note">Änderung des Kundenpreises je Lieferung gegenüber heute im Simulator. Rot: Kunde zahlt mehr, grün: Kunde zahlt weniger.</p>
+        <div class="ga-chart" data-draw="wirkungchart" data-source="stopps"></div>
+      </div>
+      <div class="ga-card" id="karte-kunden">
+        <h3>Größte Gewinner und Verlierer</h3>
+        <p class="ga-note">Tourkunden nach Kundennummer, Summe 01.01.–03.11.2026 im Simulator.</p>
+        <p class="ga-mini-label">Zahlen weniger</p>
+        <div class="ga-tablewrap" data-source="stopps abholung">
+          <table class="ga-table">
+            <thead><tr><th>Kunde</th><th class="num">Stopps</th><th class="num">Ø kg/Stopp</th><th class="num">Umsatz heute</th><th class="num">Δ €</th><th class="num">Δ %</th></tr></thead>
+            <tbody data-draw="kunden" data-art="weniger"></tbody>
+          </table>
+        </div>
+        <p class="ga-mini-label">Zahlen mehr</p>
+        <div class="ga-tablewrap" data-source="stopps abholung">
+          <table class="ga-table">
+            <thead><tr><th>Kunde</th><th class="num">Stopps</th><th class="num">Ø kg/Stopp</th><th class="num">Umsatz heute</th><th class="num">Δ €</th><th class="num">Δ %</th></tr></thead>
+            <tbody data-draw="kunden" data-art="mehr"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ga-page" id="methodik" data-page="methodik" hidden>
+    <div class="ga-grid">
+      <div class="ga-card" id="karte-annahmen">
+        <h3>Annahmen im Modell</h3>
+        <dl class="ga-dl">
+          <dt>Strecke je Stopp</dt><dd><span data-draw="annahme" data-key="km">—</span> km</dd>
+          <dt>Fahrzeugkosten</dt><dd><span data-draw="annahme" data-key="eurkm">—</span> €/km</dd>
+          <dt>Fahrzeit je Stopp</dt><dd><span data-draw="annahme" data-key="fahrmin">—</span> min</dd>
+          <dt>Standzeit je Stopp</dt><dd><span data-draw="annahme" data-key="standmin">—</span> min</dd>
+          <dt>Zusatzzeit je Flasche</dt><dd><span data-draw="annahme" data-key="minfl">—</span> min</dd>
+          <dt>Fahrerkosten inkl. Abgaben</dt><dd><span data-draw="annahme" data-key="stunde">—</span> €/h</dd>
+        </dl>
+        <p class="ga-note">Zeitmodell kalibriert an einer Tour am 03.11.2026 (6 Stopps, 37 Flaschen, 108 km, real 195 min, Modell 197 min). Der km-Satz ist geschätzt und sollte mit Tank- und Werkstattbelegen geprüft werden.</p>
+      </div>
+      <div class="ga-card" id="karte-quellen">
+        <h3>Datenquellen</h3>
+        <div class="ga-prose">
+          <ul>
+            <li>Terminal-Belege der Tablets 6441–6443 und des Lager-PCs 6444 (Versorger-Portal), alle Positionen 01.01.–03.11.2026.</li>
+            <li>Tourliste aus dem Versorger-Portal: ein Beleg gehört zur Tour, wenn Terminal und Tag passen. Lagerkonten und 6444 zählen als Abholung.</li>
+            <li>Adressen aus der gas-db, Routen mit OpenStreetMap (Nominatim, OSRM).</li>
+            <li>Flaschen: alle Artikel der Terminal-Belege ohne Paletten und Kappen, Bezeichnungen aus der „Abrechnung (Flaschen)“. Volle Flaschen nach Rücknahmen.</li>
+            <li>Preismodell: Mengen 2026 zu Verkaufspreisen Oktober 2026 und Einkauf Tyczka ab 15.11.2026; Vergleichswert „vor 15.11.“ mit Einkauf ab 15.10.2026.</li>
+            <li>Rohertrag je Monat: Einkauf je Tyczka-Periode (Mitteilungen ab 20.12.2025). Verkaufspreise je Periode aus den Barbelegen geschätzt (11 kg 25,63 € bis 14.04., dann 29,26 €, ab Oktober 30,80 €). Sonderpreise nur für fünf Barkunden bekannt, der echte Rohertrag liegt eher etwas darunter.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="ga-card" id="karte-hinweise">
+      <h3>Was die Zahlen nicht zeigen</h3>
+      <div class="ga-prose">
+        <ul>
+          <li>Kundenreaktionen: Kunden, die heute kleine Mengen beziehen, zahlen mehr und könnten abspringen. Ihre Lieferungen tragen die Lieferkosten heute kaum.</li>
+          <li>Bündelung: Eine Pauschale je Lieferung macht größere, seltenere Bestellungen attraktiv. Weniger Stopps senken die Lieferkosten, das ist hier nicht eingerechnet.</li>
+          <li>Übrige Gase (CO2, Biergas, technische Gase) bleiben im Preismodell unverändert.</li>
+          <li>Der Zeitraum umfasst gut zehn Monate. Für ein volles Jahr die Beträge mit etwa 1,19 multiplizieren.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  const G = window.GAS = window.GAS || {};
+  G.ANNAHMEN = { km: 12.65, eurkm: 0.40, fahrmin: 15.4, standmin: 9, minfl: 0.6, stunde: 20 };
+  G.GRENZEN = [11, 33, 66, 99];
+  G.KLASSEN = ['bis 11 kg', '12–33 kg', '34–66 kg', '67–99 kg', 'ab 100 kg'];
+  G.MONATE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+  const de = (d) => new Intl.NumberFormat('de-DE', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const minus = (s) => s.replace('-', '−');
+  G.fmt = {
+    int: (v) => minus(de(0).format(v)),
+    dec1: (v) => minus(de(1).format(v)),
+    eur0: (v) => minus(de(0).format(v)) + ' €',
+    eur2: (v) => minus(de(2).format(v)) + ' €',
+    teur: (v) => minus(de(1).format(v / 1000)) + ' T€',
+    pct0: (v) => minus(de(0).format(v * 100)) + ' %',
+    pct1: (v) => minus(de(1).format(v * 100)) + ' %',
+    sgnEur0: (v) => (v > 0.5 ? '+' : '') + minus(de(0).format(v)) + ' €',
+    sgnEur2: (v) => (v > 0.005 ? '+' : '') + minus(de(2).format(v)) + ' €',
+    sgnPct1: (v) => (v > 0.0005 ? '+' : '') + minus(de(1).format(v * 100)) + ' %',
+    t1: (v) => minus(de(1).format(v / 1000)) + ' t',
+    kg0: (v) => minus(de(0).format(v)) + ' kg',
+  };
+  G.klasse = (kg) => G.KLASSEN[G.GRENZEN.findIndex((g) => kg <= g) === -1 ? 4 : G.GRENZEN.findIndex((g) => kg <= g)];
+  const num = (v, d) => (v === null || v === undefined || v === '' || isNaN(Number(v)) ? d : Number(v));
+  G.par = () => {
+    const q = dash.params();
+    return { cut: num(q.cut, 4), f11: num(q.f11, 19.9), f33: num(q.f33, 14.9), f66: num(q.f66, 9.9), f99: num(q.f99, 4.9), f100: num(q.f100, 0) };
+  };
+  let memo = { key: null, val: null };
+  G.sim = () => {
+    const s = dash.data('stopps'), a = dash.data('abholung');
+    if (s.status !== 'ok' || a.status !== 'ok') return null;
+    const p = G.par();
+    const key = JSON.stringify(p) + s.data.length + '|' + a.data.length;
+    if (memo.key === key) return memo.val;
+    const c = p.cut / 100;
+    const fee = (kg) => (kg <= 11 ? p.f11 : kg <= 33 ? p.f33 : kg <= 66 ? p.f66 : kg <= 99 ? p.f99 : p.f100);
+    let U0 = 0, E = 0, EA = 0, U1 = 0, F = 0;
+    const kunden = new Map();
+    const kl = new Map(G.KLASSEN.map((k) => [k, { stopps: 0, delta: 0 }]));
+    const add = (k, u0, u1, stopp, kg) => {
+      const x = kunden.get(k) || { kunde: k, u0: 0, u1: 0, stopps: 0, kg: 0 };
+      x.u0 += u0; x.u1 += u1; x.stopps += stopp; x.kg += kg; kunden.set(k, x);
+    };
+    for (const r of s.data) {
+      const u = Number(r.umsatz), ek = Number(r.ek), kg = Number(r.kg), f = fee(kg), u1 = u * (1 - c) + f;
+      U0 += u; E += ek; EA += Number(r.ek_alt); F += f; U1 += u1;
+      add(String(r.kunde), u, u1, 1, kg);
+      const k = kl.get(G.klasse(kg)); k.stopps += 1; k.delta += u1 - u;
+    }
+    const lager = new Set();
+    for (const r of a.data) {
+      const u = Number(r.umsatz), ek = Number(r.ek);
+      U0 += u; E += ek; EA += Number(r.ek_alt); U1 += u * (1 - c);
+      if (String(r.lagerkonto) === 'true') lager.add(String(r.kunde));
+      add(String(r.kunde), u, u * (1 - c), 0, 0);
+    }
+    const tour = [...kunden.values()].filter((x) => x.stopps > 0 && !lager.has(x.kunde)).map((x) => ({ ...x, d: x.u1 - x.u0, dp: (x.u1 - x.u0) / x.u0 }));
+    const re0 = U0 - E, re1 = U1 - E, reVor = U0 - EA, delta = re1 - reVor;
+    const val = {
+      p, U0, U1, E, F, re0, re1, reVor, delta,
+      neutral: (E - EA - F) / U0,
+      mengenplus: delta < 0 ? -delta / re1 : 0,
+      guenstiger: tour.filter((x) => x.d < -1).length,
+      teurer: tour.filter((x) => x.d > 1).length,
+      ueber10: tour.filter((x) => x.dp > 0.1).length,
+      klassen: G.KLASSEN.map((k) => ({ klasse: k, stopps: kl.get(k).stopps, je: kl.get(k).stopps ? kl.get(k).delta / kl.get(k).stopps : 0 })),
+      tour: tour.sort((x, y) => x.d - y.d),
+      fee,
+    };
+    memo = { key, val };
+    return val;
+  };
+  G.tip = (box) => {
+    let t = box.querySelector('.ga-tip');
+    if (!t) { t = document.createElement('div'); t.className = 'ga-tip'; t.hidden = true; box.appendChild(t); }
+    return t;
+  };
+  G.placeTip = (box, t, x, y) => {
+    t.hidden = false;
+    const bw = box.clientWidth, tw = t.offsetWidth;
+    t.style.left = Math.max(0, Math.min(bw - tw, x - tw / 2)) + 'px';
+    t.style.top = Math.max(0, y - t.offsetHeight - 8) + 'px';
+  };
+})();
+
+dash.calc('summe', {
+  inputs: ['monate'],
+  title: 'Summen Jan.–Okt. 2026',
+  description: 'Summe der Monatswerte; Lieferkosten-Anteil am Tourumsatz, Stopps und km je Tour.',
+  fn: (monate) => {
+    const s = (k) => monate.reduce((a, r) => a + Number(r[k]), 0);
+    const u = s('umsatz'), ut = s('umsatz_tour'), t = s('touren'), st = s('stopps'), km = s('km'), lk = s('lieferkosten');
+    return [{ umsatz: u, umsatz_tour: ut, touren: t, stopps: st, km, lieferkosten: lk, lk_anteil: lk / ut, stopps_je_tour: st / t, km_je_tour: km / t }];
+  },
+});
+
+dash.calc('propan', {
+  inputs: ['stopps', 'abholung'],
+  title: 'Propan zu heutigen Preisen',
+  description: 'Umsatz zu Verkaufspreisen Okt. 2026; Rohertrag mit Einkauf ab 15.11. und vor 15.11.; Lieferkosten je Stopp nach Zeit- und km-Modell.',
+  fn: (stopps, abholung) => {
+    const lk = (fl) => 12.65 * 0.40 + (15.4 + 9 + 0.6 * fl) / 60 * 20;
+    const sum = (rows, k) => rows.reduce((a, r) => a + Number(r[k]), 0);
+    const u = sum(stopps, 'umsatz') + sum(abholung, 'umsatz');
+    const ek = sum(stopps, 'ek') + sum(abholung, 'ek');
+    const ekVor = sum(stopps, 'ek_alt') + sum(abholung, 'ek_alt');
+    const lieferkosten = stopps.reduce((a, r) => a + lk(Number(r.flaschen)), 0);
+    const tourumsatz = sum(stopps, 'umsatz');
+    return [{ umsatz: u, ek, rohertrag: u - ek, rohertrag_vor: u - ekVor, marge: (u - ek) / u, stopps: stopps.length, lieferkosten, lk_anteil: lieferkosten / tourumsatz }];
+  },
+});
+
+dash.calc('gasarten', {
+  inputs: ['flaschenartikel', 'flaschenwoche', 'flaschenmonat'],
+  title: 'Flaschen je Gasart',
+  description: 'Summe je Gasart; Wochen- und Monatswerte über alle Wochen bzw. Monate, Wochen ohne Bedarf als 0 gezählt.',
+  fn: (flaschenartikel, flaschenwoche, flaschenmonat) => {
+    const weeks = [...new Set(flaschenwoche.map((r) => r.montag))];
+    const months = [...new Set(flaschenmonat.map((r) => r.monat))];
+    const q90 = (v) => { const a = [...v].sort((x, y) => x - y); const i = (a.length - 1) * 0.9; const lo = Math.floor(i); return a[lo] + (a[Math.min(lo + 1, a.length - 1)] - a[lo]) * (i - lo); };
+    const gas = [...new Set(flaschenartikel.map((r) => r.gasart))];
+    return gas.map((g) => {
+      const a = flaschenartikel.filter((r) => r.gasart === g);
+      const hatKg = a.some((r) => r.kg !== null && r.kg !== undefined && r.kg !== '');
+      const wk = weeks.map((w) => flaschenwoche.filter((r) => r.montag === w && r.gasart === g).reduce((s, r) => s + Number(r.voll), 0));
+      const wkg = weeks.map((w) => flaschenwoche.filter((r) => r.montag === w && r.gasart === g).reduce((s, r) => s + Number(r.kg || 0), 0));
+      const mo = months.map((m) => flaschenmonat.filter((r) => r.monat === m && r.gasart === g).reduce((s, r) => s + Number(r.voll), 0));
+      return {
+        gasart: g,
+        voll: a.reduce((s, r) => s + Number(r.voll), 0),
+        leer: a.reduce((s, r) => s + Number(r.leer), 0),
+        kg: hatKg ? a.reduce((s, r) => s + Number(r.kg || 0), 0) : null,
+        woche_avg: wk.reduce((s, v) => s + v, 0) / weeks.length,
+        woche_p90: q90(wk),
+        woche_max: Math.max(...wk),
+        monat_avg: mo.reduce((s, v) => s + v, 0) / months.length,
+        monat_max: Math.max(...mo),
+        kg_woche_avg: hatKg ? wkg.reduce((s, v) => s + v, 0) / weeks.length : null,
+      };
+    });
+  },
+});
+
+dash.calc('flaschensumme', {
+  inputs: ['flaschenartikel', 'flaschenwoche', 'flaschenmonat'],
+  title: 'Flaschen gesamt',
+  description: 'Alle Gase: Summe, Wochen- und Monatswerte; Propan inkl. Treibgas in kg Füllmenge.',
+  fn: (flaschenartikel, flaschenwoche, flaschenmonat) => {
+    const weeks = [...new Set(flaschenwoche.map((r) => r.montag))];
+    const months = [...new Set(flaschenmonat.map((r) => r.monat))];
+    const propan = (r) => String(r.gasart).startsWith('Propan');
+    const wk = weeks.map((w) => flaschenwoche.filter((r) => r.montag === w).reduce((s, r) => s + Number(r.voll), 0));
+    const wkg = weeks.map((w) => flaschenwoche.filter((r) => r.montag === w && propan(r)).reduce((s, r) => s + Number(r.kg || 0), 0));
+    const mo = months.map((m) => flaschenmonat.filter((r) => r.monat === m).reduce((s, r) => s + Number(r.voll), 0));
+    const a = [...wk].sort((x, y) => x - y); const i = (a.length - 1) * 0.9; const lo = Math.floor(i);
+    return [{
+      voll: flaschenartikel.reduce((s, r) => s + Number(r.voll), 0),
+      leer: flaschenartikel.reduce((s, r) => s + Number(r.leer), 0),
+      woche_avg: wk.reduce((s, v) => s + v, 0) / weeks.length,
+      woche_p90: a[lo] + (a[Math.min(lo + 1, a.length - 1)] - a[lo]) * (i - lo),
+      monat_avg: mo.reduce((s, v) => s + v, 0) / months.length,
+      monat_max: Math.max(...mo),
+      propan_kg: flaschenartikel.filter(propan).reduce((s, r) => s + Number(r.kg || 0), 0),
+      propan_kg_woche: wkg.reduce((s, v) => s + v, 0) / weeks.length,
+      propan_kg_woche_max: Math.max(...wkg),
+    }];
+  },
+});
+
+dash.calc('rohertragsumme', {
+  inputs: ['rohertrag'],
+  title: 'Rohertrag Jan.–Okt. 2026',
+  description: 'Summe des geschätzten Rohertrags je Monat und Marge.',
+  fn: (rohertrag) => {
+    const u = rohertrag.reduce((a, r) => a + Number(r.umsatz), 0);
+    const re = rohertrag.reduce((a, r) => a + Number(r.rohertrag), 0);
+    return [{ umsatz: u, rohertrag: re, marge: re / u }];
+  },
+});
+
+dash.calc('variantenvergleich', {
+  inputs: ['varianten'],
+  title: 'Varianten gegen vor 15.11.',
+  description: 'Rohertrag je Variante minus Rohertrag mit Einkauf vor dem 15.11.',
+  fn: (varianten) => varianten.map((r) => ({ variante: r.variante, gegen_vor: Number(r.rohertrag_neu) - Number(r.rohertrag_vor) })),
+});
+
+dash.calc('stoppklassen', {
+  inputs: ['stopps'],
+  title: 'Propan-Stopps nach kg',
+  description: 'Stopps je Mengenklasse mit Umsatz, Rohertrag und Lieferkosten je Stopp.',
+  fn: (stopps) => {
+    const lk = (fl) => 12.65 * 0.40 + (15.4 + 9 + 0.6 * fl) / 60 * 20;
+    const namen = ['bis 11 kg', '12–33 kg', '34–66 kg', '67–99 kg', 'ab 100 kg'];
+    const grenzen = [11, 33, 66, 99, Infinity];
+    const acc = namen.map((n) => ({ klasse: n, stopps: 0, umsatz: 0, re: 0, lk: 0 }));
+    for (const r of stopps) {
+      const i = grenzen.findIndex((g) => Number(r.kg) <= g);
+      const x = acc[i];
+      x.stopps += 1; x.umsatz += Number(r.umsatz); x.re += Number(r.umsatz) - Number(r.ek); x.lk += lk(Number(r.flaschen));
+    }
+    return acc.map((x) => ({ klasse: x.klasse, stopps: x.stopps, umsatz: x.umsatz, re_je_stopp: x.re / x.stopps, lk_je_stopp: x.lk / x.stopps, rest_je_stopp: (x.re - x.lk) / x.stopps }));
+  },
+});
+
+(() => {
+  const G = window.GAS;
+  // Tabs
+  const tabs = document.querySelectorAll('#dash-root .ga-tab');
+  const show = (name) => {
+    let found = false;
+    document.querySelectorAll('#dash-root .ga-page').forEach((p) => { if (p.dataset.page === name) found = true; });
+    if (!found) return false;
+    document.querySelectorAll('#dash-root .ga-page').forEach((p) => { p.hidden = p.dataset.page !== name; });
+    tabs.forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
+    return true;
+  };
+  tabs.forEach((t) => t.addEventListener('click', () => { if (show(t.dataset.tab)) dash.setLink(t.dataset.tab); }));
+  const start = location.hash.slice(1);
+  if (start && show(start)) dash.setLink(start);
+
+  // Simulator-Steuerung
+  const inputs = document.querySelectorAll('#dash-root [data-param]');
+  inputs.forEach((inp) => {
+    const ev = inp.type === 'range' ? 'input' : 'change';
+    inp.addEventListener(ev, () => {
+      const v = Number(inp.value);
+      if (inp.value !== '' && !isNaN(v) && (v >= 0 || inp.dataset.invert)) dash.setParams({ [inp.dataset.param]: inp.dataset.invert ? -v : v });
+    });
+  });
+  document.querySelectorAll('#dash-root [data-preset]').forEach((b) => {
+    b.addEventListener('click', () => {
+      if (b.dataset.preset === 'Ist') { dash.setParams({ cut: 0, f11: 0, f33: 0, f66: 0, f99: 0, f100: 0 }); return; }
+      const v = dash.data('varianten');
+      if (v.status !== 'ok') return;
+      const r = v.data.find((x) => x.variante === b.dataset.preset);
+      if (r) dash.setParams({ cut: Math.round(Number(r.senkung) * 1000) / 10, f11: Number(r.f11), f33: Number(r.f33), f66: Number(r.f66), f99: Number(r.f99), f100: Number(r.f100) });
+    });
+  });
+  dash.onData(() => {
+    const p = G.par();
+    inputs.forEach((inp) => { if (inp !== document.activeElement || inp.type === 'range') inp.value = String(inp.dataset.invert ? -p[inp.dataset.param] : p[inp.dataset.param]); });
+  });
+
+  // Kennzahlen
+  dash.draw('kpi', (el) => {
+    const d = dash.data(el.dataset.source);
+    if (d.status !== 'ok' || !d.data.length) { el.textContent = '—'; return; }
+    let row = d.data[0];
+    if (el.dataset.where) {
+      const [k, v] = el.dataset.where.split('=');
+      row = d.data.find((r) => String(r[k]) === decodeURIComponent(v));
+    }
+    const v = row ? Number(row[el.dataset.field]) : NaN;
+    el.textContent = isNaN(v) ? '—' : G.fmt[el.dataset.fmt](v);
+  });
+
+  dash.draw('annahme', (el) => {
+    const v = G.ANNAHMEN[el.dataset.key];
+    el.textContent = v === undefined ? '—' : new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(v);
+  });
+
+  // Umsatz je Monat (gestapelt)
+  dash.draw('umsatzchart', (el) => {
+    const d = dash.data('monate');
+    el.replaceChildren();
+    if (d.status !== 'ok') { el.textContent = '—'; return; }
+    const rows = d.data.map((r) => ({ m: String(r.monat), tour: Number(r.umsatz_tour), lager: Number(r.umsatz) - Number(r.umsatz_tour), u: Number(r.umsatz) }));
+    const W = Math.max(280, el.clientWidth), H = 240, mb = 24, mt = 8;
+    const y = d3.scaleLinear([0, d3.max(rows, (r) => r.u) * 1.08], [H - mb, mt]).nice();
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).style('display', 'block');
+    const ticks = y.ticks(4);
+    const tg = svg.append('g');
+    const labels = tg.selectAll('text').data(ticks).join('text').attr('x', 0).attr('y', (t) => y(t)).attr('dy', '0.32em')
+      .attr('fill', 'var(--color-fg-muted)').style('font-size', 'var(--cds-font-size-caption)').text((t) => G.fmt.int(t / 1000) + ' T€');
+    let ml = 0; labels.each(function () { ml = Math.max(ml, this.getComputedTextLength()); }); ml += 8;
+    const x = d3.scaleBand(rows.map((r) => r.m), [ml, W]).padding(0.25);
+    svg.insert('g', ':first-child').selectAll('line').data(ticks).join('line').attr('x1', ml).attr('x2', W).attr('y1', (t) => y(t)).attr('y2', (t) => y(t)).attr('stroke', 'var(--cds-chart-grid)');
+    const g = svg.append('g');
+    g.selectAll('rect.t').data(rows).join('rect').attr('class', 't').attr('x', (r) => x(r.m)).attr('width', x.bandwidth()).attr('y', (r) => y(r.tour)).attr('height', (r) => y(0) - y(r.tour)).attr('fill', dash.colors[0]).attr('rx', 2);
+    g.selectAll('rect.l').data(rows).join('rect').attr('class', 'l').attr('x', (r) => x(r.m)).attr('width', x.bandwidth()).attr('y', (r) => y(r.u)).attr('height', (r) => y(r.tour) - y(r.u)).attr('fill', 'var(--cds-chart-muted)').attr('rx', 2);
+    const step = x.bandwidth() < 22 ? 2 : 1;
+    svg.append('g').selectAll('text').data(rows.filter((r, i) => i % step === 0)).join('text').attr('x', (r) => x(r.m) + x.bandwidth() / 2).attr('y', H - 6).attr('text-anchor', 'middle')
+      .attr('fill', 'var(--color-fg-muted)').style('font-size', 'var(--cds-font-size-caption)').text((r) => G.MONATE[Number(r.m.slice(5, 7)) - 1]);
+    svg.append('line').attr('x1', ml).attr('x2', W).attr('y1', y(0)).attr('y2', y(0)).attr('stroke', 'var(--cds-chart-axis)');
+    const tip = G.tip(el);
+    const ov = svg.append('g').selectAll('rect').data(rows).join('rect').attr('x', (r) => x(r.m) - x.step() * x.paddingInner() / 2).attr('width', x.step()).attr('y', mt).attr('height', H - mb - mt).attr('fill', 'transparent');
+    ov.on('pointerenter pointermove', (ev, r) => {
+      tip.replaceChildren();
+      const h = document.createElement('div'); h.className = 'k'; h.textContent = G.MONATE[Number(r.m.slice(5, 7)) - 1] + ' ' + r.m.slice(0, 4); tip.appendChild(h);
+      [['Touren', r.tour], ['Lager/Abholung', r.lager], ['Gesamt', r.u]].forEach(([k, v]) => { const l = document.createElement('div'); l.textContent = k + ': ' + G.fmt.eur0(v); tip.appendChild(l); });
+      const sc = el.clientWidth / W;
+      G.placeTip(el, tip, (x(r.m) + x.bandwidth() / 2) * sc, y(r.u) * sc);
+    }).on('pointerleave', () => { tip.hidden = true; });
+  });
+
+  // Kleine Monatscharts
+  dash.draw('mini', (el) => {
+    const d = dash.data('monate');
+    el.replaceChildren();
+    if (d.status !== 'ok') { el.textContent = '—'; return; }
+    const col = el.dataset.spalte;
+    const rows = d.data.map((r) => ({ m: String(r.monat), v: Number(r[col]) }));
+    const W = Math.max(120, el.clientWidth), H = 120, mt = 16, mb = 4;
+    const y = d3.scaleLinear([0, d3.max(rows, (r) => r.v) * 1.15], [H - mb, mt]);
+    const x = d3.scaleBand(rows.map((r) => r.m), [0, W]).padding(0.2);
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).style('display', 'block');
+    const last = rows[rows.length - 1];
+    svg.selectAll('rect').data(rows).join('rect').attr('x', (r) => x(r.m)).attr('width', x.bandwidth()).attr('y', (r) => y(r.v)).attr('height', (r) => y(0) - y(r.v))
+      .attr('fill', (r) => (r === last ? dash.colors[0] : 'var(--cds-chart-muted)')).attr('rx', 2);
+    svg.append('line').attr('x1', 0).attr('x2', W).attr('y1', y(0)).attr('y2', y(0)).attr('stroke', 'var(--cds-chart-axis)');
+    const avg = d3.mean(rows, (r) => r.v);
+    svg.append('text').attr('x', 0).attr('y', 11).attr('fill', 'var(--color-fg-muted)').style('font-size', 'var(--cds-font-size-caption)').text('Ø ' + G.fmt.int(avg) + ' · Okt ' + G.fmt.int(last.v));
+    const tip = G.tip(el);
+    svg.append('g').selectAll('rect').data(rows).join('rect').attr('x', (r) => x(r.m)).attr('width', x.bandwidth()).attr('y', mt).attr('height', H - mt - mb).attr('fill', 'transparent')
+      .on('pointerenter pointermove', (ev, r) => {
+        tip.textContent = G.MONATE[Number(r.m.slice(5, 7)) - 1] + ': ' + G.fmt.int(r.v);
+        const sc = el.clientWidth / W; G.placeTip(el, tip, (x(r.m) + x.bandwidth() / 2) * sc, y(r.v) * sc);
+      }).on('pointerleave', () => { tip.hidden = true; });
+  });
+
+  // Produktgruppen
+  dash.draw('produktchart', (el) => {
+    const d = dash.data('produkte');
+    el.replaceChildren();
+    if (d.status !== 'ok') { el.textContent = '—'; return; }
+    const rows = d.data.map((r) => ({ g: String(r.gruppe), u: Number(r.umsatz), n: Number(r.flaschen) })).filter((r) => r.u > 0).sort((a, b) => b.u - a.u);
+    const bh = 18, gap = 8, W = Math.max(280, el.clientWidth), H = rows.length * (bh + gap);
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).style('display', 'block');
+    const lab = svg.append('g').selectAll('text').data(rows).join('text').attr('x', 0).attr('y', (r, i) => i * (bh + gap) + bh / 2).attr('dy', '0.32em')
+      .attr('fill', 'var(--color-fg)').style('font-size', 'var(--cds-font-size-caption)').text((r) => r.g);
+    let ml = 0; lab.each(function () { ml = Math.max(ml, this.getComputedTextLength()); }); ml += 10;
+    const vl = svg.append('g').selectAll('text').data(rows).join('text').attr('fill', 'var(--color-fg-muted)').style('font-size', 'var(--cds-font-size-caption)').attr('dy', '0.32em').text((r) => G.fmt.teur(r.u));
+    let mr = 0; vl.each(function () { mr = Math.max(mr, this.getComputedTextLength()); }); mr += 8;
+    const x = d3.scaleLinear([0, d3.max(rows, (r) => r.u)], [ml, W - mr]);
+    svg.append('g').selectAll('rect').data(rows).join('rect').attr('x', ml).attr('y', (r, i) => i * (bh + gap)).attr('height', bh).attr('width', (r) => Math.max(1, x(r.u) - ml))
+      .attr('fill', (r) => (r.g.includes('Propan') || r.g.includes('Treibgas') ? dash.colors[0] : 'var(--cds-chart-muted)')).attr('rx', 2);
+    vl.attr('x', (r) => x(r.u) + 6).attr('y', (r, i) => i * (bh + gap) + bh / 2);
+    el.style.minHeight = H + 'px';
+  });
+
+  const flGas = () => dash.params().fl_gas || '';
+  const flFilter = (r) => !flGas() || r.gasart === flGas();
+  dash.draw('fl-gas', (sel) => {
+    const g = dash.data('gasarten');
+    sel.replaceChildren(new Option('Alle Gase', ''), ...(g.status === 'ok' ? g.data : []).map((r) => new Option(r.gasart, r.gasart)));
+    sel.value = flGas();
+    sel.onchange = () => dash.setParams({ fl_gas: sel.value || null });
+  });
+  dash.draw('fl-auswahl', (el) => { el.textContent = flGas() || 'Alle Gase'; });
+  const cell = (tr, t, c) => { const td = document.createElement('td'); td.textContent = t; if (c) td.className = c; tr.appendChild(td); };
+  const n1 = (v) => (v === null || v === undefined || v === '' ? '–' : G.fmt.dec1(Number(v)));
+  dash.draw('fl-gasarten', (el) => {
+    const d = dash.data('gasarten');
+    el.replaceChildren();
+    if (d.status !== 'ok') return;
+    for (const r of d.data) {
+      const tr = document.createElement('tr');
+      cell(tr, r.gasart, ''); cell(tr, G.fmt.int(r.voll), 'num'); cell(tr, n1(r.woche_avg), 'num'); cell(tr, n1(r.woche_p90), 'num'); cell(tr, G.fmt.int(r.woche_max), 'num');
+      cell(tr, n1(r.monat_avg), 'num'); cell(tr, G.fmt.int(r.monat_max), 'num');
+      cell(tr, r.kg === null ? '–' : G.fmt.kg0(r.kg), 'num'); cell(tr, r.kg_woche_avg === null ? '–' : G.fmt.kg0(r.kg_woche_avg), 'num');
+      el.appendChild(tr);
+    }
+  });
+  // Filter und Sortierung der Artikeltabelle
+  const fa = () => { const q = dash.params(); return { kat: q.fa_kat || '', gas: q.fa_gas || '', gr: q.fa_groesse || '', q: String(q.fa_q || '').trim().toLowerCase(), sort: q.fa_sort || '' }; };
+  const isPropan = (r) => String(r.gasart).startsWith('Propan');
+  const katOk = (r, kat) => !kat || (kat === 'propan' ? isPropan(r) : !isPropan(r));
+  const faRows = () => {
+    const d = dash.data('flaschenartikel');
+    if (d.status !== 'ok') return null;
+    const f = fa();
+    let rows = d.data.filter((r) => katOk(r, f.kat) && (!f.gas || r.gasart === f.gas) && (!f.gr || r.groesse === f.gr)
+      && (!f.q || String(r.artikel).toLowerCase().includes(f.q) || String(r.bezeichnung).toLowerCase().includes(f.q)));
+    if (f.sort) {
+      const [k, dir] = f.sort.split(':');
+      const num = (v) => (v === null || v === undefined || v === '' ? -Infinity : (k === 'groesse' ? (parseFloat(String(v).replace(',', '.')) || 0) * (String(v).endsWith('kg') ? 1 : 1000) : Number(v)));
+      const isNum = !['artikel', 'bezeichnung', 'gasart'].includes(k);
+      rows = [...rows].sort((x, y) => { const c = isNum ? num(x[k]) - num(y[k]) : String(x[k]).localeCompare(String(y[k]), 'de'); return dir === 'desc' ? -c : c; });
+    }
+    return rows;
+  };
+  dash.draw('fa-gas', (sel) => {
+    const d = dash.data('flaschenartikel');
+    const f = fa();
+    const gas = d.status === 'ok' ? [...new Set(d.data.filter((r) => katOk(r, f.kat)).map((r) => r.gasart))] : [];
+    sel.replaceChildren(new Option('Alle', ''), ...gas.map((g) => new Option(g, g)));
+    sel.value = gas.includes(f.gas) ? f.gas : '';
+    sel.onchange = () => dash.setParams({ fa_gas: sel.value || null });
+  });
+  dash.draw('fa-groesse', (sel) => {
+    const d = dash.data('flaschenartikel');
+    const f = fa();
+    const rows = d.status === 'ok' ? d.data.filter((r) => katOk(r, f.kat) && (!f.gas || r.gasart === f.gas)) : [];
+    const val = (g) => parseFloat(String(g).replace(',', '.')) || 0;
+    const gr = [...new Set(rows.map((r) => r.groesse))].sort((a, b) => (a.endsWith('kg') === b.endsWith('kg') ? val(a) - val(b) : a.endsWith('kg') ? -1 : 1));
+    sel.replaceChildren(new Option('Alle', ''), ...gr.map((g) => new Option(g, g)));
+    sel.value = gr.includes(f.gr) ? f.gr : '';
+    sel.onchange = () => dash.setParams({ fa_groesse: sel.value || null });
+  });
+  dash.draw('fa-summe', (el) => {
+    const rows = faRows();
+    if (!rows) { el.textContent = '—'; return; }
+    const sum = (k) => rows.reduce((s, r) => s + Number(r[k] || 0), 0);
+    const kg = rows.some((r) => r.kg !== null && r.kg !== undefined);
+    const map = { n: G.fmt.int(rows.length), voll: G.fmt.int(sum('voll')), woche: G.fmt.dec1(sum('woche_avg')), monat: G.fmt.int(sum('monat_avg')), kg: kg ? G.fmt.kg0(sum('kg')) : 'ohne kg' };
+    el.textContent = map[el.dataset.key] ?? '—';
+  });
+  dash.draw('fl-artikel', (el) => {
+    const rows = faRows();
+    el.replaceChildren();
+    if (!rows) return;
+    for (const r of rows) {
+      const tr = document.createElement('tr');
+      cell(tr, String(r.artikel), ''); cell(tr, r.bezeichnung, ''); cell(tr, r.gasart, ''); cell(tr, r.groesse, ''); cell(tr, G.fmt.int(Number(r.voll)), 'num'); cell(tr, G.fmt.int(Number(r.leer)), 'num');
+      cell(tr, n1(r.monat_avg), 'num'); cell(tr, n1(r.woche_avg), 'num'); cell(tr, n1(r.woche_p90), 'num'); cell(tr, G.fmt.int(Number(r.woche_max)), 'num');
+      cell(tr, G.fmt.int(Number(r.wochen_mit_bedarf)) + ' / ' + G.fmt.int(Number(r.wochen_gesamt)), 'num'); cell(tr, r.kg === null || r.kg === undefined ? '–' : G.fmt.kg0(Number(r.kg)), 'num');
+      el.appendChild(tr);
+    }
+  });
+  // Kategorie, Suche, Sortierung, Zurücksetzen (Steuerelemente im HTML)
+  document.querySelectorAll('#dash-root [data-fparam]').forEach((inp) => {
+    inp.addEventListener(inp.tagName === 'SELECT' ? 'change' : 'input', () => {
+      const v = inp.value.trim();
+      const upd = { [inp.dataset.fparam]: v || null };
+      if (inp.dataset.fparam === 'fa_kat') { upd.fa_gas = null; upd.fa_groesse = null; }
+      dash.setParams(upd);
+    });
+  });
+  document.querySelectorAll('#dash-root #fa-tabelle th[data-sort]').forEach((th) => {
+    th.addEventListener('click', () => {
+      const [k, dir] = String(fa().sort).split(':');
+      const next = k === th.dataset.sort ? (dir === 'desc' ? 'asc' : 'desc') : (['artikel', 'bezeichnung', 'gasart', 'groesse'].includes(th.dataset.sort) ? 'asc' : 'desc');
+      dash.setParams({ fa_sort: th.dataset.sort + ':' + next });
+    });
+  });
+  document.querySelectorAll('#dash-root #fa-reset').forEach((b) => b.addEventListener('click', () => dash.setParams({ fa_kat: null, fa_gas: null, fa_groesse: null, fa_q: null, fa_sort: null })));
+  dash.onData(() => {
+    const f = fa();
+    document.querySelectorAll('#dash-root [data-fparam]').forEach((inp) => {
+      if (inp !== document.activeElement) inp.value = inp.dataset.fparam === 'fa_kat' ? f.kat : f.q;
+    });
+    const [k, dir] = String(f.sort).split(':');
+    document.querySelectorAll('#dash-root #fa-tabelle th[data-sort]').forEach((th) => {
+      if (th.dataset.sort === k) th.setAttribute('aria-sort', dir === 'desc' ? 'descending' : 'ascending'); else th.removeAttribute('aria-sort');
+    });
+  });
+
+  dash.draw('fl-woche', (el) => {
+    const d = dash.data('flaschenwoche');
+    el.replaceChildren();
+    if (d.status !== 'ok') { el.textContent = '—'; return; }
+    const weeks = [...new Set(d.data.map((r) => String(r.montag)))].sort();
+    const kw = new Map(d.data.map((r) => [String(r.montag), String(r.kw)]));
+    const rows = weeks.map((w) => ({ w, kw: kw.get(w), v: d.data.filter((r) => String(r.montag) === w && flFilter(r)).reduce((s, r) => s + Number(r.voll), 0) }));
+    const vals = rows.map((r) => r.v).sort((a, b) => a - b);
+    const avg = d3.mean(vals); const qi = (vals.length - 1) * 0.9; const ql = Math.floor(qi); const p90 = vals[ql] + (vals[Math.min(ql + 1, vals.length - 1)] - vals[ql]) * (qi - ql);
+    const W = Math.max(280, el.clientWidth), H = 240, mb = 24, mt = 10;
+    const y = d3.scaleLinear([0, Math.max(1, d3.max(rows, (r) => r.v)) * 1.08], [H - mb, mt]).nice();
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).style('display', 'block');
+    const ticks = y.ticks(4);
+    const labels = svg.append('g').selectAll('text').data(ticks).join('text').attr('x', 0).attr('y', (t) => y(t)).attr('dy', '0.32em')
+      .attr('fill', 'var(--color-fg-muted)').style('font-size', 'var(--cds-font-size-caption)').text((t) => G.fmt.int(t));
+    let ml = 0; labels.each(function () { ml = Math.max(ml, this.getComputedTextLength()); }); ml += 8;
+    const tagL = svg.append('g').selectAll('text').data([['Ø ' + G.fmt.int(avg), avg], ['90 % ' + G.fmt.int(p90), p90]]).join('text')
+      .attr('fill', 'var(--color-fg-muted)').style('font-size', 'var(--cds-font-size-caption)').attr('dy', '0.32em').text((t) => t[0]);
+    let mr = 0; tagL.each(function () { mr = Math.max(mr, this.getComputedTextLength()); }); mr += 8;
+    const x = d3.scaleBand(rows.map((r) => r.w), [ml, W - mr]).padding(0.2);
+    svg.insert('g', ':first-child').selectAll('line').data(ticks).join('line').attr('x1', ml).attr('x2', W - mr).attr('y1', (t) => y(t)).attr('y2', (t) => y(t)).attr('stroke', 'var(--cds-chart-grid)');
+    svg.append('g').selectAll('rect').data(rows).join('rect').attr('x', (r) => x(r.w)).attr('width', x.bandwidth()).attr('y', (r) => y(r.v)).attr('height', (r) => y(0) - y(r.v)).attr('fill', dash.colors[1]).attr('rx', 1);
+    [[avg, 'none'], [p90, '4 3']].forEach(([v, da]) => svg.append('line').attr('x1', ml).attr('x2', W - mr).attr('y1', y(v)).attr('y2', y(v)).attr('stroke', dash.colors[0]).attr('stroke-width', 1.5).attr('stroke-dasharray', da));
+    let ya = y(avg), yp = y(p90); if (Math.abs(ya - yp) < 12) { if (ya >= yp) { ya = yp + 12; } else { yp = ya + 12; } }
+    tagL.attr('x', W - mr + 6).attr('y', (t, i) => (i === 0 ? ya : yp));
+    const firsts = rows.filter((r, i) => i === 0 || r.w.slice(5, 7) !== rows[i - 1].w.slice(5, 7));
+    const step = x.step() * 4 < 28 ? 2 : 1;
+    svg.append('g').selectAll('text').data(firsts.filter((r, i) => i % step === 0)).join('text').attr('x', (r) => x(r.w)).attr('y', H - 6)
+      .attr('fill', 'var(--color-fg-muted)').style('font-size', 'var(--cds-font-size-caption)').text((r) => G.MONATE[Number(r.w.slice(5, 7)) - 1]);
+    svg.append('line').attr('x1', ml).attr('x2', W - mr).attr('y1', y(0)).attr('y2', y(0)).attr('stroke', 'var(--cds-chart-axis)');
+    const tip = G.tip(el);
+    svg.append('g').selectAll('rect').data(rows).join('rect').attr('x', (r) => x(r.w) - x.step() * x.paddingInner() / 2).attr('width', x.step()).attr('y', mt).attr('height', H - mt - mb).attr('fill', 'transparent')
+      .on('pointerenter pointermove', (ev, r) => {
+        tip.replaceChildren();
+        const h = document.createElement('div'); h.className = 'k'; h.textContent = 'KW ' + r.kw.slice(-2) + ' · ab ' + r.w.slice(8, 10) + '.' + r.w.slice(5, 7) + '.'; tip.appendChild(h);
+        const l = document.createElement('div'); l.textContent = G.fmt.int(r.v) + ' Flaschen'; tip.appendChild(l);
+        const sc = el.clientWidth / W; G.placeTip(el, tip, (x(r.w) + x.bandwidth() / 2) * sc, y(r.v) * sc);
+      }).on('pointerleave', () => { tip.hidden = true; });
+  });
+  dash.draw('fl-monat', (el) => {
+    const d = dash.data('flaschenmonat');
+    el.replaceChildren();
+    if (d.status !== 'ok') { el.textContent = '—'; return; }
+    const months = [...new Set(d.data.map((r) => String(r.monat)))].sort();
+    const rows = months.map((m) => ({ m, v: d.data.filter((r) => String(r.monat) === m && flFilter(r)).reduce((s, r) => s + Number(r.voll), 0) }));
+    const W = Math.max(280, el.clientWidth), H = 240, mb = 24, mt = 20;
+    const y = d3.scaleLinear([0, Math.max(1, d3.max(rows, (r) => r.v)) * 1.1], [H - mb, mt]);
+    const x = d3.scaleBand(rows.map((r) => r.m), [0, W]).padding(0.25);
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).style('display', 'block');
+    svg.append('g').selectAll('rect').data(rows).join('rect').attr('x', (r) => x(r.m)).attr('width', x.bandwidth()).attr('y', (r) => y(r.v)).attr('height', (r) => y(0) - y(r.v)).attr('fill', dash.colors[1]).attr('rx', 2);
+    const show = x.bandwidth() >= 24;
+    svg.append('g').selectAll('text').data(show ? rows : []).join('text').attr('x', (r) => x(r.m) + x.bandwidth() / 2).attr('y', (r) => y(r.v) - 5).attr('text-anchor', 'middle')
+      .attr('fill', 'var(--color-fg-muted)').style('font-size', 'var(--cds-font-size-caption)').text((r) => G.fmt.int(r.v));
+    const step = x.bandwidth() < 22 ? 2 : 1;
+    svg.append('g').selectAll('text').data(rows.filter((r, i) => i % step === 0)).join('text').attr('x', (r) => x(r.m) + x.bandwidth() / 2).attr('y', H - 6).attr('text-anchor', 'middle')
+      .attr('fill', 'var(--color-fg-muted)').style('font-size', 'var(--cds-font-size-caption)').text((r) => G.MONATE[Number(r.m.slice(5, 7)) - 1]);
+    svg.append('line').attr('x1', 0).attr('x2', W).attr('y1', y(0)).attr('y2', y(0)).attr('stroke', 'var(--cds-chart-axis)');
+    const tip = G.tip(el);
+    svg.append('g').selectAll('rect').data(rows).join('rect').attr('x', (r) => x(r.m)).attr('width', x.bandwidth()).attr('y', mt).attr('height', H - mt - mb).attr('fill', 'transparent')
+      .on('pointerenter pointermove', (ev, r) => {
+        tip.textContent = G.MONATE[Number(r.m.slice(5, 7)) - 1] + ': ' + G.fmt.int(r.v) + ' Flaschen';
+        const sc = el.clientWidth / W; G.placeTip(el, tip, (x(r.m) + x.bandwidth() / 2) * sc, y(r.v) * sc);
+      }).on('pointerleave', () => { tip.hidden = true; });
+  });
+
+  dash.draw('rohertragchart', (el) => {
+    const d = dash.data('rohertrag');
+    el.replaceChildren();
+    if (d.status !== 'ok') { el.textContent = '—'; return; }
+    const rows = d.data.map((r) => ({ m: String(r.monat), re: Number(r.rohertrag), u: Number(r.umsatz), mg: Number(r.marge) }));
+    const W = Math.max(280, el.clientWidth), H = 240, mb = 24, mt = 22;
+    const y = d3.scaleLinear([0, d3.max(rows, (r) => r.re) * 1.1], [H - mb, mt]).nice();
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).style('display', 'block');
+    const ticks = y.ticks(4);
+    const labels = svg.append('g').selectAll('text').data(ticks).join('text').attr('x', 0).attr('y', (t) => y(t)).attr('dy', '0.32em')
+      .attr('fill', 'var(--color-fg-muted)').style('font-size', 'var(--cds-font-size-caption)').text((t) => G.fmt.int(t / 1000) + ' T€');
+    let ml = 0; labels.each(function () { ml = Math.max(ml, this.getComputedTextLength()); }); ml += 8;
+    const x = d3.scaleBand(rows.map((r) => r.m), [ml, W]).padding(0.25);
+    svg.insert('g', ':first-child').selectAll('line').data(ticks).join('line').attr('x1', ml).attr('x2', W).attr('y1', (t) => y(t)).attr('y2', (t) => y(t)).attr('stroke', 'var(--cds-chart-grid)');
+    const lo = d3.min(rows, (r) => r.mg);
+    svg.append('g').selectAll('rect').data(rows).join('rect').attr('x', (r) => x(r.m)).attr('width', x.bandwidth()).attr('y', (r) => y(r.re)).attr('height', (r) => y(0) - y(r.re))
+      .attr('fill', (r) => (r.mg === lo ? 'var(--cds-chart-status-critical)' : dash.colors[1])).attr('rx', 2);
+    const showPct = x.bandwidth() >= 26;
+    svg.append('g').selectAll('text').data(showPct ? rows : []).join('text').attr('x', (r) => x(r.m) + x.bandwidth() / 2).attr('y', (r) => y(r.re) - 5).attr('text-anchor', 'middle')
+      .attr('fill', 'var(--color-fg-muted)').style('font-size', 'var(--cds-font-size-caption)').text((r) => G.fmt.pct0(r.mg));
+    const step = x.bandwidth() < 22 ? 2 : 1;
+    svg.append('g').selectAll('text').data(rows.filter((r, i) => i % step === 0)).join('text').attr('x', (r) => x(r.m) + x.bandwidth() / 2).attr('y', H - 6).attr('text-anchor', 'middle')
+      .attr('fill', 'var(--color-fg-muted)').style('font-size', 'var(--cds-font-size-caption)').text((r) => G.MONATE[Number(r.m.slice(5, 7)) - 1]);
+    svg.append('line').attr('x1', ml).attr('x2', W).attr('y1', y(0)).attr('y2', y(0)).attr('stroke', 'var(--cds-chart-axis)');
+    const tip = G.tip(el);
+    svg.append('g').selectAll('rect').data(rows).join('rect').attr('x', (r) => x(r.m) - x.step() * x.paddingInner() / 2).attr('width', x.step()).attr('y', mt).attr('height', H - mb - mt).attr('fill', 'transparent')
+      .on('pointerenter pointermove', (ev, r) => {
+        tip.replaceChildren();
+        const h = document.createElement('div'); h.className = 'k'; h.textContent = G.MONATE[Number(r.m.slice(5, 7)) - 1] + ' ' + r.m.slice(0, 4); tip.appendChild(h);
+        [['Rohertrag', G.fmt.eur0(r.re)], ['Umsatz', G.fmt.eur0(r.u)], ['Marge', G.fmt.pct1(r.mg)]].forEach(([k, v]) => { const l = document.createElement('div'); l.textContent = k + ': ' + v; tip.appendChild(l); });
+        const sc = el.clientWidth / W; G.placeTip(el, tip, (x(r.m) + x.bandwidth() / 2) * sc, y(r.re) * sc);
+      }).on('pointerleave', () => { tip.hidden = true; });
+  });
+
+  dash.draw('ektabelle', (el) => {
+    const d = dash.data('ekhistorie');
+    el.replaceChildren();
+    if (d.status !== 'ok') return;
+    for (const r of d.data) {
+      const tr = document.createElement('tr');
+      const iso = String(r.gueltig_ab);
+      [[iso, ''], [G.fmt.eur2(Number(r.ek_5kg)), 'num'], [G.fmt.eur2(Number(r.ek_11kg)), 'num'], [G.fmt.eur2(Number(r.ek_33kg)), 'num'], [G.fmt.eur2(Number(r.ek_motogas)), 'num']]
+        .forEach(([t, c]) => { const td = document.createElement('td'); td.textContent = t; if (c) td.className = c; tr.appendChild(td); });
+      el.appendChild(tr);
+    }
+  });
+
+  dash.draw('klassentabelle', (el) => {
+    const d = dash.data('stoppklassen');
+    el.replaceChildren();
+    if (d.status !== 'ok') return;
+    for (const r of d.data) {
+      const tr = document.createElement('tr');
+      const cells = [[r.klasse, ''], [G.fmt.int(r.stopps), 'num'], [G.fmt.eur0(r.umsatz), 'num'], [G.fmt.eur2(r.re_je_stopp), 'num'], [G.fmt.eur2(r.lk_je_stopp), 'num'], [G.fmt.eur2(r.rest_je_stopp), 'num']];
+      cells.forEach(([t, c]) => { const td = document.createElement('td'); td.textContent = t; if (c) td.className = c; tr.appendChild(td); });
+      el.appendChild(tr);
+    }
+  });
+
+  dash.draw('variantentabelle', (el) => {
+    const d = dash.data('varianten');
+    el.replaceChildren();
+    if (d.status !== 'ok') return;
+    for (const r of d.data) {
+      const tr = document.createElement('tr');
+      const dl = Number(r.rohertrag_neu) - Number(r.rohertrag_vor);
+      const ch = -Number(r.senkung);
+      const cells = [[r.variante, ''], [r.staffel, ''], [Math.abs(ch) < 0.0005 ? '± 0 %' : G.fmt.sgnPct1(ch), 'num'], [G.fmt.eur2(Number(r.preis_11kg)), 'num'], [G.fmt.eur2(Number(r.preis_33kg)), 'num'],
+        [G.fmt.eur0(Number(r.pauschalen)), 'num'], [G.fmt.teur(Number(r.rohertrag_neu)), 'num'], [Math.abs(dl) < 200 ? '± 0 €' : G.fmt.sgnEur0(dl), 'num' + (dl < -200 ? ' ga-pos' : '')], [G.fmt.sgnEur2(Number(r.ab100_stopp)), 'num'],
+        [G.fmt.int(Number(r.ueber10)), 'num'], [r.variante.startsWith('A ') ? '–' : G.fmt.int(Number(r.guenstiger_als_a)), 'num']];
+      cells.forEach(([t, c]) => { const td = document.createElement('td'); td.textContent = t; if (c) td.className = c; tr.appendChild(td); });
+      el.appendChild(tr);
+    }
+  });
+
+  dash.draw('simwert', (el) => {
+    const s = G.sim();
+    const k = el.dataset.key;
+    if (k === 'cut') { const ch = -G.par().cut; el.textContent = (ch > 0 ? '+' : '') + G.fmt.dec1(ch) + ' %'; return; }
+    if (!s) { el.textContent = '—'; el.className = ''; return; }
+    const map = {
+      delta: Math.abs(s.delta) < 50 ? '± 0 €' : G.fmt.sgnEur0(s.delta),
+      re: G.fmt.teur(s.re1),
+      pauschalen: G.fmt.eur0(s.F),
+      neutral: G.fmt.sgnPct1(s.neutral),
+      guenstiger: G.fmt.int(s.guenstiger),
+      teurer: G.fmt.int(s.teurer),
+      ueber10: G.fmt.int(s.ueber10),
+      mengenplus: s.mengenplus > 0 ? '+' + G.fmt.dec1(s.mengenplus * 100) + ' %' : 'keins',
+    };
+    el.textContent = map[k] ?? '—';
+    el.classList.toggle('ga-pos', k === 'delta' && s.delta < -50);
+    el.classList.toggle('ga-neg', k === 'delta' && s.delta > 50);
+  });
+
+  dash.draw('simpreise', (el) => {
+    const d = dash.data('preise');
+    el.replaceChildren();
+    if (d.status !== 'ok') return;
+    const p = G.par(), c = p.cut / 100;
+    const seen = new Set();
+    for (const r of d.data) {
+      if (seen.has(r.groesse)) continue; seen.add(r.groesse);
+      const vk = Number(r.vk), ek = Number(r.ek), kg = Number(r.kg), ab = vk * (1 - c);
+      const fee = kg <= 11 ? p.f11 : kg <= 33 ? p.f33 : kg <= 66 ? p.f66 : kg <= 99 ? p.f99 : p.f100;
+      const tr = document.createElement('tr'); tr.dataset.key = r.groesse;
+      [[r.groesse, ''], [G.fmt.eur2(vk), 'num'], [G.fmt.eur2(ab), 'num'], [G.fmt.eur2(ab + fee), 'num'], [G.fmt.eur2(ek), 'num'], [G.fmt.eur2(ab - ek), 'num']]
+        .forEach(([t, cl]) => { const td = document.createElement('td'); td.textContent = t; if (cl) td.className = cl; tr.appendChild(td); });
+      el.appendChild(tr);
+    }
+  });
+
+  dash.draw('wirkungchart', (el) => {
+    const s = G.sim();
+    el.replaceChildren();
+    if (!s) { el.textContent = '—'; return; }
+    const rows = s.klassen;
+    const bh = 24, gap = 12, W = Math.max(280, el.clientWidth), H = rows.length * (bh + gap) + 8;
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).style('display', 'block');
+    const lab = svg.append('g').selectAll('text').data(rows).join('text').attr('x', 0).attr('y', (r, i) => i * (bh + gap) + bh / 2).attr('dy', '0.32em')
+      .attr('fill', 'var(--color-fg)').style('font-size', 'var(--cds-font-size-caption)').text((r) => r.klasse);
+    let ml = 0; lab.each(function () { ml = Math.max(ml, this.getComputedTextLength()); }); ml += 12;
+    const ext = Math.max(5, d3.max(rows, (r) => Math.abs(r.je)));
+    const pad = 64;
+    const x = d3.scaleLinear([-ext, ext], [ml + pad, W - pad]);
+    svg.append('line').attr('x1', x(0)).attr('x2', x(0)).attr('y1', 0).attr('y2', H).attr('stroke', 'var(--cds-chart-reference)');
+    svg.append('g').selectAll('rect').data(rows).join('rect').attr('y', (r, i) => i * (bh + gap)).attr('height', bh)
+      .attr('x', (r) => Math.min(x(0), x(r.je))).attr('width', (r) => Math.max(1, Math.abs(x(r.je) - x(0))))
+      .attr('fill', (r) => (r.je > 0 ? 'var(--color-bad)' : 'var(--color-ok)')).attr('rx', 2);
+    svg.append('g').selectAll('text').data(rows).join('text').attr('y', (r, i) => i * (bh + gap) + bh / 2).attr('dy', '0.32em')
+      .attr('x', (r) => (r.je >= 0 ? x(r.je) + 6 : x(r.je) - 6)).attr('text-anchor', (r) => (r.je >= 0 ? 'start' : 'end'))
+      .attr('fill', 'var(--color-fg-muted)').style('font-size', 'var(--cds-font-size-caption)').text((r) => G.fmt.sgnEur2(r.je) + ' · ' + G.fmt.int(r.stopps) + ' St.');
+    el.style.minHeight = H + 'px';
+  });
+
+  dash.draw('kunden', (el) => {
+    const s = G.sim();
+    el.replaceChildren();
+    if (!s) return;
+    const list = el.dataset.art === 'mehr' ? s.tour.slice(-6).reverse() : s.tour.slice(0, 6);
+    for (const x of list) {
+      const tr = document.createElement('tr');
+      [[x.kunde, ''], [G.fmt.int(x.stopps), 'num'], [G.fmt.int(x.kg / x.stopps), 'num'], [G.fmt.eur0(x.u0), 'num'], [G.fmt.sgnEur0(x.d), 'num ' + (x.d > 0 ? 'ga-pos' : 'ga-neg')], [G.fmt.sgnPct1(x.dp), 'num']]
+        .forEach(([t, c]) => { const td = document.createElement('td'); td.textContent = t; if (c) td.className = c; tr.appendChild(td); });
+      el.appendChild(tr);
+    }
+  });
+})();
+</script>
