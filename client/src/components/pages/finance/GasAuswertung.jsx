@@ -269,14 +269,14 @@ function Preismodell() {
         </Kacheln>
       </div>
       <h2 style={h2}>Preistabelle</h2>
-      <Tabelle kopf={['Artikel', 'Preis heute', 'Preis neu']} rechts={[1, 2]}
-        zeilen={Object.entries(s.preise).map(([a, p]) => [a, eur(VK[a], 2), eur(p, 2)])} />
+      <Tabelle kopf={['Produkt', 'Artikelnr.', 'Preis heute', 'Preis neu']} rechts={[2, 3]}
+        zeilen={Object.entries(s.preise).map(([a, p]) => [d.artikel[a], a, eur(VK[a], 2), eur(p, 2)])} />
       <h2 style={h2}>Wirkung je kg-Klasse</h2>
       <Tabelle kopf={['Klasse', 'Stopps', 'Pauschale je Stopp', 'Lieferkosten je Stopp']} rechts={[1, 2, 3]}
         zeilen={Object.entries(s.klassen).map(([n, v]) => [n, zahl(v.stopps), eur(v.pauschale / Math.max(v.stopps, 1), 2), eur(v.lieferkosten / Math.max(v.stopps, 1), 2)])} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: '1rem' }}>
-        <div><h2 style={h2}>Größte Gewinner</h2><Tabelle kopf={['Kunde', 'Δ', 'Δ %']} rechts={[1, 2]} zeilen={s.gewinner.map((k) => [k.kunde_nr, eur(k.delta), `${zahl(k.delta_pct, 1)} %`])} /></div>
-        <div><h2 style={h2}>Größte Verlierer</h2><Tabelle kopf={['Kunde', 'Δ', 'Δ %']} rechts={[1, 2]} zeilen={s.verlierer.map((k) => [k.kunde_nr, eur(k.delta), `${zahl(k.delta_pct, 1)} %`])} /></div>
+        <div><h2 style={h2}>Größte Gewinner</h2><Tabelle kopf={['Kunde', 'Nr.', 'Δ', 'Δ %']} rechts={[2, 3]} zeilen={s.gewinner.map((k) => [k.name || 'Name nicht gefunden', `${k.nummer}${k.nummer_quelle === 'SER' ? ' (SER)' : ''}`, eur(k.delta), `${zahl(k.delta_pct, 1)} %`])} /></div>
+        <div><h2 style={h2}>Größte Verlierer</h2><Tabelle kopf={['Kunde', 'Nr.', 'Δ', 'Δ %']} rechts={[2, 3]} zeilen={s.verlierer.map((k) => [k.name || 'Name nicht gefunden', `${k.nummer}${k.nummer_quelle === 'SER' ? ' (SER)' : ''}`, eur(k.delta), `${zahl(k.delta_pct, 1)} %`])} /></div>
       </div>
     </>
   );

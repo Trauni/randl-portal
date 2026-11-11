@@ -3,6 +3,8 @@ const G = require('./gasRechnung');
 const P = require('./gasPreismodell');
 const A = require('./gasAuswertung');
 const { parseTourenCsv } = require('./gasTouren');
+const { ARTIKEL } = require('./gasStammdaten');
+const { kundenInfo } = require('./gasKunden');
 
 const iso = "DATE_FORMAT(datum,'%Y-%m-%d')";
 
@@ -62,12 +64,16 @@ async function preismodell(db, eingabe = {}) {
   }
   const basis = { stichtag, vergleichStichtag: vergleich, lieferkostenParam: b.lkParam };
   const betraege = (st) => st.map(([, b]) => b);
+  const sim = P.rechneVariante(b.klass, b.ek, { ...basis, senkung, staffel });
+  const kunden = await kundenInfo([...sim.gewinner, ...sim.verlierer].map((k) => k.kunde_nr));
+  const mitName = (k) => ({ ...k, name: kunden[k.kunde_nr]?.name || null, nummer: kunden[k.kunde_nr]?.nummer || k.kunde_nr, nummer_quelle: kunden[k.kunde_nr]?.quelle || 'SER' });
   return {
+    artikel: Object.fromEntries(P.PM_ARTIKEL.map((nr) => [nr, ARTIKEL[nr].bezeichnung])),
     stichtag, vergleichStichtag: vergleich,
     staffeln: { ohne: betraege(P.OHNE), S: betraege(P.STAFFEL_S), 'S+': betraege(P.STAFFEL_SPLUS) },
     simulator_staffel: betraege(staffel),
     varianten: P.VARIANTEN.map((v) => ({ name: v.name, senkung: v.senkung, staffel: betraege(v.staffel), ...P.rechneVariante(b.klass, b.ek, { ...basis, senkung: v.senkung, staffel: v.staffel }) })),
-    simulator: P.rechneVariante(b.klass, b.ek, { ...basis, senkung, staffel }),
+    simulator: { ...sim, gewinner: sim.gewinner.map(mitName), verlierer: sim.verlierer.map(mitName) },
   };
 }
 
