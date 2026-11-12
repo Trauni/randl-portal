@@ -7,6 +7,7 @@ const requireAuth = require('../../middleware/requireAuth');
 const { hasArea } = require('../../utils/permissions');
 const urlaub = require('../../services/urlaub');
 const gleitzeit = require('../../services/gleitzeit');
+const { anspruchFuerJahr } = require('../../utils/urlaubsanspruch');
 const { arbeitstage, feiertag } = require('../../utils/feiertage');
 const { abbauDauer } = require('../../utils/gleitzeit');
 
@@ -104,9 +105,12 @@ router.get('/saldo', requireAuth, async (req, res) => {
          LEFT JOIN vacation_requests v ON v.employee_id = e.id AND v.art = 'urlaub'
               AND v.cancelled_at IS NULL AND YEAR(v.start_date) = YEAR(CURDATE())
         WHERE e.id = ?`, [empId]);
-    const anspruch = Number(r.anspruch ?? 30);
+    const jahr = new Date().getFullYear();
+    // Elternzeit kürzt den Anspruch um 1/12 je vollem Monat (§ 17 BEEG)
+    const az = await anspruchFuerJahr(_db.getPool(), empId, r.anspruch ?? 30, jahr);
     const genehmigt = Number(r.genehmigt);
-    res.json({ jahr: new Date().getFullYear(), anspruch, genehmigt, beantragt: Number(r.beantragt), rest: anspruch - genehmigt });
+    res.json({ jahr, anspruch: az.anspruch, anspruchBasis: az.basis, elternzeitMonate: az.monate,
+      genehmigt, beantragt: Number(r.beantragt), rest: az.anspruch - genehmigt });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Fehler' }); }
 });
 

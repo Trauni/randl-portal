@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getPool } = require('../../../db');
+const { anspruchFuerJahr } = require('../../../utils/urlaubsanspruch');
 const { syncEmployeeGroups, setUserActive, createUser } = require('../../../services/authentik');
 
 const ROLES = ['mitarbeiter', 'freelancer', 'extern'];
@@ -26,8 +27,13 @@ router.get('/', async (req, res) => {
       WHERE e.email IS NOT NULL AND e.is_demo = 0
       ORDER BY e.active DESC, e.lastname ASC, e.firstname ASC
     `);
-    res.json(rows.map(r => ({
+    const jahr = new Date().getFullYear();
+    const ansprueche = await Promise.all(rows.map(r =>
+      anspruchFuerJahr(getPool(), r.id, r.vacation_days_total ?? 30, jahr)));
+    res.json(rows.map((r, i) => ({
       ...r,
+      vacation_days_effective: ansprueche[i].anspruch, // nach Elternzeit-Kürzung
+      elternzeit_monate: ansprueche[i].monate,
       authentik_groups: parseGroups(r.authentik_groups),
       access_tags: r.access_tags_raw ? r.access_tags_raw.split(',') : [],
     })));

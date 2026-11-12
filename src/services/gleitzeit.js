@@ -38,7 +38,8 @@ async function ladeKonto(employeeId, db = getPool()) {
   const [[e]] = await db.query(
     `SELECT id, COALESCE(full_name, username) AS name, zeiterfassung_quelle, minijob,
             gleitzeit_aktiv, DATE_FORMAT(gleitzeit_seit,'%Y-%m-%d') AS seit,
-            gleitzeit_startsaldo_minuten AS startsaldo
+            gleitzeit_startsaldo_minuten AS startsaldo,
+            gleitzeit_urlaub_modus AS urlaubModus
        FROM employees WHERE id = ?`, [employeeId]);
   if (!e) throw new Error(`Mitarbeiter ${employeeId} nicht gefunden`);
   e.aktiv = Boolean(e.gleitzeit_aktiv && e.seit && e.zeiterfassung_quelle === 'portal' && !e.minijob);
@@ -358,7 +359,7 @@ async function korrekturLoeschen(employeeId, korrekturId, geloeschtVon) {
 }
 
 module.exports = {
-  ladeKonto, neuberechnen, kontostand, verlauf,
+  ladeKonto, ladeHistorie, neuberechnen, kontostand, verlauf,
   tagGeaendert, zeitraumGeaendert, tagesabschluss,
   abbauTage, abbauVorschau,
   korrekturen, korrekturBuchen, korrekturLoeschen,
