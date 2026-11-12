@@ -57,6 +57,8 @@ app.use(helmet({
   }
 }));
 app.use(morgan('combined'));
+// #542: Belege samt Unterschrift (Base64-PNG) sprengen die 100 kB des Standard-Parsers. Muss vor express.json() stehen.
+app.use('/api/fahrer/ereignisse', express.json({ limit: '10mb' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -168,7 +170,10 @@ const fahrer = require('./src/routes/api/fahrer').erstelleFahrer({
   oidc: { issuer: fahrerOidc.ISSUER, clientId: fahrerOidc.CLIENT_ID, holeSchluessel: fahrerOidc.holeSchluessel },
 });
 app.use('/api/fahrer', require('cors')({ origin: ['https://localhost', 'capacitor://localhost'] }), fahrer.router);
-app.locals.requireFahrer = fahrer.requireFahrer;   // für /api/fahrer/heute und /ereignisse (#542)
+app.locals.requireFahrer = fahrer.requireFahrer;
+// #542: Tagesdaten und Ereignis-Eingang (Bearer wie oben)
+app.use('/api/fahrer', require('cors')({ origin: ['https://localhost', 'capacitor://localhost'] }),
+  require('./src/routes/api/fahrer/touren').erstelleTourRouter({ store: require('./src/services/fahrerTouren'), requireFahrer: fahrer.requireFahrer }));
 app.use('/api/fahrer-geraete', requireArea('fahrer.geraete'), require('./src/routes/api/fahrer/geraete').erstelleGeraeteRouter({ store: fahrerStore }));
 
 
