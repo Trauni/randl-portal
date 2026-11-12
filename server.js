@@ -159,6 +159,18 @@ app.use('/api/metallarbeiten/zuordnen', require('./src/routes/api/metallarbeiten
 app.use('/api/metallarbeiten/eingang', require('./src/routes/api/metallarbeiten/eingang'));   // neu 17.10.2026 — Eingang Kundenanfragen (#371)
 app.use('/api/metallarbeiten/dateien', require('./src/routes/api/metallarbeiten/dateien'));   // neu 17.10.2026 — Dateien pro Vorgang (#372)
 
+// Fahrer-App (#541): eigene Geräte-Tokens statt Session. CORS nur für die WebView der App (Bearer, keine Cookies).
+const fahrerStore = require('./src/services/fahrerGeraete');
+const fahrerOidc = require('./src/services/fahrerOidc');
+const fahrer = require('./src/routes/api/fahrer').erstelleFahrer({
+  store: fahrerStore,
+  geheimnis: () => process.env.FAHRER_TOKEN_SECRET,
+  oidc: { issuer: fahrerOidc.ISSUER, clientId: fahrerOidc.CLIENT_ID, holeSchluessel: fahrerOidc.holeSchluessel },
+});
+app.use('/api/fahrer', require('cors')({ origin: ['https://localhost', 'capacitor://localhost'] }), fahrer.router);
+app.locals.requireFahrer = fahrer.requireFahrer;   // für /api/fahrer/heute und /ereignisse (#542)
+app.use('/api/fahrer-geraete', requireArea('fahrer.geraete'), require('./src/routes/api/fahrer/geraete').erstelleGeraeteRouter({ store: fahrerStore }));
+
 
 // Versionsanzeige (#334): einmal beim Start ermitteln
 const APP_VERSION = require('./package.json').version;
