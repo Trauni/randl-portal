@@ -3,10 +3,12 @@ const assert = require('node:assert');
 
 // Datenbank vor dem Laden von urlaub.js ersetzen, damit kein Zugriff nötig ist (#491).
 const dbPfad = require.resolve('../src/db');
-const zustand = { antrag: null, eintraege: [], vertrag: [], schreibend: [], abfragen: [] };
+const zustand = { konto: null, antrag: null, eintraege: [], vertrag: [], schreibend: [], abfragen: [] };
 
 const abfrage = async (sql, werte) => {
   zustand.abfragen.push({ sql, werte });
+  if (/FROM employees\s+WHERE id = \?\s*`?$/.test(sql.trim()) || /gleitzeit_urlaub_modus/.test(sql)) return [[zustand.konto || { id: 7, aktiv: false, gleitzeit_aktiv: 0, seit: null, zeiterfassung_quelle: 'portal', minijob: 0 }]];
+  if (/gleitzeit_arbeitszeit WHERE employee_id = \? ORDER/.test(sql)) return [zustand.vertrag];
   if (/FROM vacation_requests vr/.test(sql)) return [[zustand.antrag]];
   if (/FROM time_entries/.test(sql)) return [zustand.eintraege];
   if (/FROM gleitzeit_arbeitszeit/.test(sql)) return [zustand.vertrag];
@@ -27,7 +29,7 @@ require.cache[dbPfad] = {
 const urlaub = require('../src/services/urlaub');
 
 const portalMa = { employee_id: 7, zeiterfassung_quelle: 'portal', rentman_id: null };
-const zuruecksetzen = () => { zustand.schreibend = []; zustand.abfragen = []; zustand.vertrag = []; zustand.eintraege = []; };
+const zuruecksetzen = () => { zustand.schreibend = []; zustand.abfragen = []; zustand.vertrag = []; zustand.eintraege = []; zustand.konto = null; };
 const antrag = (extra = {}) => ({
   id: 1, employee_id: 7, status: 'approved', days_count: 2, art: 'urlaub', lrId: null,
   von: '2026-11-16', bis: '2026-11-17', zeitVon: null, zeitBis: null,
@@ -125,4 +127,52 @@ test('Gleitzeitabbau ohne rentman_id: übersprungen statt Fehler', async () => {
   zustand.antrag = antrag({ art: 'gleitzeitabbau' });
   const r = await urlaub.nachRentman(1);
   assert.deepStrictEqual(r.rentman, { uebersprungen: true });
+});
+
+const gleitKonto = (extra = {}) => ({
+  id: 7, gleitzeit_aktiv: 1, seit: '2026-11-01', zeiterfassung_quelle: 'portal', minijob: 0,
+  urlaubModus: 'soll', ...extra,
+});
+
+test('Gleitzeitkonto: Urlaubstag = Wochenstunden / Arbeitstage (35 h Mo–Fr = 7 h)', async () => {
+  zuruecksetzen();
+  zustand.konto = gleitKonto();
+  zustand.vertrag = [{ gueltig_ab: '2026-01-01', wochenstunden: '35.00', arbeitstage: '1,2,3,4,5' }];
+  zustand.eintraege = [{ tag: '2026-10-01', pause_sekunden: 0, spanne: 8 * 3600 }];
+  const b = await urlaub.bemessung(portalMa, '2026-11-16');
+  assert.strictEqual(b.schnitt, 7 * 3600);
+  assert.strictEqual(b.quelle, 'gl_soll');
+  assert.ok(!zustand.abfragen.some((x) => /time_entries/.test(x.sql)), 'kein 13-Wochen-Fenster');
+});
+
+test('Gleitzeitkonto, Modus keine: Urlaub ohne Stunden', async () => {
+  zuruecksetzen();
+  zustand.konto = gleitKonto({ urlaubModus: 'keine' });
+  zustand.vertrag = [{ gueltig_ab: '2026-01-01', wochenstunden: '35.00', arbeitstage: '1,2,3,4,5' }];
+  const b = await urlaub.bemessung(portalMa, '2026-11-16');
+  assert.strictEqual(b.schnitt, 0);
+  assert.strictEqual(b.quelle, 'gl_keine');
+});
+
+test('Urlaub vor Beginn des Gleitzeitkontos rechnet weiter mit dem 13-Wochen-Schnitt', async () => {
+  zuruecksetzen();
+  zustand.konto = gleitKonto({ seit: '2026-12-01' });
+  zustand.vertrag = [{ gueltig_ab: '2026-01-01', wochenstunden: '35.00', arbeitstage: '1,2,3,4,5' }];
+  zustand.eintraege = [{ tag: '2026-10-01', pause_sekunden: 0, spanne: 8 * 3600 }];
+  const b = await urlaub.bemessung(portalMa, '2026-11-16');
+  assert.strictEqual(b.quelle, 'portal');
+  assert.strictEqual(b.schnitt, 8 * 3600);
+});
+
+test('Gleitzeit-Urlaub ist sofort endgültig und ohne Bemessungsfenster gespeichert', async () => {
+  zuruecksetzen();
+  zustand.konto = gleitKonto();
+  zustand.antrag = antrag({ von: '2099-11-16', bis: '2099-11-17' });
+  zustand.vertrag = [{ gueltig_ab: '2026-01-01', wochenstunden: '35.00', arbeitstage: '1,2,3,4,5' }];
+  const r = await urlaub.urlaubBerechnen(1);
+  assert.strictEqual(r.vorlaeufig, false);
+  const update = zustand.schreibend.find((x) => typeof x === 'object' && /UPDATE vacation_requests/.test(x.sql));
+  assert.strictEqual(update.werte[0], 7 * 3600);
+  assert.strictEqual(update.werte[1], 0); // vorlaeufig
+  assert.strictEqual(update.werte[2], null); // bemessung_von
 });

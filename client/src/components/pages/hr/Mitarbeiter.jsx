@@ -607,7 +607,7 @@ export default function Mitarbeiter() {
             <tbody>
               {filtered.map((emp, i) => {
                 const taken = emp.vacation_taken || 0;
-                const total = emp.vacation_days_total || 30;
+                const total = emp.vacation_days_effective ?? (emp.vacation_days_total || 30);
                 const remaining = total - taken;
                 return (
                   <tr key={emp.id} style={{
