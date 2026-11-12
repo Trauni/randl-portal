@@ -52,8 +52,20 @@ const idAus = (p) => Number(String(p || '').split('/').pop()) || null;
   const bekannteTr = new Set(tageRows.map((r) => Number(r.tr)));
   const abgedeckt = (tag) => antraege.some((a) => a.von <= tag && tag <= a.bis);
 
-  const eintraege = (await api('GET', '/timeregistration?crewmember=' + encodeURIComponent('/crew/' + m.rentman_id) + '&limit=500')) || [];
-  const urlaub = eintraege.filter((e) => e.leavetype === URLAUB && e.status === 'approved');
+  // Seitenweise ab Jahresbeginn: ohne Datumsfilter fehlen bei vielen Arbeitszeit-Einträgen die jüngsten.
+  const eintraege = [];
+  for (let offset = 0; ; offset += 500) {
+    const seite = (await api('GET', '/timeregistration?crewmember=' + encodeURIComponent('/crew/' + m.rentman_id)
+      + '&start[gte]=' + encodeURIComponent('2026-01-01T00:00:00') + '&sort=%2Bstart&limit=500&offset=' + offset)) || [];
+    eintraege.push(...seite);
+    if (seite.length < 500) break;
+  }
+  const alleUrlaub = eintraege.filter((e) => e.leavetype === URLAUB);
+  const proStatus = {};
+  for (const e of alleUrlaub) proStatus[e.status] = (proStatus[e.status] || 0) + 1;
+  console.log(`Rentman: ${eintraege.length} Einträge seit 01.01., davon Urlaub ${alleUrlaub.length} (nach Status: ${JSON.stringify(proStatus)})\n`);
+  // Alles außer 'rejected' erscheint in der Zeiterfassungs-Anzeige, also auch 'canceled'.
+  const urlaub = alleUrlaub.filter((e) => e.status !== 'rejected');
 
   const gruppen = new Map();
   for (const e of urlaub) {
