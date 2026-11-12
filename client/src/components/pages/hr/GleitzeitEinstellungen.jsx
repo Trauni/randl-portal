@@ -99,7 +99,8 @@ export default function GleitzeitEinstellungen({ employeeId }) {
       {fehler ? <div style={S.fehler}>{fehler}</div> : <div style={S.hinweis}>Lädt…</div>}</div>;
   }
 
-  const portal = daten.einstellungen.zeiterfassungQuelle === 'portal';
+  const minijob = Boolean(daten.einstellungen.minijob);
+  const portal = daten.einstellungen.zeiterfassungQuelle === 'portal' && !minijob;
   const saldo = parseStunden(saldoText);
   const std = Number(String(stdText).replace(',', '.'));
   const sollTag = tage.length && std > 0 ? Math.round((std * 60) / tage.length) : null;
@@ -261,7 +262,12 @@ export default function GleitzeitEinstellungen({ employeeId }) {
           <input type="checkbox" checked={aktiv} disabled={!portal && !aktiv} onChange={(e) => setAktiv(e.target.checked)} />
           Konto aktiv
         </label>
-        {!portal && (
+        {minijob && (
+          <div style={{ ...S.hinweis, marginTop: 0, padding: '8px 0', color: 'var(--red2)' }}>
+            Gesperrt: Minijobber haben kein Gleitzeitkonto, es gilt das Monatslimit.
+          </div>
+        )}
+        {!portal && !minijob && (
           <div style={{ ...S.hinweis, marginTop: 0, padding: '8px 0', color: 'var(--red2)' }}>
             Gesperrt: Die Zeiterfassung dieses Mitarbeiters läuft noch über Rentman, nicht über das Portal. Erst auf Portal umstellen lassen.
           </div>

@@ -31,6 +31,7 @@ const financeInfoMailRouter = require('./src/routes/api/finance/info-mail');
 const financeWidmannRouter = require('./src/routes/api/finance/widmann-bestand');
 const financeArticleContentRouter = require('./src/routes/api/finance/article-content');
 const financePriceToolRouter = require('./src/routes/api/finance/price-tool');
+const gasAuswertungRouter = require('./src/routes/api/finance/gas-auswertung');
 const contentCmsRouter    = require('./src/routes/api/content/cms');
 const contentBilderRouter  = require('./src/routes/api/content/bilder');
 const shopImagesRouter     = require('./src/routes/api/content/shop-images');
@@ -56,6 +57,8 @@ app.use(helmet({
   }
 }));
 app.use(morgan('combined'));
+// #542: Belege samt Unterschrift (Base64-PNG) sprengen die 100 kB des Standard-Parsers. Muss vor express.json() stehen.
+app.use('/api/fahrer/ereignisse', express.json({ limit: '10mb' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -138,6 +141,7 @@ app.use('/api/finance/info-mail', requireArea('gashandel'), financeInfoMailRoute
 app.use('/api/finance/widmann-bestand', requireArea('gashandel'), financeWidmannRouter);
 app.use('/api/finance/article-content', requireArea('gashandel'), financeArticleContentRouter);
 app.use('/api/finance/price-tool', requireArea('gashandel.preise'), financePriceToolRouter);
+app.use('/api/finance/gas-auswertung', requireArea('gashandel.auswertung'), gasAuswertungRouter);
 app.use('/api/content/cms',    requireArea('content'), contentCmsRouter);
 app.use('/api/content/bilder', requireArea('content'), contentBilderRouter);
 app.use('/api/shop-images',    requireArea('content'), shopImagesRouter);
@@ -157,6 +161,21 @@ app.use('/api/metallarbeiten/vorgaenge', require('./src/routes/api/metallarbeite
 app.use('/api/metallarbeiten/zuordnen', require('./src/routes/api/metallarbeiten/zuordnen'));   // neu 16.10.2026 — Belege zuordnen (#370)
 app.use('/api/metallarbeiten/eingang', require('./src/routes/api/metallarbeiten/eingang'));   // neu 17.10.2026 — Eingang Kundenanfragen (#371)
 app.use('/api/metallarbeiten/dateien', require('./src/routes/api/metallarbeiten/dateien'));   // neu 17.10.2026 — Dateien pro Vorgang (#372)
+
+// Fahrer-App (#541): eigene Geräte-Tokens statt Session. CORS nur für die WebView der App (Bearer, keine Cookies).
+const fahrerStore = require('./src/services/fahrerGeraete');
+const fahrerOidc = require('./src/services/fahrerOidc');
+const fahrer = require('./src/routes/api/fahrer').erstelleFahrer({
+  store: fahrerStore,
+  geheimnis: () => process.env.FAHRER_TOKEN_SECRET,
+  oidc: { issuer: fahrerOidc.ISSUER, clientId: fahrerOidc.CLIENT_ID, holeSchluessel: fahrerOidc.holeSchluessel },
+});
+app.use('/api/fahrer', require('cors')({ origin: ['https://localhost', 'capacitor://localhost'] }), fahrer.router);
+app.locals.requireFahrer = fahrer.requireFahrer;
+// #542: Tagesdaten und Ereignis-Eingang (Bearer wie oben)
+app.use('/api/fahrer', require('cors')({ origin: ['https://localhost', 'capacitor://localhost'] }),
+  require('./src/routes/api/fahrer/touren').erstelleTourRouter({ store: require('./src/services/fahrerTouren'), requireFahrer: fahrer.requireFahrer }));
+app.use('/api/fahrer-geraete', requireArea('fahrer.geraete'), require('./src/routes/api/fahrer/geraete').erstelleGeraeteRouter({ store: fahrerStore }));
 
 
 // Versionsanzeige (#334): einmal beim Start ermitteln

@@ -126,6 +126,8 @@ async function arbeitszeitAusRentman(rentmanId, von, beginn) {
  * mitarbeiter: { employee_id, zeiterfassung_quelle, rentman_id }
  */
 async function bemessung(mitarbeiter, beginn) {
+  const gleit = await bemessungGleitzeit(mitarbeiter.employee_id, beginn);
+  if (gleit) return gleit;
   const von = tagVor(beginn, FENSTER_TAGE);
   let proTag;
   const quelle = mitarbeiter.zeiterfassung_quelle === 'portal' ? 'portal' : 'rentman';
@@ -138,6 +140,25 @@ async function bemessung(mitarbeiter, beginn) {
     proTag = await arbeitszeitAusRentman(mitarbeiter.rentman_id, von, beginn);
   }
   return schnittAusTagen(proTag, von, beginn, quelle);
+}
+
+/**
+ * Gleitzeitkonto: kein 13-Wochen-Schnitt. Ab `gleitzeit_seit` zählt jeder Urlaubstag
+ * mit dem Tages-Soll (Wochenstunden / Arbeitstage, 35 h Mo–Fr = 7 h), damit das Konto
+ * ausgeglichen bleibt. Modus 'keine': Urlaubstage tragen gar keine Stunden.
+ * Ohne hinterlegte Arbeitszeit oder vor Kontobeginn: null, es gilt der Schnitt.
+ */
+async function bemessungGleitzeit(employeeId, beginn) {
+  const konto = await gleitzeit.ladeKonto(employeeId);
+  if (!konto.aktiv || beginn < konto.seit) return null;
+  if (konto.urlaubModus === 'keine') {
+    return { von: null, bis: null, tage: 0, sekunden: 0, schnitt: 0, quelle: 'gl_keine', gleitzeit: true };
+  }
+  const historie = await gleitzeit.ladeHistorie(employeeId, getPool());
+  const az = arbeitszeitAm(historie, beginn);
+  if (!az) return null;
+  const schnitt = Math.round((az.wochenstunden * 3600) / az.arbeitstage.length);
+  return { von: null, bis: null, tage: 0, sekunden: 0, schnitt, quelle: 'gl_soll', gleitzeit: true };
 }
 
 /**
@@ -202,7 +223,7 @@ async function vorschau(antragId) {
   const b = await bemessung(a, a.von);
   const rmStatus = await rentmanStatus(a.lrId);
   const heute = new Date().toISOString().slice(0, 10);
-  const vorlaeufig = heute < a.von;
+  const vorlaeufig = heute < a.von && !b.gleitzeit;
   return {
     antrag: a.id, mitarbeiter: a.full_name, status: a.status,
     von: a.von, bis: a.bis, werktage: tage, bemessung: b,
@@ -236,10 +257,10 @@ async function urlaubBerechnen(antragId) {
   }
 
   let b = await bemessung(a, a.von);
-  if (!b.tage) b = await bemessungAusVertrag(a.employee_id, a.von, b);
+  if (!b.tage && !b.gleitzeit) b = await bemessungAusVertrag(a.employee_id, a.von, b);
 
   const heute = new Date().toISOString().slice(0, 10);
-  const vorlaeufig = heute < a.von ? 1 : 0;
+  const vorlaeufig = heute < a.von && !b.gleitzeit ? 1 : 0;
 
   const conn = await db.getConnection();
   try {
@@ -287,6 +308,10 @@ async function urlaubNachRentman(antragId, berechnung) {
   const vorlaeufig = berechnung.vorlaeufig ? 1 : 0;
   const bemerkung = vorlaeufig
     ? `VORLAEUFIG - Neuberechnung am ${a.von} (Mitarbeiterportal)`
+    : b.gleitzeit
+      ? (b.quelle === 'gl_keine'
+        ? 'Urlaub, Gleitzeitkonto ohne Urlaubsstunden (Mitarbeiterportal)'
+        : 'Urlaub, Gleitzeitkonto: Tages-Soll aus Wochenarbeitszeit (Mitarbeiterportal)')
     : b.quelle === 'vertrag'
       ? `Urlaub, vereinbarte Tagesarbeitszeit, keine Arbeitszeit ${b.von} bis ${b.bis} (Mitarbeiterportal)`
       : `Urlaub, Schnitt aus ${b.tage} Arbeitstagen ${b.von} bis ${b.bis} (Mitarbeiterportal)`;

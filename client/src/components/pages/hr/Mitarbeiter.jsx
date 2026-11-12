@@ -45,6 +45,9 @@ function MitarbeiterModal({ emp, departments, onClose, onSave }) {
   const [newDept, setNewDept] = useState(false);
   const [pushInfo, setPushInfo] = useState(null);
   const [days, setDays] = useState(emp.vacation_days_total ?? 30);
+  const [minijob, setMinijob] = useState(Boolean(Number(emp.minijob)));
+  const [maxStd, setMaxStd] = useState(emp.minijob_max_stunden_monat ? String(emp.minijob_max_stunden_monat).replace('.00', '') : '');
+  const [fehlerText, setFehlerText] = useState('');
   const [saving, setSaving] = useState(false);
 
   const taken = emp.vacation_taken || 0;
@@ -75,9 +78,12 @@ function MitarbeiterModal({ emp, departments, onClose, onSave }) {
       const resp = await fetch(`/api/hr/employees/${emp.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, accessTags: tags, vacation_days_total: days, notes, department })
+        body: JSON.stringify({ role, accessTags: tags, vacation_days_total: days, notes, department,
+          minijob, minijob_max_stunden_monat: minijob ? Number(String(maxStd).replace(',', '.')) : null })
       });
       const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) { setFehlerText(data.error || 'Speichern fehlgeschlagen'); return; }
+      setFehlerText('');
       onSave();
       if (data.push && data.push.ok === false) { setPushInfo(data.push.error); return; }
       onClose();
@@ -284,6 +290,28 @@ function MitarbeiterModal({ emp, departments, onClose, onSave }) {
                 borderRadius: '6px', padding: '8px 10px', color: 'var(--text1)', fontSize: '13px'
               }}
             />
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text1)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={minijob} onChange={e => setMinijob(e.target.checked)} />
+              Minijob (Monatslimit statt Regeltage, kein Gleitzeitkonto)
+            </label>
+            {minijob && (
+              <div style={{ marginTop: '8px' }}>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text2)', marginBottom: '5px' }}>
+                  Höchststunden pro Monat
+                </label>
+                <input
+                  inputMode="decimal" value={maxStd} onChange={e => setMaxStd(e.target.value)} placeholder="z. B. 43"
+                  style={{
+                    width: '120px', background: 'var(--bg2)', border: '1px solid var(--border)',
+                    borderRadius: '6px', padding: '8px 10px', color: 'var(--text1)', fontSize: '13px'
+                  }}
+                />
+              </div>
+            )}
+            {fehlerText && <div style={{ fontSize: '12px', color: 'var(--red2)', marginTop: '6px' }}>{fehlerText}</div>}
           </div>
 
           <div style={{ marginBottom: '16px' }}>
@@ -579,7 +607,7 @@ export default function Mitarbeiter() {
             <tbody>
               {filtered.map((emp, i) => {
                 const taken = emp.vacation_taken || 0;
-                const total = emp.vacation_days_total || 30;
+                const total = emp.vacation_days_effective ?? (emp.vacation_days_total || 30);
                 const remaining = total - taken;
                 return (
                   <tr key={emp.id} style={{

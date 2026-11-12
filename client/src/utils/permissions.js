@@ -11,6 +11,7 @@ export const ALL_AREAS = ['metallarbeiten.kunden', 'metallarbeiten.vorgaenge',
   'zeit.eigen',
   'notizen',
   'gashandel',
+  'gashandel.auswertung', // neu 11.11.2026 — Gas-Auswertung, Rohertrag, Einkaufspreise (#460)
   'gashandel.preise', // neu 06.10.2026 — Preis-Tool: Preise ändern + nach Lexware schreiben (#250)
   'hr.urlaubskalender',
   'hr.zeitauswertung',
@@ -19,6 +20,7 @@ export const ALL_AREAS = ['metallarbeiten.kunden', 'metallarbeiten.vorgaenge',
   'content',
   'zeltplanung',   // neu 14.08.2026 — Zeltplaner
   'zeltverleih.projekte', // neu 05.11.2026 — Zeltprojekte aus Rentman (#461)
+  'fahrer.geraete', // neu 12.11.2026 — Geräte der Fahrer-App koppeln und sperren (#541)
 ];
 
 export const ROLE_AREAS = {
@@ -29,8 +31,8 @@ export const ROLE_AREAS = {
 
 export const ACCESS_TAGS = {
   geschaeftsfuehrung: { label: 'Geschäftsführung', allow: ALL_AREAS },
-  backoffice:         { label: 'Backoffice',       allow: ['metallarbeiten.kunden', 'metallarbeiten.vorgaenge', 'gashandel', 'gashandel.preise', 'it', 'content', 'hr.zeitauswertung', 'hr.urlaubskalender', 'zeltverleih.projekte'] }, // Urlaubskalender inkl. Genehmigen (07.11.2026)
-  gashandel:          { label: 'Gashandel',        allow: ['gashandel', 'gashandel.preise'] }, // Preise ändern auch für Gruppe Gashandel (#328)
+  backoffice:         { label: 'Backoffice',       allow: ['metallarbeiten.kunden', 'metallarbeiten.vorgaenge', 'gashandel', 'gashandel.preise', 'gashandel.auswertung', 'it', 'content', 'hr.zeitauswertung', 'hr.urlaubskalender', 'zeltverleih.projekte', 'fahrer.geraete'] }, // Urlaubskalender inkl. Genehmigen (07.11.2026)
+  gashandel:          { label: 'Gashandel',        allow: ['gashandel', 'gashandel.preise', 'gashandel.auswertung', 'fahrer.geraete'] }, // Preise ändern auch für Gruppe Gashandel (#328)
   metallarbeiten:     { label: 'Maschinenbau',     allow: ['metallarbeiten.kunden', 'metallarbeiten.vorgaenge'] },
   zeltverleih:        { label: 'Zeltverleih',      allow: ['zeltplanung', 'zeltverleih.projekte'] },   // Zeltplaner, Zeltprojekte (#461)
 };

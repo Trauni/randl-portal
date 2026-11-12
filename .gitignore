@@ -16,3 +16,4 @@ dist*/
 storage/
 !schema.sql
 !migration_*.sql
+data-raw/

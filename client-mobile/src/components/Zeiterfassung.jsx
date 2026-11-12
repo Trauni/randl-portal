@@ -26,6 +26,7 @@ export default function Zeiterfassung() {
   const [busy, setBusy] = useState(false)
   const [fehler, setFehler] = useState('')
   const [konto, setKonto] = useState(null)
+  const [minijob, setMinijob] = useState(null) // { maxStunden, istSekunden } im laufenden Monat
 
   // Nur Kontostand, Verlauf gibt es am Desktop. Ohne aktives Konto keine Zeile.
   useEffect(() => {
@@ -50,6 +51,8 @@ export default function Zeiterfassung() {
       .then((res) => res.json())
       .then((daten) => {
         setHeute((daten.eintraege || []).filter((e) => (e.start || '').startsWith(heuteStr)))
+        const mj = daten.mitarbeiter?.minijob
+        setMinijob(mj && mj.maxStunden ? { maxStunden: mj.maxStunden, istSekunden: Number(daten.summe) || 0 } : null)
       })
       .catch(() => setHeute([]))
   }
@@ -137,6 +140,14 @@ export default function Zeiterfassung() {
         <p className="card-sub" style={{ margin: '0 0 12px' }}>
           Gleitzeitkonto: <strong style={{ color: konto.minuten < 0 ? 'var(--red, #e05050)' : 'var(--green, #2ebd7a)' }}>{formatMinuten(konto.minuten)} h</strong>
           {konto.gebuchtBis && <> · Stand {new Date(konto.gebuchtBis + 'T00:00').toLocaleDateString('de-DE')}</>}
+        </p>
+      )}
+
+      {minijob && (
+        <p className="card-sub" style={{ margin: '0 0 12px' }}>
+          Minijob diesen Monat: <strong style={{ color: minijob.istSekunden >= minijob.maxStunden * 3600 ? 'var(--red, #e05050)' : minijob.istSekunden >= minijob.maxStunden * 3240 ? '#d89614' : undefined }}>
+            {formatDauer(minijob.istSekunden).slice(0, 5)} von {String(minijob.maxStunden).replace('.', ',')} h
+          </strong>
         </p>
       )}
 

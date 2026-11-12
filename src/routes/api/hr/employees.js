@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getPool } = require('../../../db');
+const { anspruchFuerJahr } = require('../../../utils/urlaubsanspruch');
 const { syncEmployeeGroups, setUserActive, createUser } = require('../../../services/authentik');
 
 const ROLES = ['mitarbeiter', 'freelancer', 'extern'];
@@ -26,8 +27,13 @@ router.get('/', async (req, res) => {
       WHERE e.email IS NOT NULL AND e.is_demo = 0
       ORDER BY e.active DESC, e.lastname ASC, e.firstname ASC
     `);
-    res.json(rows.map(r => ({
+    const jahr = new Date().getFullYear();
+    const ansprueche = await Promise.all(rows.map(r =>
+      anspruchFuerJahr(getPool(), r.id, r.vacation_days_total ?? 30, jahr)));
+    res.json(rows.map((r, i) => ({
       ...r,
+      vacation_days_effective: ansprueche[i].anspruch, // nach Elternzeit-Kürzung
+      elternzeit_monate: ansprueche[i].monate,
       authentik_groups: parseGroups(r.authentik_groups),
       access_tags: r.access_tags_raw ? r.access_tags_raw.split(',') : [],
     })));
@@ -135,7 +141,7 @@ router.get('/:id', async (req, res) => {
 // PATCH /api/hr/employees/:id — Rolle, Zugriffe, Urlaubstage, Notiz, Abteilung
 router.patch('/:id', async (req, res) => {
   if (!req.session?.user) return res.status(401).json({ error: 'Nicht eingeloggt' });
-  const { role, accessTags, vacation_days_total, notes, department } = req.body;
+  const { role, accessTags, vacation_days_total, notes, department, minijob, minijob_max_stunden_monat } = req.body;
   const id = req.params.id;
   if (role && !ROLES.includes(role)) {
     return res.status(400).json({ error: 'Unbekannte Rolle: ' + role });
@@ -153,6 +159,17 @@ router.patch('/:id', async (req, res) => {
        WHERE id = ?`,
       [role || null, vacation_days_total ?? null, notes ?? null, id]
     );
+    // Minijob (#533): Monatslimit statt Regeltage, kein Gleitzeitkonto
+    if (minijob !== undefined) {
+      const limit = Number(minijob_max_stunden_monat);
+      if (minijob && !(limit > 0 && limit <= 200)) {
+        return res.status(400).json({ error: 'Minijob braucht ein Monatslimit zwischen 0 und 200 Stunden' });
+      }
+      await pool.execute(
+        `UPDATE employees SET minijob = ?, minijob_max_stunden_monat = ?,
+                gleitzeit_aktiv = IF(?, 0, gleitzeit_aktiv) WHERE id = ?`,
+        [minijob ? 1 : 0, minijob ? limit : null, minijob ? 1 : 0, id]);
+    }
     // Abteilung (#55): Profil und Urlaubskalender lesen sie; leer = keine Abteilung
     if (typeof department === 'string') {
       await pool.execute('UPDATE employees SET department = ? WHERE id = ?',
