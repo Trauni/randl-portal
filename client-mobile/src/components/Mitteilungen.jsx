@@ -54,8 +54,8 @@ function Einstellungen() {
         {daten.arten.map((a) => (
           <div key={a.art} className="mit-zeile">
             <div className="mit-zeile-titel">{a.label}</div>
-            <label><input type="checkbox" checked={a.inbox} onChange={(e) => setze(a.art, 'inbox', e.target.checked)} /> Im Portal</label>
-            <label><input type="checkbox" checked={a.push} onChange={(e) => setze(a.art, 'push', e.target.checked)} /> Push</label>
+            <label className="schalter"><span>Im Portal</span><input type="checkbox" role="switch" checked={a.inbox} onChange={(e) => setze(a.art, 'inbox', e.target.checked)} /></label>
+            <label className="schalter"><span>Push</span><input type="checkbox" role="switch" checked={a.push} onChange={(e) => setze(a.art, 'push', e.target.checked)} /></label>
           </div>
         ))}
       </div>
