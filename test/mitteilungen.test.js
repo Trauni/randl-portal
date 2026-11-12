@@ -33,6 +33,11 @@ test('notify: Bereich bestimmt Empfänger, Standard-Inbox an', async () => {
   assert.equal(inserts(pool)[0].params[0], 1);
 });
 
+test('notify: Gruppen als bereits geparstes Array (JSON-Spalte) werden erkannt', async () => {
+  const pool = fakePool({ mitarbeiter: [{ id: 1, authentik_groups: ['Geschäftsführung'] }] });
+  assert.equal(await m.notify(pool, { art: 'bestellung_neu', area: 'gashandel', titel: 'T' }), 1);
+});
+
 test('notify: nichtAn schließt die auslösende Person aus', async () => {
   const pool = fakePool({ mitarbeiter: [{ id: 1, authentik_groups: GF }] });
   assert.equal(await m.notify(pool, { art: 'urlaub_antrag', area: 'hr.urlaubskalender', titel: 'T', nichtAn: [1] }), 0);

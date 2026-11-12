@@ -25,8 +25,10 @@ function standardFuer(art, tags) {
   return { inbox: a.inbox, push };
 }
 
-function gruppenAus(json) {
-  try { const g = JSON.parse(json || '[]'); return Array.isArray(g) ? g : []; } catch { return []; }
+// Die Spalte kommt je nach Treiber als Text oder schon als Array zurück (wie parseGroups in hr/employees.js)
+function gruppenAus(wert) {
+  if (Array.isArray(wert)) return wert;
+  try { const g = JSON.parse(wert || '[]'); return Array.isArray(g) ? g : []; } catch { return []; }
 }
 
 /** Aktive Personen mit Zugriff auf den Bereich (Rolle + Tags aus den Authentik-Gruppen). */
