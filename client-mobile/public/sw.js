@@ -18,3 +18,27 @@ self.addEventListener('fetch', (event) => {
     fetch(event.request).catch(() => caches.match(event.request))
   )
 })
+
+// ── Web-Push (Mitteilungen) ──
+self.addEventListener('push', (event) => {
+  let d = {}
+  try { d = event.data ? event.data.json() : {} } catch { d = { titel: 'Randl Portal', text: event.data && event.data.text() } }
+  event.waitUntil(self.registration.showNotification(d.titel || 'Randl Portal', {
+    body: d.text || '',
+    icon: '/mobile/icons/icon-192.png',
+    badge: '/mobile/icons/icon-96.png',
+    tag: d.art || 'portal',
+    renotify: true,
+    data: { link: d.link || '/mobile/' },
+  }))
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const ziel = new URL((event.notification.data && event.notification.data.link) || '/mobile/', self.location.origin).href
+  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((fenster) => {
+    const offen = fenster.find((c) => c.url.startsWith(self.location.origin + '/mobile/'))
+    if (offen) return offen.navigate(ziel).then((c) => c && c.focus())
+    return self.clients.openWindow(ziel)
+  }))
+})

@@ -120,6 +120,7 @@ app.get('/mobile/*', (req, res) => {
 // ── Routes ───────────────────────────────────────────────────────────────────
 app.use('/auth', authRoutes);
 app.use('/api/vacation', requireArea('urlaub.eigen'), vacationRoutes);
+app.use('/api/mitteilungen', requireArea('dashboard'), require('./src/routes/api/mitteilungen'));
 app.use('/api/notes', requireArea('notizen'), notesRoutes);
 app.use('/api/profile', requireArea('profil'), profileRoutes);
 app.use('/api/dashboard', requireArea('dashboard'), dashboardRoutes);
@@ -242,6 +243,7 @@ if (process.env.METALL_SYNC_AKTIV === '1') require('./src/services/metallSync').
 require('./src/services/urlaub').starteZeitplan();
 // Kundenmails Fertigung/neue Fotos (#377), nur mit METALL_KUNDENMAILS_AKTIV=1
 require('./src/services/metallBenachrichtigung').starteZeitplan();
+require('./src/services/bestellMitteilungen').starteZeitplan();
 
 // ── F29 Schritt 3: Interner Listener fuer Service-zu-Service-Aufrufe ─────────
 // Komplett separate Express-Instanz, NUR die eine Route. Gebunden an die

@@ -10,6 +10,7 @@ const gleitzeit = require('../../services/gleitzeit');
 const { anspruchFuerJahr } = require('../../utils/urlaubsanspruch');
 const { arbeitstage, feiertag } = require('../../utils/feiertage');
 const { abbauDauer } = require('../../utils/gleitzeit');
+const mitteilungen = require('../../services/mitteilungen');
 
 const ISO_TAG = /^\d{4}-\d{2}-\d{2}$/;
 const ARTEN = ['urlaub', 'gleitzeitabbau']; // #490
@@ -47,6 +48,13 @@ function normalizeRow(row) {
 function normalizeRows(rows) {
   return (rows || []).map(normalizeRow);
 }
+
+// Mitteilung darf nie die eigentliche Aktion scheitern lassen
+async function melde(args) {
+  try { await mitteilungen.notify(_db.getPool(), args); } catch (e) { console.error('[vacation] Mitteilung:', e.message); }
+}
+const datumDe = (d) => { const [y, m, t] = String(dateOnly(d)).slice(0, 10).split('-'); return `${t}.${m}.`; };
+const zeitraumDe = (vr) => (dateOnly(vr.start_date) === dateOnly(vr.end_date) ? datumDe(vr.start_date) : `${datumDe(vr.start_date)}–${datumDe(vr.end_date)}`);
 
 async function getEmployeeId(uid) {
   const [rows] = await pool.query('SELECT id FROM employees WHERE authentik_uid = ?', [uid]);
@@ -162,6 +170,36 @@ router.get('/timeline', requireAuth, async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Fehler' }); }
 });
 
+// GET /api/vacation/offen — Admin: offene Anträge mit Resturlaub und Überschneidungen (Mobile-Freigaben)
+router.get('/offen', requireAuth, async (req, res) => {
+  if (!canHr(req.session.user)) return res.status(403).json({ error: 'Kein Zugriff' });
+  try {
+    const [offen] = await pool.query(
+      `SELECT vr.id, vr.employee_id, vr.art, vr.start_date, vr.end_date, vr.abbau_von, vr.abbau_bis, vr.days_count, vr.reason, vr.created_at,
+              COALESCE(e.display_name, e.full_name, e.username) AS emp_name, e.department,
+              e.vacation_days_total AS anspruch,
+              (SELECT COALESCE(SUM(a.days_count), 0) FROM vacation_requests a
+                WHERE a.employee_id = vr.employee_id AND a.art = 'urlaub' AND a.status = 'approved'
+                  AND a.cancelled_at IS NULL AND YEAR(a.start_date) = YEAR(vr.start_date)) AS genehmigt
+         FROM vacation_requests vr JOIN employees e ON e.id = vr.employee_id
+        WHERE vr.status = 'pending' AND vr.cancelled_at IS NULL
+        ORDER BY vr.start_date, vr.id`);
+    const antwort = [];
+    for (const r of offen) {
+      const [ueber] = await pool.query(
+        `SELECT COALESCE(e.display_name, e.full_name, e.username) AS name, v.start_date, v.end_date, v.status
+           FROM vacation_requests v JOIN employees e ON e.id = v.employee_id
+          WHERE v.employee_id <> ? AND v.status IN ('approved','pending') AND v.cancelled_at IS NULL
+            AND v.start_date <= ? AND v.end_date >= ?`, [r.employee_id, r.end_date, r.start_date]);
+      // Anspruch wie in /saldo: Elternzeit kürzt ihn
+      const az = await anspruchFuerJahr(_db.getPool(), r.employee_id, r.anspruch ?? 30, Number(String(dateOnly(r.start_date)).slice(0, 4)));
+      antwort.push({ ...normalizeRow(r), anspruch: az.anspruch, genehmigt: Number(r.genehmigt),
+        rest: az.anspruch - Number(r.genehmigt), ueberschneidungen: normalizeRows(ueber) });
+    }
+    res.json(antwort);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Fehler' }); }
+});
+
 // GET /api/vacation/all — Admin: alle Anträge
 router.get('/all', requireAuth, async (req, res) => {
   const isAdmin = canHr(req.session.user);
@@ -213,6 +251,10 @@ router.post('/', requireAuth, async (req, res) => {
       [empId, art, start_date, end_date, z.zeiten?.von ?? null, z.zeiten?.bis ?? null, days, reason || null]
     );
     const [newReq] = await pool.query('SELECT * FROM vacation_requests WHERE id = ?', [result.insertId]);
+    const [[wer]] = await pool.query('SELECT COALESCE(display_name, full_name, username) AS name FROM employees WHERE id = ?', [empId]);
+    await melde({ art: 'urlaub_antrag', area: 'hr.urlaubskalender', nichtAn: [empId],
+      titel: `${art === 'urlaub' ? 'Urlaubsantrag' : 'Gleitzeitabbau'}: ${wer.name}`,
+      text: `${zeitraumDe(newReq[0])} · ${days} ${days === 1 ? 'Tag' : 'Tage'}`, link: '/mobile/#/freigaben' });
     res.status(201).json(normalizeRow(newReq[0]));
   } catch (err) { console.error(err); res.status(500).json({ error: 'Fehler' }); }
 });
@@ -223,13 +265,17 @@ router.patch('/:id/approve', requireAuth, async (req, res) => {
   if (!isAdmin) return res.status(403).json({ error: 'Kein Zugriff' });
   try {
     const approverId = await getEmployeeId(req.session.user.authentikUid);
-    await pool.query(
+    const [upd] = await pool.query(
       `UPDATE vacation_requests SET status='approved', approved_by=?, approved_at=NOW(), note=?
        WHERE id=? AND status='pending'`,
       [approverId, req.body.note || null, req.params.id]
     );
     const [rows] = await pool.query('SELECT * FROM vacation_requests WHERE id=?', [req.params.id]);
     const antwort = normalizeRow(rows[0]);
+    if (antwort && antwort.status === 'approved' && upd.affectedRows) {
+      await melde({ art: 'urlaub_entscheidung', employeeIds: [antwort.employee_id], nichtAn: [approverId],
+        titel: 'Antrag genehmigt', text: zeitraumDe(antwort), link: '/mobile/#/urlaub' });
+    }
     // Urlaub im Portal berechnen und festhalten, danach (nur mit rentman_id)
     // nach Rentman spiegeln. Ein Fehler darf die Genehmigung nicht scheitern
     // lassen: der naechtliche Job holt es nach, und die Abgleichsliste auf der
@@ -257,11 +303,15 @@ router.patch('/:id/reject', requireAuth, async (req, res) => {
   const isAdmin = canHr(req.session.user);
   if (!isAdmin) return res.status(403).json({ error: 'Kein Zugriff' });
   try {
-    await pool.query(
+    const [upd] = await pool.query(
       `UPDATE vacation_requests SET status='rejected', note=? WHERE id=? AND status='pending'`,
       [req.body.note || null, req.params.id]
     );
     const [rows] = await pool.query('SELECT * FROM vacation_requests WHERE id=?', [req.params.id]);
+    if (rows[0] && rows[0].status === 'rejected' && upd.affectedRows) {
+      await melde({ art: 'urlaub_entscheidung', employeeIds: [rows[0].employee_id], nichtAn: [await getEmployeeId(req.session.user.authentikUid)],
+        titel: 'Antrag abgelehnt', text: `${zeitraumDe(rows[0])}${req.body.note ? ' · ' + req.body.note : ''}`, link: '/mobile/#/urlaub' });
+    }
     res.json(normalizeRow(rows[0]));
   } catch (err) { console.error(err); res.status(500).json({ error: 'Fehler' }); }
 });
