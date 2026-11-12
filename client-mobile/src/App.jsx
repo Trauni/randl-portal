@@ -59,8 +59,10 @@ function Shell() {
     ladeAnzahl()
     const t = setInterval(ladeAnzahl, 60000)
     const beiHash = () => { const v = ansichtAusHash(); if (v) { setView(v); ladeAnzahl() } }
+    const beiSicht = () => { if (document.visibilityState === 'visible') ladeAnzahl() }
     window.addEventListener('hashchange', beiHash)
-    return () => { clearInterval(t); window.removeEventListener('hashchange', beiHash) }
+    document.addEventListener('visibilitychange', beiSicht)
+    return () => { clearInterval(t); window.removeEventListener('hashchange', beiHash); document.removeEventListener('visibilitychange', beiSicht) }
   }, [user, ladeAnzahl])
 
   const geheZu = (v) => { setView(v); setMenuOpen(false); if (window.location.hash) window.history.replaceState(null, '', window.location.pathname) }

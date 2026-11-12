@@ -73,6 +73,15 @@ router.post('/push/anmelden', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Fehler' }); }
 });
 
+// POST /api/mitteilungen/push/test — Testnachricht an die eigenen Geräte
+router.post('/push/test', async (req, res) => {
+  if (!m.pushKonfiguriert()) return res.status(409).json({ error: 'Push ist auf dem Server nicht eingerichtet' });
+  try {
+    const gesendet = await m.sendePush(db.getPool(), req.empId, { titel: 'Testnachricht', text: 'Push funktioniert auf diesem Gerät.', link: '/mobile/#/mitteilungen', art: 'test' });
+    res.json({ gesendet });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Fehler' }); }
+});
+
 router.post('/push/abmelden', async (req, res) => {
   try {
     await db.getPool().execute('DELETE FROM push_subscription WHERE employee_id = ? AND endpoint = ?', [req.empId, String(req.body.endpoint || '')]);
