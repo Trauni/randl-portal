@@ -30,6 +30,14 @@ function Einstellungen() {
     }).catch(() => setFehler('Speichern fehlgeschlagen'))
   }
 
+  const [testMsg, setTestMsg] = useState('')
+  const testen = async () => {
+    setTestMsg('')
+    const r = await fetch('/api/mitteilungen/push/test', { method: 'POST', credentials: 'include' })
+    const d = await r.json().catch(() => ({}))
+    setTestMsg(!r.ok ? (d.error || 'Fehlgeschlagen') : d.gesendet ? `Gesendet an ${d.gesendet} Gerät(e)` : 'Kein Gerät angemeldet')
+  }
+
   const umschalten = async () => {
     setFehler('')
     try { if (geraet) await pushAusschalten(); else await pushEinschalten(); setGeraet(!geraet) } catch (e) { setFehler(e.message) }
@@ -47,6 +55,8 @@ function Einstellungen() {
             {geraet ? <><BellOff size={16} /> Push auf diesem Gerät ausschalten</> : <><BellRing size={16} /> Push auf diesem Gerät einschalten</>}
           </button>
         )}
+        {geraet && <button type="button" className="link-btn" onClick={testen}>Testnachricht senden</button>}
+        {testMsg && <p className="hint">{testMsg}</p>}
         {fehler && <p className="error-text">{fehler}</p>}
       </div>
       <div className="card">
@@ -71,6 +81,13 @@ export default function Mitteilungen({ onNavigate, onGelesen }) {
     fetch('/api/mitteilungen?limit=100', { credentials: 'include' }).then((r) => r.json()).then((d) => setListe(d.mitteilungen)).catch(() => setListe([]))
   }, [])
   useEffect(lade, [lade])
+  // Liste aktuell halten: alle 30 s und sobald die App wieder in den Vordergrund kommt
+  useEffect(() => {
+    const t = setInterval(() => { lade(); onGelesen?.() }, 30000)
+    const sicht = () => { if (document.visibilityState === 'visible') { lade(); onGelesen?.() } }
+    document.addEventListener('visibilitychange', sicht)
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', sicht) }
+  }, [lade, onGelesen])
 
   const alleGelesen = async () => {
     await fetch('/api/mitteilungen/gelesen', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: '{}' })

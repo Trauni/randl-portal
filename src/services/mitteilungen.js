@@ -10,11 +10,11 @@
  */
 const { hasArea, roleFromGroups, tagsFromGroups } = require('../utils/permissions');
 
-// Standard je Art. pushFuerTags: Push zunächst nur für diese Tags an, alle anderen können ihn einschalten.
+// Standard je Art. Optional pushFuerTags: Push dann nur für diese Tags an, alle anderen können ihn einschalten.
 const ARTEN = {
   urlaub_antrag:       { label: 'Neue Urlaubsanträge',        inbox: true, push: true },
   urlaub_entscheidung: { label: 'Entscheidung zu meinem Antrag', inbox: true, push: true },
-  bestellung_neu:      { label: 'Neue Bestellungen',          inbox: true, push: false, pushFuerTags: ['geschaeftsfuehrung'] },
+  bestellung_neu:      { label: 'Neue Bestellungen',          inbox: true, push: true },
 };
 
 const artVorhanden = (art) => Object.prototype.hasOwnProperty.call(ARTEN, art);

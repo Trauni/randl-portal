@@ -48,12 +48,12 @@ test('notify: Einstellung inbox=0 unterdrückt die Zeile', async () => {
   assert.equal(await m.notify(pool, { art: 'urlaub_antrag', area: 'hr.urlaubskalender', titel: 'T' }), 0);
 });
 
-test('Bestellungen: Push standardmäßig nur für Geschäftsführung', async () => {
+test('Bestellungen: Push standardmäßig für alle mit Bereich gashandel', async () => {
   const subs = [{ id: 1, employee_id: 1, endpoint: 'e1', p256dh: 'p', auth: 'a' }, { id: 2, employee_id: 2, endpoint: 'e2', p256dh: 'p', auth: 'a' }];
   const pool = fakePool({ mitarbeiter: [{ id: 1, authentik_groups: GF }, { id: 2, authentik_groups: JSON.stringify(['Gashandel']) }], subs });
   const gesendet = [];
   await m.notify(pool, { art: 'bestellung_neu', area: 'gashandel', titel: 'B', sender: async (s) => { gesendet.push(s.endpoint); } });
-  assert.deepEqual(gesendet, ['e1']);
+  assert.deepEqual(gesendet.sort(), ['e1', 'e2']);
   assert.equal(inserts(pool).length, 2);
 });
 
