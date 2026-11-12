@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Menu } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Menu, Bell } from 'lucide-react'
 import { AuthProvider, useAuth } from './context/AuthContext.jsx'
 import BurgerMenu from './components/BurgerMenu.jsx'
 import MiniDashboard from './components/MiniDashboard.jsx'
@@ -13,6 +13,9 @@ import Zeiterfassung from './components/Zeiterfassung.jsx'
 import WidmannBestand from './components/WidmannBestand.jsx'
 import DeliveryRhythm from './components/DeliveryRhythm.jsx'
 import MetallFotos from './components/MetallFotos.jsx'
+import Mitteilungen from './components/Mitteilungen.jsx'
+import Freigaben from './components/Freigaben.jsx'
+import DashboardHinweise from './components/DashboardHinweise.jsx'
 
 // Bewusst kein react-router in Phase 1/2 -- wenige Ansichten, einfacher
 // State-Switch reicht und spart eine Abhaengigkeit. Bei Bedarf (mehr Ansichten
@@ -30,12 +33,37 @@ const VIEWS = {
   'widmann-bestand': WidmannBestand,
   'lieferrhythmus': DeliveryRhythm,
   'metall-fotos': MetallFotos,
+  mitteilungen: Mitteilungen,
+  freigaben: Freigaben,
+}
+
+// Links aus Push-Mitteilungen: /mobile/#/freigaben
+const ansichtAusHash = () => {
+  const v = window.location.hash.replace(/^#\/?/, '')
+  return VIEWS[v] ? v : null
 }
 
 function Shell() {
   const { user, loading, hasArea } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [view, setView] = useState('dashboard')
+  const [view, setView] = useState(() => ansichtAusHash() || 'dashboard')
+  const [ungelesen, setUngelesen] = useState(0)
+
+  const ladeAnzahl = useCallback(() => {
+    fetch('/api/mitteilungen/anzahl', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null)).then((d) => d && setUngelesen(d.ungelesen)).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!user) return undefined
+    ladeAnzahl()
+    const t = setInterval(ladeAnzahl, 60000)
+    const beiHash = () => { const v = ansichtAusHash(); if (v) { setView(v); ladeAnzahl() } }
+    window.addEventListener('hashchange', beiHash)
+    return () => { clearInterval(t); window.removeEventListener('hashchange', beiHash) }
+  }, [user, ladeAnzahl])
+
+  const geheZu = (v) => { setView(v); setMenuOpen(false); if (window.location.hash) window.history.replaceState(null, '', window.location.pathname) }
 
   if (loading) return <div className="center-msg">Lädt…</div>
   if (!user) return <div className="center-msg">Weiterleitung zum Login…</div>
@@ -49,6 +77,10 @@ function Shell() {
           <Menu size={22} />
         </button>
         <span className="topbar-title">Randl Mitarbeiterportal</span>
+        <button type="button" className="icon-btn bell-btn" aria-label="Mitteilungen" onClick={() => geheZu('mitteilungen')}>
+          <Bell size={22} />
+          {ungelesen > 0 && <span className="bell-badge">{ungelesen > 99 ? '99+' : ungelesen}</span>}
+        </button>
         <div className="avatar">{user.avatarInitials || '?'}</div>
       </header>
 
@@ -57,13 +89,14 @@ function Shell() {
           user={user}
           hasArea={hasArea}
           activeView={view}
-          onNavigate={(v) => { setView(v); setMenuOpen(false) }}
+          onNavigate={geheZu}
           onClose={() => setMenuOpen(false)}
         />
       )}
 
       <main className="content">
-        <View hasArea={hasArea} user={user} />
+        {view === 'dashboard' && <DashboardHinweise hasArea={hasArea} ungelesen={ungelesen} onNavigate={geheZu} />}
+        <View hasArea={hasArea} user={user} onNavigate={geheZu} onGelesen={ladeAnzahl} />
       </main>
     </div>
   )

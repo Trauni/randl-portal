@@ -1,10 +1,12 @@
 import {
   LayoutDashboard, ShoppingCart, UserPlus, QrCode, NotebookPen,
-  Plane, Clock, User, LogOut, ClipboardList, CalendarDays, Camera,
+  Plane, Clock, User, LogOut, ClipboardList, CalendarDays, Camera, Bell, CheckCheck,
 } from 'lucide-react'
 
 const ITEMS = [
   { key: 'dashboard', label: 'Mini-Dashboard', area: 'dashboard', icon: LayoutDashboard },
+  { key: 'mitteilungen', label: 'Mitteilungen', area: 'dashboard', icon: Bell },
+  { key: 'freigaben', label: 'Urlaub freigeben', area: 'hr.urlaubskalender', icon: CheckCheck },
   { key: 'bestellung', label: 'Bestellung erfassen', area: 'gashandel', icon: ShoppingCart },
   { key: 'kunden', label: 'Neue Kunden anlegen', area: 'gashandel', icon: UserPlus },
   { key: 'kunden-qr', label: 'Kunden-QR-Code', area: 'gashandel', icon: QrCode },
