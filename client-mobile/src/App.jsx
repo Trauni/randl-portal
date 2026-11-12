@@ -15,7 +15,6 @@ import DeliveryRhythm from './components/DeliveryRhythm.jsx'
 import MetallFotos from './components/MetallFotos.jsx'
 import Mitteilungen from './components/Mitteilungen.jsx'
 import Freigaben from './components/Freigaben.jsx'
-import DashboardHinweise from './components/DashboardHinweise.jsx'
 
 // Bewusst kein react-router in Phase 1/2 -- wenige Ansichten, einfacher
 // State-Switch reicht und spart eine Abhaengigkeit. Bei Bedarf (mehr Ansichten
@@ -97,8 +96,7 @@ function Shell() {
       )}
 
       <main className="content">
-        {view === 'dashboard' && <DashboardHinweise hasArea={hasArea} ungelesen={ungelesen} onNavigate={geheZu} />}
-        <View hasArea={hasArea} user={user} onNavigate={geheZu} onGelesen={ladeAnzahl} />
+        <View hasArea={hasArea} user={user} onNavigate={geheZu} onGelesen={ladeAnzahl} ungelesen={ungelesen} />
       </main>
     </div>
   )
