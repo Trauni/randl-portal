@@ -71,7 +71,7 @@ function typed(raw) {
  * damit z. B. "0070" oder "" nicht zu Zahlen bzw. null werden.
  * @returns {{ header: string[], rows: object[] }}
  */
-function parseCsv(text) {
+function parseCsv(text, { delimiter = ',', allowExcel = false } = {}) {
   const records = [];
   let record = [];
   let i = 0;
@@ -94,13 +94,13 @@ function parseCsv(text) {
       value = s;
     } else {
       let j = i;
-      while (j < n && text[j] !== ',' && text[j] !== '\n' && text[j] !== '\r') j++;
+      while (j < n && text[j] !== delimiter && text[j] !== '\n' && text[j] !== '\r') j++;
       value = typed(text.slice(i, j));
       i = j;
     }
     record.push(value);
 
-    if (text[i] === ',') { i++; continue; }
+    if (text[i] === delimiter) { i++; continue; }
     if (text[i] === '\r') i++;
     if (text[i] === '\n') i++;
     records.push(record);
@@ -111,7 +111,7 @@ function parseCsv(text) {
   if (nonEmpty.length === 0) throw new Error('Datei ist leer');
   const header = nonEmpty[0].map(String);
   // Excel packt beim Speichern gern jede Zeile in eine Zelle (alles in Anführungszeichen)
-  if (header.length < 2) {
+  if (header.length < 2 && !allowExcel) {
     throw Object.assign(new Error('Datei ist kein unveränderter SER-Export (nur eine Spalte erkannt) – vermutlich in Excel '
       + 'bearbeitet und gespeichert. Bitte den Original-Export verwenden; Änderungen nur im Texteditor.'), { status: 400 });
   }
@@ -122,6 +122,12 @@ function parseCsv(text) {
     return Object.fromEntries(header.map((h, k) => [h, r[k]]));
   });
   return { header, rows };
+}
+
+/** Trennzeichen aus der Kopfzeile: Excel speichert deutsche CSV mit Semikolon. */
+function detectDelimiter(text) {
+  const head = text.slice(0, text.search(/\r?\n/) === -1 ? text.length : text.search(/\r?\n/));
+  return (head.match(/;/g) || []).length > (head.match(/,/g) || []).length ? ';' : ',';
 }
 
 /**
@@ -193,4 +199,4 @@ function readSerExport(buffer, { versorgerId = RANDL_VERSORGER_ID } = {}) {
   };
 }
 
-module.exports = { readSerExport, parseCsv, decode, RANDL_VERSORGER_ID };
+module.exports = { readSerExport, parseCsv, decode, detectDelimiter, RANDL_VERSORGER_ID };

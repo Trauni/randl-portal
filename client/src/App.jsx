@@ -19,6 +19,7 @@ import ShopNews from './components/pages/finance/ShopNews';
 import InfoMail from './components/pages/finance/InfoMail';
 import WidmannBestand from './components/pages/finance/WidmannBestand';
 import GasAuswertung from './components/pages/finance/GasAuswertung';
+import Artikelstamm from './components/pages/finance/Artikelstamm';
 import GasEkPreise from './components/pages/finance/GasEkPreise';
 import { CmsPage, CmsEditorPage } from './components/pages/content/CmsEditor'
 import Mitarbeiter from './components/pages/hr/Mitarbeiter'
@@ -93,6 +94,7 @@ function AppRoutes() {
         <Route path="finance/info-mail" element={<InfoMail />} />
         <Route path="finance/widmann-bestand" element={<WidmannBestand />} />
         <Route path="gashandel/auswertung" element={<GasAuswertung />} />
+        <Route path="gashandel/artikel" element={<Artikelstamm />} />
         <Route path="gashandel/einkaufspreise" element={<GasEkPreise />} />
         <Route path="finance/bestellungen" element={<Orders />} />
         <Route path="finance/produkte"     element={<Products />} />

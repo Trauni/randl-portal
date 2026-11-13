@@ -231,9 +231,9 @@ function erstelleTourRouter({ store, requireFahrer, uhr = Date.now }) {
     const andere = alle.filter((t) => t.geraet_id && t.geraet_id !== req.fahrer.geraetId);
 
     const stopps = await store.stoppsZuTouren(touren.map((t) => t.id));
-    const [positionen, artikel, lsStand] = await Promise.all([
-      store.positionenZuStopps(stopps.map((s) => s.id)),
-      store.artikel(),
+    const positionen = await store.positionenZuStopps(stopps.map((s) => s.id));
+    const [artikel, lsStand] = await Promise.all([
+      store.artikel(positionen.map((p) => p.artikel_nr)),
       store.lsStand(req.fahrer.geraetId),
     ]);
 
@@ -256,10 +256,8 @@ function erstelleTourRouter({ store, requireFahrer, uhr = Date.now }) {
         })),
       })),
       kunden: [...kunden.values()],
-      artikel: artikel.map((a) => ({
-        id: a.artikel_nr, bezeichnung: a.bezeichnung, gasart: a.gasart || null, kategorie: a.kategorie || null,
-        faktor: zahl(a.kg_fuellung), druckText: a.bezeichnung,
-      })),
+      artikelStand: artikelStand(artikel),
+      artikel: artikel.map(artikelFuerApp),
       andereGeraete: andere.map((t) => ({ tourId: id(t.id), name: t.bezeichnung, kennung: t.geraet_kennung || null })),
     });
   }));
@@ -267,4 +265,28 @@ function erstelleTourRouter({ store, requireFahrer, uhr = Date.now }) {
   return router;
 }
 
-module.exports = { erstelleTourRouter, tagInBerlin, MAX_EREIGNISSE };
+/** „UN 1965 · Klasse 2.1“ für Anzeige und Ladeliste; leer, wenn der Artikel kein Gefahrgut ist. */
+function druckText(a) {
+  const teile = [];
+  if (a.un_nr) teile.push(`UN ${a.un_nr}`);
+  if (a.gefahrklasse) teile.push(`Klasse ${a.gefahrklasse}`);
+  return teile.join(' · ');
+}
+
+function artikelFuerApp(a) {
+  return {
+    id: a.artikel_nr, bezeichnung: a.bezeichnung, typ: a.typ || null, aktiv: a.aktiv == null ? true : Boolean(a.aktiv),
+    gasart: a.gasart || null, kategorie: a.kategorie || null, faktor: zahl(a.kg_fuellung), druckText: druckText(a),
+    unNr: a.un_nr || null, gefahrklasse: a.gefahrklasse || null, befoerderungskategorie: zahl(a.befoerderungskategorie),
+    fuellgewichtKg: zahl(a.fuellgewicht_kg), inhaltL: zahl(a.inhalt_l),
+    preisNettoCent: zahl(a.preis_netto_cent), mwstSatz: zahl(a.mwst_satz), pfandArtikelId: a.pfand_artikel_nr || null,
+  };
+}
+
+/** Jüngste Änderung im Stamm – damit die App später nur bei Änderung neu lädt. */
+function artikelStand(artikel) {
+  const zeiten = artikel.map((a) => a.geaendert_am && new Date(a.geaendert_am).getTime()).filter(Number.isFinite);
+  return zeiten.length ? new Date(Math.max(...zeiten)).toISOString() : null;
+}
+
+module.exports = { erstelleTourRouter, artikelFuerApp, tagInBerlin, MAX_EREIGNISSE };
