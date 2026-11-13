@@ -4,6 +4,7 @@
 
 const { getPool } = require('../db');
 const { leseArtikelExport, planeAbgleich, FELDER } = require('../utils/artikelstammImport');
+const { pruefeAenderung } = require('../utils/artikelstammAendern');
 
 const SPALTEN = ['artikel_nr', 'aktiv', 'feld_stand', ...FELDER];
 const parseJson = v => (typeof v === 'string' ? JSON.parse(v) : v) || {};
@@ -20,7 +21,7 @@ async function ladeBestand(db = getPool()) {
 async function liste() {
   const [rows] = await getPool().query(
     `SELECT artikel_nr, bezeichnung, typ, aktiv, un_nr, gefahrklasse, befoerderungskategorie, fuellgewicht_kg, inhalt_l,
-            preis_netto_cent, mwst_satz, pfand_artikel_nr, geaendert_am
+            ggvs_faktor, preis_netto_cent, mwst_satz, pfand_artikel_nr, geaendert_am
        FROM gas_artikel ORDER BY artikel_nr`);
   return rows;
 }
@@ -83,4 +84,68 @@ async function anwenden(buffer, quelleDatei, user = {}) {
   }
 }
 
-module.exports = { liste, vorschau, anwenden, zaehltAlsFlasche };
+const fehler400 = msg => Object.assign(new Error(msg), { status: 400 });
+const MAX_MASSE = 500;
+const alsText = v => (v == null ? null : String(v));
+// DECIMAL kommt als Text ('11.000'), eingegeben wird 11 – numerisch vergleichen, aber null bleibt ≠ 0
+const gleichWert = (a, b) => (a == null || b == null ? a == null && b == null : alsText(a) === alsText(b) || Number(a) === Number(b));
+
+/**
+ * Einen oder mehrere Artikel ändern (Massenbearbeitung = mehrere Nummern, gleiche Werte).
+ * Alles oder nichts; jede tatsächliche Änderung kommt ins Protokoll, Herkunft des Felds wird „portal“.
+ * @returns {{ geaendert: number, unveraendert: number, felder: string[] }}
+ */
+async function aendere(nummern, eingabe, user = {}) {
+  if (!Array.isArray(nummern) || !nummern.length) throw fehler400('Keine Artikel ausgewählt');
+  if (nummern.length > MAX_MASSE) throw fehler400(`Höchstens ${MAX_MASSE} Artikel auf einmal`);
+  const { werte, fehler } = pruefeAenderung(eingabe);
+  if (fehler.length) throw fehler400(fehler.join('; '));
+  if ('bezeichnung' in werte && nummern.length > 1) throw fehler400('Die Bezeichnung lässt sich nur einzeln ändern');
+
+  const conn = await getPool().getConnection();
+  try {
+    await conn.beginTransaction();
+    if (werte.pfand_artikel_nr) {
+      const [p] = await conn.query('SELECT typ FROM gas_artikel WHERE artikel_nr = ?', [werte.pfand_artikel_nr]);
+      if (!p.length) throw fehler400(`Pfandartikel ${werte.pfand_artikel_nr} gibt es nicht`);
+      if (p[0].typ !== 'P') throw fehler400(`${werte.pfand_artikel_nr} ist kein Pfandartikel (Typ P)`);
+    }
+    const spalten = Object.keys(werte);
+    const [rows] = await conn.query(
+      `SELECT artikel_nr, feld_stand, ${spalten.join(', ')} FROM gas_artikel WHERE artikel_nr IN (?) FOR UPDATE`, [nummern]);
+    const gefunden = new Set(rows.map(r => r.artikel_nr));
+    const fehlen = nummern.filter(n => !gefunden.has(n));
+    if (fehlen.length) throw fehler400(`Artikel nicht gefunden: ${fehlen.slice(0, 5).join(', ')}`);
+
+    const jetzt = new Date().toISOString();
+    let geaendert = 0;
+    for (const r of rows) {
+      const diff = spalten.filter(k => !gleichWert(r[k], werte[k]));
+      if (!diff.length) continue;
+      const stand = { ...parseJson(r.feld_stand), ...Object.fromEntries(diff.map(k => [k, { quelle: 'portal', am: jetzt }])) };
+      await conn.query(`UPDATE gas_artikel SET ${diff.map(k => `${k} = ?`).join(', ')}, feld_stand = ? WHERE artikel_nr = ?`,
+        [...diff.map(k => werte[k]), JSON.stringify(stand), r.artikel_nr]);
+      await conn.query('INSERT INTO gas_artikel_aenderungen (artikel_nr, feld, alt, neu, von_id, von_name) VALUES ?',
+        [diff.map(k => [r.artikel_nr, k, alsText(r[k]), alsText(werte[k]), user.id || null, user.fullName || user.username || null])]);
+      geaendert++;
+    }
+    await conn.commit();
+    console.log('[Artikelstamm] geändert:', geaendert, 'von', nummern.length, spalten.join(','), 'von', user.username);
+    return { geaendert, unveraendert: nummern.length - geaendert, felder: spalten };
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
+/** Letzte Änderungen eines Artikels. */
+async function protokoll(artikelNr, limit = 50) {
+  const [rows] = await getPool().query(
+    `SELECT feld, alt, neu, von_name, geaendert_am FROM gas_artikel_aenderungen
+      WHERE artikel_nr = ? ORDER BY id DESC LIMIT ?`, [artikelNr, limit]);
+  return rows;
+}
+
+module.exports = { liste, vorschau, anwenden, aendere, protokoll, zaehltAlsFlasche };

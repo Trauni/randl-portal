@@ -34,4 +34,20 @@ router.post('/vorschau', mitDatei(req => service.vorschau(req.file.buffer)));
 // POST /api/finance/artikelstamm/import     multipart „file“ – neue Artikel + leere Felder
 router.post('/import', mitDatei(req => service.anwenden(req.file.buffer, dateiname(req), req.session.user || {})));
 
+// POST /api/finance/artikelstamm/aendern   { nummern: [...], werte: { feld: wert } } – Einzel- und Massenbearbeitung
+router.post('/aendern', async (req, res) => {
+  const { nummern, werte } = req.body || {};
+  try { res.json(await service.aendere(nummern, werte, req.session.user || {})); }
+  catch (err) {
+    if (!err.status) console.error('[Artikelstamm] aendern:', err);
+    res.status(err.status || 500).json({ error: err.status ? err.message : 'Änderung konnte nicht gespeichert werden' });
+  }
+});
+
+// GET /api/finance/artikelstamm/:nr/protokoll
+router.get('/:nr/protokoll', async (req, res) => {
+  try { res.json({ eintraege: await service.protokoll(req.params.nr) }); }
+  catch (err) { console.error('[Artikelstamm] protokoll:', err); res.status(500).json({ error: 'Protokoll konnte nicht geladen werden' }); }
+});
+
 module.exports = router;
