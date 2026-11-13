@@ -44,6 +44,23 @@ router.post('/aendern', async (req, res) => {
   }
 });
 
+function jsonRoute(handler, fehlertext) {
+  return async (req, res) => {
+    try { res.json(await handler(req)); }
+    catch (err) {
+      if (!err.status) console.error('[Artikelstamm]', err);
+      res.status(err.status || 500).json({ error: err.status ? err.message : fehlertext });
+    }
+  };
+}
+
+// POST /api/finance/artikelstamm/loeschen   { nummern: [...], pruefen?: true } – nur nicht mehr verwendete Artikel
+router.post('/loeschen', jsonRoute(req => service.loesche(req.body?.nummern, req.session.user || {}, { pruefen: req.body?.pruefen === true }),
+  'Löschen fehlgeschlagen'));
+
+// POST /api/finance/artikelstamm/anlegen    { artikel_nr, bezeichnung, typ, ...weitere Felder }
+router.post('/anlegen', jsonRoute(req => service.lege_an(req.body, req.session.user || {}), 'Artikel konnte nicht angelegt werden'));
+
 // GET /api/finance/artikelstamm/:nr/protokoll
 router.get('/:nr/protokoll', async (req, res) => {
   try { res.json({ eintraege: await service.protokoll(req.params.nr) }); }
