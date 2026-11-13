@@ -16,7 +16,7 @@ function ramSpeicher() {
     geraete: [{ id: 1, kennung: 'T1', ls_stand: 3 }, { id: 2, kennung: 'HSEPP', ls_stand: 0 }],
     artikelListe: [
       { artikel_nr: '7801200', bezeichnung: 'Propan 11 kg', typ: 'F', aktiv: 1, gasart: 'Propan', kategorie: 'propan', kg_fuellung: '11.00',
-        un_nr: '1965', gefahrklasse: '2.1', befoerderungskategorie: 2, preis_netto_cent: 2926, mwst_satz: '19.0', pfand_artikel_nr: '2801200' },
+        un_nr: '1965', gefahrklasse: '2.1', ggvs_faktor: 3, befoerderungskategorie: 2, preis_netto_cent: 2926, mwst_satz: '19.0', pfand_artikel_nr: '2801200' },
       { artikel_nr: 'T002', bezeichnung: 'Sauerstoff 10 l', gasart: 'Sauerstoff', kategorie: 'technisch', kg_fuellung: null },
     ],
   };
@@ -157,7 +157,7 @@ test('heute: nur freigegebene/laufende Touren des Fahrers von heute, mit Stopps,
   assert.equal(daten.kunden[1].hinweise, 'Hintereingang');
   assert.deepEqual(daten.artikel[0], {
     id: '7801200', bezeichnung: 'Propan 11 kg', typ: 'F', aktiv: true, gasart: 'Propan', kategorie: 'propan', faktor: 11,
-    druckText: 'UN 1965 · Klasse 2.1', unNr: '1965', gefahrklasse: '2.1', befoerderungskategorie: 2,
+    druckText: 'UN 1965 · Klasse 2.1', unNr: '1965', gefahrklasse: '2.1', ggvsFaktor: 3, befoerderungskategorie: 2,
     fuellgewichtKg: null, inhaltL: null, preisNettoCent: 2926, mwstSatz: 19, pfandArtikelId: '2801200', kaufflascheArtikelId: null,
   });
   assert.equal(daten.artikel[1].faktor, null);
