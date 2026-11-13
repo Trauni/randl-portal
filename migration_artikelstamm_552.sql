@@ -7,7 +7,7 @@ ALTER TABLE gas_artikel
   MODIFY gasart    VARCHAR(40) NULL,
   MODIFY kategorie ENUM('propan','technisch') NULL,
   MODIFY groesse   VARCHAR(16) NULL,
-  ADD COLUMN typ                  CHAR(1)       NULL COMMENT 'SER: F Füllung, P Pfand/Leergut, S Sonstiges, V Provision' AFTER bezeichnung,
+  ADD COLUMN typ                  CHAR(1)       NULL COMMENT 'SER: F Füllung, P Pfand/Leergut, S Steuer/Nutzung (Kaufflasche), V Provision' AFTER bezeichnung,
   ADD COLUMN aktiv                TINYINT(1)    NOT NULL DEFAULT 1 AFTER typ,
   ADD COLUMN un_nr                VARCHAR(8)    NULL AFTER aktiv,
   ADD COLUMN gefahrklasse         VARCHAR(8)    NULL COMMENT 'Gefahrzettel, z. B. 2.1' AFTER un_nr,

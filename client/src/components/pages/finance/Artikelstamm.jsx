@@ -10,7 +10,7 @@ const btn = { padding: '.4rem .9rem', background: 'var(--bg2)', border: '1px sol
 const btnPrimary = { ...btn, background: 'var(--r)', border: 'none', color: '#fff' };
 const inp = { background: 'var(--bg0)', border: '1px solid var(--border)', borderRadius: 6, padding: '.35rem .6rem', color: 'var(--text1)', fontSize: '.85rem', boxSizing: 'border-box' };
 
-const TYPEN = { F: 'Füllung', P: 'Pfand', S: 'Sonstiges', V: 'Provision' };
+const TYPEN = { F: 'Füllung', P: 'Pfand', S: 'Steuer/Nutzung', V: 'Provision' };
 const eur = c => (c == null ? '–' : (c / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €');
 const zahl = v => (v == null ? '–' : Number(v).toLocaleString('de-DE', { maximumFractionDigits: 3 }));
 
