@@ -33,3 +33,22 @@ test('unbekannte Felder und leere Eingabe werden abgelehnt', () => {
   assert.match(pruefeAenderung({ artikel_nr: 'X' }).fehler[0], /nicht änderbar/);
   assert.match(pruefeAenderung({}).fehler[0], /Keine Änderung/);
 });
+
+const { pruefeNeuanlage } = require('../src/utils/artikelstammAendern');
+
+test('Neuanlage: Pflichtfelder und Nummer', () => {
+  const ok = pruefeNeuanlage({ artikel_nr: ' T040 ', bezeichnung: 'Helium 10 L', typ: 'F', un_nr: 'UN 1046', preis_netto_cent: '15000' });
+  assert.deepEqual(ok.fehler, []);
+  assert.equal(ok.artikel_nr, 'T040');
+  assert.deepEqual(ok.werte, { bezeichnung: 'Helium 10 L', typ: 'F', un_nr: '1046', preis_netto_cent: 15000 });
+  assert.ok(pruefeNeuanlage({ bezeichnung: 'x', typ: 'F' }).fehler.some(f => /artikel_nr/.test(f)));
+  assert.ok(pruefeNeuanlage({ artikel_nr: 'A B', bezeichnung: 'x', typ: 'F' }).fehler.some(f => /artikel_nr/.test(f)));
+  assert.ok(pruefeNeuanlage({ artikel_nr: 'A1', bezeichnung: '', typ: 'F' }).fehler.some(f => /bezeichnung/.test(f)));
+  assert.ok(pruefeNeuanlage({ artikel_nr: 'A1', bezeichnung: 'x', typ: 'Z' }).fehler.some(f => /typ/.test(f)));
+});
+
+test('Neuanlage: Fehler in optionalen Feldern werden gemeldet', () => {
+  const r = pruefeNeuanlage({ artikel_nr: 'A1', bezeichnung: 'x', typ: 'P', un_nr: '12' });
+  assert.match(r.fehler.join(), /4 Ziffern/);
+  assert.deepEqual(r.werte, {});
+});

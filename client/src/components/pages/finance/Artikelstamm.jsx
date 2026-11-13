@@ -43,6 +43,8 @@ export default function Artikelstamm() {
   const [typ, setTyp] = useState('');
   const [nurAktiv, setNurAktiv] = useState(true);
   const [luecke, setLuecke] = useState('');
+  const [neu, setNeu] = useState(null);               // Formular „Neuer Artikel“ (null = zu)
+  const [loeschInfo, setLoeschInfo] = useState(null); // Ergebnis der Löschprüfung
   const [auswahl, setAuswahl] = useState(new Set());
   const [aktiv, setAktiv] = useState(new Set());      // Felder, die geändert werden sollen
   const [eingabe, setEingabe] = useState({});
@@ -98,7 +100,7 @@ export default function Artikelstamm() {
   const gewaehlt = useMemo(() => (artikel || []).filter(a => auswahl.has(a.artikel_nr)), [artikel, auswahl]);
   const alleSichtbar = gefiltert.length > 0 && gefiltert.every(a => auswahl.has(a.artikel_nr));
 
-  const umschalten = nr => setAuswahl(prev => { const n = new Set(prev); n.has(nr) ? n.delete(nr) : n.add(nr); return n; });
+  const umschalten = nr => { setLoeschInfo(null); setAuswahl(prev => { const n = new Set(prev); n.has(nr) ? n.delete(nr) : n.add(nr); return n; }); };
   const alleUmschalten = () => setAuswahl(prev => {
     const n = new Set(prev);
     gefiltert.forEach(a => (alleSichtbar ? n.delete(a.artikel_nr) : n.add(a.artikel_nr)));
@@ -112,6 +114,40 @@ export default function Artikelstamm() {
     if (!einzel) return;
     api(`/api/finance/artikelstamm/${encodeURIComponent(einzel)}/protokoll`).then(d => setProtokoll(d.eintraege)).catch(() => {});
   }, [einzel, artikel]);
+
+  const post = (pfad, body) => api('/api/finance/artikelstamm/' + pfad, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+  const anlegen = async () => {
+    const body = Object.fromEntries(Object.entries(neu).filter(([, v]) => v !== '' && v != null));
+    setBusy(true); setFehler(''); setMeldung('');
+    try {
+      const r = await post('anlegen', body);
+      setMeldung(`Artikel ${r.artikel_nr} angelegt.`);
+      setNeu(null);
+      await laden();
+    } catch (err) { setFehler(err.message); }
+    finally { setBusy(false); }
+  };
+
+  const loeschenPruefen = async () => {
+    setBusy(true); setFehler(''); setMeldung('');
+    try { setLoeschInfo(await post('loeschen', { nummern: [...auswahl], pruefen: true })); }
+    catch (err) { setFehler(err.message); }
+    finally { setBusy(false); }
+  };
+
+  const loeschen = async () => {
+    setBusy(true); setFehler('');
+    try {
+      const r = await post('loeschen', { nummern: [...auswahl] });
+      setMeldung(`${r.geloescht} Artikel gelöscht${r.blockiert.length ? `, ${r.blockiert.length} bleiben (noch in Verwendung)` : ''}.`);
+      setLoeschInfo(null);
+      setAuswahl(new Set(r.blockiert.map(b => b.artikel_nr)));
+      await laden();
+    } catch (err) { setFehler(err.message); }
+    finally { setBusy(false); }
+  };
 
   const speichern = async () => {
     const werte = {};
@@ -200,6 +236,34 @@ export default function Artikelstamm() {
         <span style={{ fontSize: '.8rem', color: 'var(--text3)' }}>{artikel ? `${gefiltert.length} von ${artikel.length}` : 'lade…'}</span>
       </div>
 
+      <div style={{ marginBottom: '.6rem' }}>
+        <button style={btn} onClick={() => setNeu(neu ? null : { artikel_nr: '', bezeichnung: '', typ: 'F' })}>
+          {neu ? 'Formular schließen' : '+ Neuer Artikel'}
+        </button>
+      </div>
+      {neu && (
+        <div style={card}>
+          <b style={{ color: 'var(--text1)', fontSize: '.88rem' }}>Neuen Artikel anlegen</b>
+          <div style={{ fontSize: '.78rem', color: 'var(--text3)', margin: '.3rem 0 .6rem' }}>
+            Nummer wie in SER/Lexware ohne Präfix (z. B. 7801200). Weitere Angaben kannst du danach in der Bearbeitung ergänzen.
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '.6rem' }}>
+            {[['artikel_nr', 'Nummer *'], ['bezeichnung', 'Bezeichnung *'], ['un_nr', 'UN-Nr.'], ['gefahrklasse', 'Gefahrklasse'], ['preis_netto_cent', 'Netto-Preis (Cent)']].map(([f, l]) => (
+              <label key={f} style={{ fontSize: '.78rem', color: 'var(--text2)' }}>{l}
+                <input style={{ ...inp, width: '100%', display: 'block', marginTop: 2 }} value={neu[f] ?? ''} onChange={e => setNeu({ ...neu, [f]: e.target.value })} />
+              </label>
+            ))}
+            <label style={{ fontSize: '.78rem', color: 'var(--text2)' }}>Typ *
+              <select style={{ ...inp, width: '100%', display: 'block', marginTop: 2 }} value={neu.typ} onChange={e => setNeu({ ...neu, typ: e.target.value })}>
+                {Object.entries(TYPEN).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </label>
+          </div>
+          <div style={{ marginTop: '.8rem' }}>
+            <button style={btnPrimary} disabled={busy || !neu.artikel_nr || !neu.bezeichnung} onClick={anlegen}>{busy ? 'Speichere…' : 'Anlegen'}</button>
+          </div>
+        </div>
+      )}
       {meldung && <div style={{ color: 'var(--text2)', fontSize: '.82rem', marginBottom: '.6rem' }}>✓ {meldung}</div>}
       {gewaehlt.length > 0 && (
         <div style={card}>
@@ -207,8 +271,29 @@ export default function Artikelstamm() {
             <b style={{ color: 'var(--text1)', fontSize: '.88rem' }}>
               {gewaehlt.length === 1 ? `${gewaehlt[0].artikel_nr} bearbeiten` : `${gewaehlt.length} Artikel gemeinsam bearbeiten`}
             </b>
-            <button style={btn} onClick={() => { setAuswahl(new Set()); setAktiv(new Set()); setEingabe({}); setBezeichnung(null); }}>Auswahl aufheben</button>
+            <div style={{ display: 'flex', gap: '.5rem' }}>
+              <button style={{ ...btn, color: 'var(--red2)' }} disabled={busy} onClick={loeschenPruefen}>Löschen…</button>
+              <button style={btn} onClick={() => { setAuswahl(new Set()); setAktiv(new Set()); setEingabe({}); setBezeichnung(null); setLoeschInfo(null); }}>Auswahl aufheben</button>
+            </div>
           </div>
+          {loeschInfo && (
+            <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '.7rem', marginBottom: '.7rem', fontSize: '.82rem', color: 'var(--text2)' }}>
+              <b style={{ color: 'var(--text1)' }}>{loeschInfo.loeschbar} von {auswahl.size} Artikeln können endgültig gelöscht werden.</b>
+              {loeschInfo.blockiert.length > 0 && (
+                <div style={{ marginTop: '.4rem' }}>
+                  Diese bleiben stehen, weil sie noch verwendet werden (stattdessen auf inaktiv setzen):
+                  <ul style={{ margin: '.3rem 0 0', paddingLeft: '1.2rem' }}>
+                    {loeschInfo.blockiert.map(b => <li key={b.artikel_nr}>{b.artikel_nr} {b.bezeichnung}: {b.gruende.join(', ')}</li>)}
+                  </ul>
+                </div>
+              )}
+              <div style={{ marginTop: '.6rem', display: 'flex', gap: '.5rem' }}>
+                {loeschInfo.loeschbar > 0 && <button style={{ ...btnPrimary, background: 'var(--red2)' }} disabled={busy} onClick={loeschen}>{loeschInfo.loeschbar} Artikel endgültig löschen</button>}
+                <button style={btn} onClick={() => setLoeschInfo(null)}>Abbrechen</button>
+              </div>
+              <div style={{ marginTop: '.4rem', fontSize: '.74rem', color: 'var(--text3)' }}>Gelöschte Artikel legt der SER-Import nicht wieder an.</div>
+            </div>
+          )}
           <div style={{ fontSize: '.78rem', color: 'var(--text3)', marginBottom: '.6rem' }}>
             Nur angehakte Felder werden geändert. Leer gelassen und angehakt: Wert wird gelöscht.
           </div>

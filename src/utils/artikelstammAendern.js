@@ -53,4 +53,22 @@ function pruefeAenderung(eingabe) {
   return { werte, fehler };
 }
 
-module.exports = { pruefeAenderung, FELDER };
+const TYPEN = ['F', 'P', 'S', 'V'];
+
+/** Neuen Artikel von Hand anlegen: Nummer, Bezeichnung und Typ sind Pflicht, der Rest wie bei der Bearbeitung. */
+function pruefeNeuanlage(eingabe) {
+  const { artikel_nr: nr, bezeichnung, typ, ...rest } = eingabe || {};
+  const fehler = [];
+  const nummer = String(nr ?? '').trim();
+  if (!/^[A-Za-z0-9_-]{1,16}$/.test(nummer)) fehler.push('artikel_nr: 1 bis 16 Zeichen (Buchstaben, Ziffern, - und _)');
+  if (leer(bezeichnung)) fehler.push('bezeichnung: darf nicht leer sein');
+  else if (String(bezeichnung).trim().length > 120) fehler.push('bezeichnung: höchstens 120 Zeichen');
+  if (!TYPEN.includes(typ)) fehler.push(`typ: eines von ${TYPEN.join(', ')}`);
+
+  const { werte, fehler: weitere } = Object.keys(rest).length ? pruefeAenderung(rest) : { werte: {}, fehler: [] };
+  fehler.push(...weitere);
+  if (fehler.length) return { werte: {}, fehler };
+  return { artikel_nr: nummer, werte: { bezeichnung: String(bezeichnung).trim(), typ, ...werte }, fehler };
+}
+
+module.exports = { pruefeAenderung, pruefeNeuanlage, FELDER, TYPEN };

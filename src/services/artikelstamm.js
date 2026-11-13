@@ -4,7 +4,7 @@
 
 const { getPool } = require('../db');
 const { leseArtikelExport, planeAbgleich, FELDER } = require('../utils/artikelstammImport');
-const { pruefeAenderung } = require('../utils/artikelstammAendern');
+const { pruefeAenderung, pruefeNeuanlage } = require('../utils/artikelstammAendern');
 
 const SPALTEN = ['artikel_nr', 'aktiv', 'feld_stand', ...FELDER];
 const parseJson = v => (typeof v === 'string' ? JSON.parse(v) : v) || {};
@@ -38,18 +38,33 @@ function zusammenfassung(parsed, plan) {
   };
 }
 
+/** Bewusst gelöschte Artikel aus dem Export nehmen; Verweise auf sie (Pfand, Kaufflasche) leeren. */
+async function ohneGeloeschte(parsed, db) {
+  const [rows] = await db.query('SELECT artikel_nr FROM gas_artikel_geloescht');
+  const weg = new Set(rows.map(r => r.artikel_nr));
+  if (!weg.size) return parsed;
+  const uebersprungen = parsed.artikel.filter(a => weg.has(a.artikel_nr)).length;
+  const artikel = parsed.artikel.filter(a => !weg.has(a.artikel_nr)).map(a => {
+    const werte = { ...a.werte };
+    for (const f of ['pfand_artikel_nr', 'kaufflasche_artikel_nr']) if (weg.has(werte[f])) werte[f] = null;
+    return { ...a, werte };
+  });
+  const warnings = uebersprungen ? [...parsed.warnings, `${uebersprungen} bewusst gelöschte Artikel übersprungen`] : parsed.warnings;
+  return { ...parsed, artikel, warnings };
+}
+
 async function vorschau(buffer) {
-  const parsed = leseArtikelExport(buffer);
+  const parsed = await ohneGeloeschte(leseArtikelExport(buffer), getPool());
   const plan = planeAbgleich(await ladeBestand(), parsed.artikel);
   return zusammenfassung(parsed, plan);
 }
 
 /** Übernimmt neue Artikel und leere Felder; schreibt ein Protokoll. */
 async function anwenden(buffer, quelleDatei, user = {}) {
-  const parsed = leseArtikelExport(buffer);
   const conn = await getPool().getConnection();
   try {
     await conn.beginTransaction();
+    const parsed = await ohneGeloeschte(leseArtikelExport(buffer), conn);
     const bestand = await ladeBestand(conn);
     const plan = planeAbgleich(bestand, parsed.artikel);
     const stand = new Map(bestand.map(b => [b.artikel_nr, b.feld_stand]));
@@ -152,4 +167,103 @@ async function protokoll(artikelNr, limit = 50) {
   return rows;
 }
 
-module.exports = { liste, vorschau, anwenden, aendere, protokoll, zaehltAlsFlasche };
+const VERWENDUNG = [
+  ['fahrer_stopp_position', 'in Tourpositionen'],
+  ['fahrer_beleg_position', 'in Lieferscheinen der Fahrer'],
+  ['gas_beleg_position', 'in importierten Belegen (Gas-Auswertung)'],
+];
+
+/** Warum ein Artikel nicht gelöscht werden darf (leer = frei). */
+async function sperrgruende(conn, nummern) {
+  const gruende = new Map(nummern.map(n => [n, []]));
+  for (const [tabelle, text] of VERWENDUNG) {
+    const [rows] = await conn.query(`SELECT DISTINCT artikel_nr FROM ${tabelle} WHERE artikel_nr IN (?)`, [nummern]);
+    rows.forEach(r => gruende.get(r.artikel_nr)?.push(text));
+  }
+  // Verweise anderer Artikel (Pfand, Kaufflasche) – egal, wer löscht: bleibt der Verweiser stehen, bleibt auch das Ziel
+  const freiVonVerwendung = new Set([...gruende].filter(([, g]) => !g.length).map(([n]) => n));
+  const [refs] = await conn.query(
+    `SELECT artikel_nr, pfand_artikel_nr, kaufflasche_artikel_nr FROM gas_artikel
+      WHERE pfand_artikel_nr IN (?) OR kaufflasche_artikel_nr IN (?)`, [nummern, nummern]);
+  for (const r of refs) {
+    if (freiVonVerwendung.has(r.artikel_nr)) continue; // wird in diesem Lauf selbst gelöscht
+    if (gruende.has(r.pfand_artikel_nr)) gruende.get(r.pfand_artikel_nr).push(`Pfandartikel von ${r.artikel_nr}`);
+    if (gruende.has(r.kaufflasche_artikel_nr)) gruende.get(r.kaufflasche_artikel_nr).push(`Kaufflasche von ${r.artikel_nr}`);
+  }
+  return gruende;
+}
+
+/**
+ * Artikel endgültig löschen – nur, wenn sie nirgends mehr vorkommen; sonst bleiben sie stehen und
+ * werden gemeldet (dann auf inaktiv setzen). Mit pruefen=true wird nichts gelöscht.
+ * Gelöschte Nummern merkt sich der Stamm, der SER-Import legt sie nicht neu an.
+ */
+async function loesche(nummern, user = {}, { pruefen = false } = {}) {
+  if (!Array.isArray(nummern) || !nummern.length) throw fehler400('Keine Artikel ausgewählt');
+  if (nummern.length > MAX_MASSE) throw fehler400(`Höchstens ${MAX_MASSE} Artikel auf einmal`);
+  const conn = await getPool().getConnection();
+  try {
+    await conn.beginTransaction();
+    const [rows] = await conn.query('SELECT artikel_nr, bezeichnung FROM gas_artikel WHERE artikel_nr IN (?) FOR UPDATE', [nummern]);
+    const name = new Map(rows.map(r => [r.artikel_nr, r.bezeichnung]));
+    const vorhanden = [...name.keys()];
+    const gruende = vorhanden.length ? await sperrgruende(conn, vorhanden) : new Map();
+    const frei = vorhanden.filter(n => !gruende.get(n).length);
+    const blockiert = vorhanden.filter(n => gruende.get(n).length)
+      .map(n => ({ artikel_nr: n, bezeichnung: name.get(n), gruende: gruende.get(n) }));
+
+    if (!pruefen && frei.length) {
+      const von = [user.id || null, user.fullName || user.username || null];
+      await conn.query('INSERT INTO gas_artikel_geloescht (artikel_nr, bezeichnung, von_id, von_name) VALUES ? ON DUPLICATE KEY UPDATE geloescht_am = NOW()',
+        [frei.map(n => [n, name.get(n), ...von])]);
+      await conn.query('INSERT INTO gas_artikel_aenderungen (artikel_nr, feld, alt, neu, von_id, von_name) VALUES ?',
+        [frei.map(n => [n, '(Artikel)', name.get(n), 'gelöscht', ...von])]);
+      await conn.query('DELETE FROM gas_artikel WHERE artikel_nr IN (?)', [frei]);
+    }
+    await conn.commit();
+    if (!pruefen && frei.length) console.log('[Artikelstamm] gelöscht:', frei.join(','), 'von', user.username);
+    return { geloescht: pruefen ? 0 : frei.length, loeschbar: frei.length, blockiert, nichtGefunden: nummern.filter(n => !name.has(n)) };
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
+/** Neuen Artikel von Hand anlegen (z. B. einer, der im SER-Export fehlt). */
+async function lege_an(eingabe, user = {}) {
+  const { artikel_nr: nr, werte, fehler } = pruefeNeuanlage(eingabe);
+  if (fehler.length) throw fehler400(fehler.join('; '));
+
+  const conn = await getPool().getConnection();
+  try {
+    await conn.beginTransaction();
+    const [da] = await conn.query('SELECT 1 FROM gas_artikel WHERE artikel_nr = ?', [nr]);
+    if (da.length) throw fehler400(`Artikel ${nr} gibt es schon`);
+    for (const [feld, typ] of [['pfand_artikel_nr', 'P'], ['kaufflasche_artikel_nr', null]]) {
+      if (!werte[feld]) continue;
+      const [z] = await conn.query('SELECT typ FROM gas_artikel WHERE artikel_nr = ?', [werte[feld]]);
+      if (!z.length) throw fehler400(`${feld}: Artikel ${werte[feld]} gibt es nicht`);
+      if (typ && z[0].typ !== typ) throw fehler400(`${werte[feld]} ist kein Pfandartikel (Typ P)`);
+    }
+    const jetzt = new Date().toISOString();
+    const stand = Object.fromEntries(Object.keys(werte).map(k => [k, { quelle: 'portal', am: jetzt }]));
+    const felder = ['artikel_nr', 'aktiv', 'zaehlt_als_flasche', 'feld_stand', ...Object.keys(werte)];
+    await conn.query(`INSERT INTO gas_artikel (${felder.join(', ')}) VALUES (${felder.map(() => '?').join(', ')})`,
+      [nr, 1, zaehltAlsFlasche(werte), JSON.stringify(stand), ...Object.values(werte)]);
+    await conn.query('DELETE FROM gas_artikel_geloescht WHERE artikel_nr = ?', [nr]);
+    await conn.query('INSERT INTO gas_artikel_aenderungen (artikel_nr, feld, alt, neu, von_id, von_name) VALUES (?, ?, NULL, ?, ?, ?)',
+      [nr, '(Artikel)', 'angelegt', user.id || null, user.fullName || user.username || null]);
+    await conn.commit();
+    console.log('[Artikelstamm] angelegt:', nr, 'von', user.username);
+    return { artikel_nr: nr };
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
+module.exports = { liste, vorschau, anwenden, aendere, loesche, lege_an, protokoll, zaehltAlsFlasche };
