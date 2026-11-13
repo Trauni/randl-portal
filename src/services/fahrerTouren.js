@@ -47,7 +47,7 @@ async function positionenZuStopps(stoppIds) {
 async function artikel(auchNummern = []) {
   const extra = [...new Set(auchNummern)];
   const [rows] = await getPool().query(
-    `SELECT artikel_nr, bezeichnung, typ, gasart, kategorie, kg_fuellung, un_nr, gefahrklasse, befoerderungskategorie,
+    `SELECT artikel_nr, bezeichnung, typ, gasart, kategorie, kg_fuellung, un_nr, gefahrklasse, ggvs_faktor, befoerderungskategorie,
             fuellgewicht_kg, inhalt_l, preis_netto_cent, mwst_satz, pfand_artikel_nr, kaufflasche_artikel_nr, aktiv, geaendert_am
        FROM gas_artikel WHERE aktiv = 1${extra.length ? ' OR artikel_nr IN (?)' : ''} ORDER BY artikel_nr`,
     extra.length ? [extra] : []);
