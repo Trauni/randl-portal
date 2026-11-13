@@ -13,7 +13,7 @@ const QUELLE = 'ser';
 
 // Felder, die der Import befüllt (Portal-Spalte in gas_artikel)
 const FELDER = ['bezeichnung', 'typ', 'un_nr', 'gefahrklasse', 'ggvs_faktor', 'befoerderungskategorie',
-  'fuellgewicht_kg', 'inhalt_l', 'preis_netto_cent', 'mwst_satz', 'pfand_artikel_nr', 'kaufflasche_artikel_nr', 'kategorie', 'kg_fuellung'];
+  'bezadr', 'fuellgewicht_kg', 'fuellmenge', 'fuellmenge_einheit', 'preis_netto_cent', 'mwst_satz', 'pfand_artikel_nr', 'kaufflasche_artikel_nr', 'kategorie', 'kg_fuellung'];
 
 const MWST_REGEL = 19;
 const MWST_ERMAESSIGT = 7;
@@ -35,6 +35,12 @@ const zahl = v => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 /** SER speichert Gewicht und Inhalt × 1000 (11 kg → 11000). */
 const tausendstel = v => (zahl(v) > 0 ? v / 1000 : null);
 
+/**
+ * `inhalt` ist in SER ein Kombifeld ohne Einheit: kg bei Brenngas/CO², Liter bei Technikgasen.
+ * Die Einheit steht nur in der Bezeichnung („11-kg Brenngas“, „Argon 10L“); ohne „kg“ gilt Liter.
+ */
+const mengenEinheit = name => (/(^|[^a-zäöü])kg([^a-zäöü]|$)/i.test(name || '') && !/\d\s?(l|ltr|liter)([^a-zäöü]|$)/i.test(name) ? 'kg' : 'l');
+
 /** Eine Exportzeile auf die Felder des Portals abbilden. */
 function abbilden(r, nrZuId) {
   const artikelNr = String(r.nr);
@@ -43,6 +49,7 @@ function abbilden(r, nrZuId) {
   const unNr = text(r.unnr);
   const typ = text(r.typ);
   const gewicht = tausendstel(r.fuellgewicht);
+  const menge = tausendstel(r.inhalt);
   const istPropan = typ === 'F' && artikelNr.startsWith('78');
 
   return {
@@ -55,8 +62,10 @@ function abbilden(r, nrZuId) {
       gefahrklasse: excelDatumZuKlasse(r.gefahrzettel_nr) || text(r.gefahrzettel_nr),
       ggvs_faktor: faktor > 0 ? faktor : null,
       befoerderungskategorie: faktorBekannt ? KATEGORIE_ZU_FAKTOR[faktor] : null,
+      bezadr: text(r.bezadr),
       fuellgewicht_kg: gewicht,
-      inhalt_l: tausendstel(r.inhalt),
+      fuellmenge: menge,
+      fuellmenge_einheit: menge ? mengenEinheit(r.name) : null,
       preis_netto_cent: typ === 'F' || typ === 'P' ? zahl(r.preis) : null,
       mwst_satz: r.mwst_ermaessigt === true ? MWST_ERMAESSIGT : MWST_REGEL,
       pfand_artikel_nr: r.pfand_produkt_id == null ? null : (nrZuId.get(String(r.pfand_produkt_id)) || null),

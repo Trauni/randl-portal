@@ -158,7 +158,7 @@ test('heute: nur freigegebene/laufende Touren des Fahrers von heute, mit Stopps,
   assert.deepEqual(daten.artikel[0], {
     id: '7801200', bezeichnung: 'Propan 11 kg', typ: 'F', aktiv: true, gasart: 'Propan', kategorie: 'propan', faktor: 11,
     druckText: 'UN 1965 · Klasse 2.1', unNr: '1965', gefahrklasse: '2.1', ggvsFaktor: 3, befoerderungskategorie: 2,
-    fuellgewichtKg: null, inhaltL: null, preisNettoCent: 2926, mwstSatz: 19, pfandArtikelId: '2801200', kaufflascheArtikelId: null,
+    adrBezeichnung: null, fuellgewichtKg: null, fuellmenge: null, fuellmengeEinheit: null, inhaltL: null, preisNettoCent: 2926, mwstSatz: 19, pfandArtikelId: '2801200', kaufflascheArtikelId: null,
   });
   assert.equal(daten.artikel[1].faktor, null);
   assert.equal(daten.artikel[1].druckText, ''); // kein Gefahrgut-Eintrag → kein Druckzeilen-Text

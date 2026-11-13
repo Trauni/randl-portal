@@ -52,3 +52,10 @@ test('Neuanlage: Fehler in optionalen Feldern werden gemeldet', () => {
   assert.match(r.fehler.join(), /4 Ziffern/);
   assert.deepEqual(r.werte, {});
 });
+
+test('Füllmenge mit Einheit und ADR-Benennung sind änderbar', () => {
+  const ok = pruefeAenderung({ fuellmenge: '10,5', fuellmenge_einheit: 'KG', bezadr: ' ARGON, VERDICHTET ' });
+  assert.deepEqual(ok.werte, { fuellmenge: 10.5, fuellmenge_einheit: 'kg', bezadr: 'ARGON, VERDICHTET' });
+  assert.match(pruefeAenderung({ fuellmenge_einheit: 'm3' }).fehler[0], /kg oder l/);
+  assert.deepEqual(pruefeAenderung({ fuellmenge_einheit: '' }).werte, { fuellmenge_einheit: null });
+});

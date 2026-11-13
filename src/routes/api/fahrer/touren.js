@@ -278,7 +278,9 @@ function artikelFuerApp(a) {
     id: a.artikel_nr, bezeichnung: a.bezeichnung, typ: a.typ || null, aktiv: a.aktiv == null ? true : Boolean(a.aktiv),
     gasart: a.gasart || null, kategorie: a.kategorie || null, faktor: zahl(a.kg_fuellung), druckText: druckText(a),
     unNr: a.un_nr || null, gefahrklasse: a.gefahrklasse || null, ggvsFaktor: zahl(a.ggvs_faktor), befoerderungskategorie: zahl(a.befoerderungskategorie),
-    fuellgewichtKg: zahl(a.fuellgewicht_kg), inhaltL: zahl(a.inhalt_l),
+    adrBezeichnung: a.bezadr || null,
+    fuellgewichtKg: zahl(a.fuellgewicht_kg), fuellmenge: zahl(a.fuellmenge), fuellmengeEinheit: a.fuellmenge_einheit || null,
+    inhaltL: a.fuellmenge_einheit === 'l' ? zahl(a.fuellmenge) : null,
     preisNettoCent: zahl(a.preis_netto_cent), mwstSatz: zahl(a.mwst_satz), pfandArtikelId: a.pfand_artikel_nr || null,
     kaufflascheArtikelId: a.kaufflasche_artikel_nr || null,
   };

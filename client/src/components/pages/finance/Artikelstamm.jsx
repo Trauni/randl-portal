@@ -22,7 +22,9 @@ const EDIT_FELDER = [
   ['preis_netto_cent', 'Netto-Preis (Cent)', 'text', 'z. B. 2926 für 29,26 €'],
   ['mwst_satz', 'MwSt. %', 'select:19,7', ''],
   ['fuellgewicht_kg', 'Gewicht (kg)', 'text', ''],
-  ['inhalt_l', 'Inhalt (Liter)', 'text', ''],
+  ['fuellmenge', 'Füllmenge', 'text', 'Zahl, Einheit im nächsten Feld'],
+  ['fuellmenge_einheit', 'Einheit', 'select:kg,l', 'kg bei Brenngas/CO², Liter bei Technikgasen'],
+  ['bezadr', 'ADR-Benennung', 'text', 'z. B. ARGON, VERDICHTET, 2.2, ( E ), Bef.kat.3'],
   ['pfand_artikel_nr', 'Pfandartikel', 'pfand', 'Leergut-Rücknahme, nur Typ Pfand'],
   ['kaufflasche_artikel_nr', 'Kaufflasche', 'kauf', 'wird mit der Füllung verkauft (1:1 oder 1:0)'],
   ['aktiv', 'Status', 'select:1,0', '1 = aktiv, 0 = inaktiv'],
@@ -351,7 +353,7 @@ export default function Artikelstamm() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
             <th style={th}><input type="checkbox" checked={alleSichtbar} onChange={alleUmschalten} title="Alle sichtbaren auswählen" /></th>
-            {['Nr.', 'Bezeichnung', 'Typ', 'UN', 'Klasse', 'Kat.', 'kg', 'Liter', 'Netto', 'MwSt.', 'Pfand', 'Kaufflasche'].map(h => <th key={h} style={th}>{h}</th>)}
+            {['Nr.', 'Bezeichnung', 'Typ', 'UN', 'Klasse', 'ADR-Benennung', 'Kat.', 'kg', 'Menge', 'Netto', 'MwSt.', 'Pfand', 'Kaufflasche'].map(h => <th key={h} style={th}>{h}</th>)}
           </tr></thead>
           <tbody>
             {gefiltert.map(a => (
@@ -362,16 +364,17 @@ export default function Artikelstamm() {
                 <td style={td}>{TYPEN[a.typ] || '–'}</td>
                 <td style={td}>{a.un_nr || '–'}</td>
                 <td style={td}>{a.gefahrklasse || '–'}</td>
+                <td style={{ ...td, minWidth: 220, fontSize: '.74rem' }}>{a.bezadr || '–'}</td>
                 <td style={td}>{a.befoerderungskategorie || '–'}{a.ggvs_faktor && !a.befoerderungskategorie ? ` (×${a.ggvs_faktor})` : ''}</td>
                 <td style={td}>{zahl(a.fuellgewicht_kg)}</td>
-                <td style={td}>{zahl(a.inhalt_l)}</td>
+                <td style={td}>{a.fuellmenge == null ? '–' : `${zahl(a.fuellmenge)} ${a.fuellmenge_einheit || '?'}`}</td>
                 <td style={td}>{eur(a.preis_netto_cent)}</td>
                 <td style={td}>{a.mwst_satz == null ? '–' : `${zahl(a.mwst_satz)} %`}</td>
                 <td style={td}>{a.pfand_artikel_nr || '–'}</td>
                 <td style={td}>{a.kaufflasche_artikel_nr || '–'}</td>
               </tr>
             ))}
-            {artikel && !gefiltert.length && <tr><td style={td} colSpan={13}>Keine Artikel.</td></tr>}
+            {artikel && !gefiltert.length && <tr><td style={td} colSpan={14}>Keine Artikel.</td></tr>}
           </tbody>
         </table>
       </div>
