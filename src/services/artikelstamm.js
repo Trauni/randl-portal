@@ -20,7 +20,7 @@ async function ladeBestand(db = getPool()) {
 /** Artikelübersicht für die Seite (inkl. inaktive). */
 async function liste() {
   const [rows] = await getPool().query(
-    `SELECT artikel_nr, bezeichnung, typ, aktiv, un_nr, gefahrklasse, befoerderungskategorie, fuellgewicht_kg, inhalt_l,
+    `SELECT artikel_nr, bezeichnung, typ, aktiv, un_nr, gefahrklasse, befoerderungskategorie, bezadr, fuellgewicht_kg, fuellmenge, fuellmenge_einheit,
             ggvs_faktor, preis_netto_cent, mwst_satz, pfand_artikel_nr, kaufflasche_artikel_nr, geaendert_am
        FROM gas_artikel ORDER BY artikel_nr`);
   return rows;

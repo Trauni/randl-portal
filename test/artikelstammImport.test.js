@@ -95,3 +95,18 @@ test('Abgleich: Kaufflasche wird bei schon importiertem Artikel nachgetragen', (
   const plan = planeAbgleich(bestand, artikel);
   assert.equal(plan.ergaenzt.find(e => e.artikel_nr === '7801100').werte.kaufflasche_artikel_nr, '2801100');
 });
+
+test('inhalt ist Kombifeld: Einheit aus der Bezeichnung, bezadr wird übernommen', () => {
+  const kopf = 'id;versorger_id;typ;nr;name;preis;active;history_discriminator;geloescht;inhalt;bezadr';
+  const z = (nr, name, inhalt, adr) => `${nr};318;F;${nr};${name};100;True;C;False;${inhalt};${adr}`;
+  const b = Buffer.from([kopf, z(7801200, '11-kg Brenngas Pfand', 11000, 'KOHLENWASSERSTOFFGAS, 2.1'),
+    z('T010', 'Argon 4.6 10L', 10000, 'ARGON, VERDICHTET, 2.2'), z('T032', 'Stickstoff 5.0 Bündel 300 bar', 50000, ''),
+    z('T002', '10 kg CO² Theke', 10000, 'KOHLENDIOXID')].join('\r\n') + '\r\n');
+  const w = Object.fromEntries(leseArtikelExport(b).artikel.map(a => [a.artikel_nr, a.werte]));
+  assert.deepEqual([w['7801200'].fuellmenge, w['7801200'].fuellmenge_einheit], [11, 'kg']);
+  assert.deepEqual([w.T010.fuellmenge, w.T010.fuellmenge_einheit], [10, 'l']);
+  assert.equal(w.T032.fuellmenge_einheit, 'l');
+  assert.equal(w.T002.fuellmenge_einheit, 'kg');
+  assert.equal(w['7801200'].bezadr, 'KOHLENWASSERSTOFFGAS, 2.1');
+  assert.equal(w.T032.bezadr, null);
+});
