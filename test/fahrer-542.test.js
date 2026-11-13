@@ -15,7 +15,8 @@ function ramSpeicher() {
     touren: [], stopps: [], positionen: [], ereignisse: [], belege: [], belegPositionen: [],
     geraete: [{ id: 1, kennung: 'T1', ls_stand: 3 }, { id: 2, kennung: 'HSEPP', ls_stand: 0 }],
     artikelListe: [
-      { artikel_nr: '7801200', bezeichnung: 'Propan 11 kg', gasart: 'Propan', kategorie: 'propan', kg_fuellung: '11.00' },
+      { artikel_nr: '7801200', bezeichnung: 'Propan 11 kg', typ: 'F', aktiv: 1, gasart: 'Propan', kategorie: 'propan', kg_fuellung: '11.00',
+        un_nr: '1965', gefahrklasse: '2.1', befoerderungskategorie: 2, preis_netto_cent: 2926, mwst_satz: '19.0', pfand_artikel_nr: '2801200' },
       { artikel_nr: 'T002', bezeichnung: 'Sauerstoff 10 l', gasart: 'Sauerstoff', kategorie: 'technisch', kg_fuellung: null },
     ],
   };
@@ -26,7 +27,7 @@ function ramSpeicher() {
     },
     async stoppsZuTouren(ids) { return s.stopps.filter((x) => ids.includes(x.tour_id)); },
     async positionenZuStopps(ids) { return s.positionen.filter((p) => ids.includes(p.stopp_id)); },
-    async artikel() { return s.artikelListe; },
+    async artikel(auch = []) { return s.artikelListe.filter((a) => a.aktiv !== 0 || auch.includes(a.artikel_nr)); },
     async tourNachId(id) { return mitKennung(s.touren.find((t) => t.id === id)) || null; },
     async stoppNachId(id) { return s.stopps.find((x) => x.id === id) || null; },
     async ereignisStatus(uuid) { return s.ereignisse.find((e) => e.uuid === uuid)?.status || null; },
@@ -154,8 +155,14 @@ test('heute: nur freigegebene/laufende Touren des Fahrers von heute, mit Stopps,
   assert.equal(t.stopps[1].kundeId, '10002');
   assert.deepEqual(daten.kunden.map((k) => k.id), ['10001', '10002'], 'Kunde nur einmal, auch bei zwei Stopps');
   assert.equal(daten.kunden[1].hinweise, 'Hintereingang');
-  assert.deepEqual(daten.artikel[0], { id: '7801200', bezeichnung: 'Propan 11 kg', gasart: 'Propan', kategorie: 'propan', faktor: 11, druckText: 'Propan 11 kg' });
+  assert.deepEqual(daten.artikel[0], {
+    id: '7801200', bezeichnung: 'Propan 11 kg', typ: 'F', aktiv: true, gasart: 'Propan', kategorie: 'propan', faktor: 11,
+    druckText: 'UN 1965 · Klasse 2.1', unNr: '1965', gefahrklasse: '2.1', befoerderungskategorie: 2,
+    fuellgewichtKg: null, inhaltL: null, preisNettoCent: 2926, mwstSatz: 19, pfandArtikelId: '2801200',
+  });
   assert.equal(daten.artikel[1].faktor, null);
+  assert.equal(daten.artikel[1].druckText, ''); // kein Gefahrgut-Eintrag → kein Druckzeilen-Text
+  assert.equal(daten.artikel[1].preisNettoCent, null);
   assert.deepEqual(daten.andereGeraete, [{ tourId: '5', name: 'Läuft auf Handy', kennung: 'HSEPP' }]);
 });
 
@@ -331,4 +338,18 @@ test('ereignisse: ohne UUID nur gemeldet, nicht gespeichert; falsches Format 400
   assert.equal(store.ereignisse.length, 0);
   assert.equal((await rufe('/ereignisse', { body: { foo: 1 } })).status, 400);
   assert.equal((await rufe('/ereignisse', { fahrer: 'niemand', body: { ereignisse: [] } })).status, 401);
+});
+
+test('heute: inaktive Artikel kommen nur mit, wenn eine Tourposition sie noch braucht (#552)', async () => {
+  const s = store;
+  s.artikelListe.push(
+    { artikel_nr: 'ALT1', bezeichnung: 'Ausgelaufen, in Tour', aktiv: 0 },
+    { artikel_nr: 'ALT2', bezeichnung: 'Ausgelaufen, nirgends', aktiv: 0 },
+  );
+  s.positionen.push({ id: 199, stopp_id: 11, artikel_nr: 'ALT1', soll_menge: '1.00' });
+  const { daten } = await rufe('/heute');
+  const ids = daten.artikel.map((a) => a.id);
+  assert.ok(ids.includes('ALT1'));
+  assert.ok(!ids.includes('ALT2'));
+  assert.equal(daten.artikel.find((a) => a.id === 'ALT1').aktiv, false);
 });

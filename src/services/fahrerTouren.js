@@ -43,8 +43,14 @@ async function positionenZuStopps(stoppIds) {
   return rows;
 }
 
-async function artikel() {
-  const [rows] = await getPool().execute('SELECT artikel_nr, bezeichnung, gasart, kategorie, kg_fuellung FROM gas_artikel ORDER BY artikel_nr');
+/** Alle aktiven Artikel; zusätzlich inaktive, die in den geladenen Touren noch vorkommen (#552). */
+async function artikel(auchNummern = []) {
+  const extra = [...new Set(auchNummern)];
+  const [rows] = await getPool().query(
+    `SELECT artikel_nr, bezeichnung, typ, gasart, kategorie, kg_fuellung, un_nr, gefahrklasse, befoerderungskategorie,
+            fuellgewicht_kg, inhalt_l, preis_netto_cent, mwst_satz, pfand_artikel_nr, aktiv, geaendert_am
+       FROM gas_artikel WHERE aktiv = 1${extra.length ? ' OR artikel_nr IN (?)' : ''} ORDER BY artikel_nr`,
+    extra.length ? [extra] : []);
   return rows;
 }
 
