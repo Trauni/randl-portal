@@ -72,3 +72,26 @@ test('Abgleich: unveränderte Artikel und Artikel nur im Portal', () => {
   assert.equal(plan.unveraendert, 1);
   assert.deepEqual(plan.nurImPortal, ['XYZ']);
 });
+
+test('Kaufflasche: steuer_produkt_id wird zur Kaufflaschen-Zuordnung, Provision bleibt außen vor', () => {
+  const kopf = 'id;versorger_id;typ;nr;name;preis;pfand_produkt_id;steuer_produkt_id;provision_produkt_id;active;history_discriminator;geloescht';
+  const buf = Buffer.from([kopf,
+    '1;318;F;7801100;11-kg Brenngas Camping;2926;;2;3;True;C;False',
+    '2;318;S;2801100;11-kg Camping/Flasche;4201;;;;True;C;False',
+    '3;318;V;27801100;Provision;0;;;;True;C;False',
+  ].join('\r\n'));
+  const { artikel } = leseArtikelExport(buf);
+  const f = artikel.find(a => a.artikel_nr === '7801100').werte;
+  assert.equal(f.kaufflasche_artikel_nr, '2801100');
+  assert.equal(f.pfand_artikel_nr, null);
+});
+
+test('Abgleich: Kaufflasche wird bei schon importiertem Artikel nachgetragen', () => {
+  const kopf = 'id;versorger_id;typ;nr;name;preis;steuer_produkt_id;active;history_discriminator;geloescht';
+  const { artikel } = leseArtikelExport(Buffer.from([kopf,
+    '1;318;F;7801100;11-kg Brenngas Camping;2926;2;True;C;False', '2;318;S;2801100;11-kg Camping/Flasche;4201;;True;C;False'].join('\r\n')));
+  const bestand = [{ artikel_nr: '7801100', bezeichnung: '11-kg Brenngas Camping', typ: 'F', preis_netto_cent: 3000, mwst_satz: 19 },
+    { artikel_nr: '2801100', bezeichnung: '11-kg Camping/Flasche', typ: 'S', preis_netto_cent: 4201, mwst_satz: 19 }];
+  const plan = planeAbgleich(bestand, artikel);
+  assert.equal(plan.ergaenzt.find(e => e.artikel_nr === '7801100').werte.kaufflasche_artikel_nr, '2801100');
+});

@@ -13,7 +13,7 @@ const QUELLE = 'ser';
 
 // Felder, die der Import befüllt (Portal-Spalte in gas_artikel)
 const FELDER = ['bezeichnung', 'typ', 'un_nr', 'gefahrklasse', 'ggvs_faktor', 'befoerderungskategorie',
-  'fuellgewicht_kg', 'inhalt_l', 'preis_netto_cent', 'mwst_satz', 'pfand_artikel_nr', 'kategorie', 'kg_fuellung'];
+  'fuellgewicht_kg', 'inhalt_l', 'preis_netto_cent', 'mwst_satz', 'pfand_artikel_nr', 'kaufflasche_artikel_nr', 'kategorie', 'kg_fuellung'];
 
 const MWST_REGEL = 19;
 const MWST_ERMAESSIGT = 7;
@@ -60,10 +60,13 @@ function abbilden(r, nrZuId) {
       preis_netto_cent: typ === 'F' || typ === 'P' ? zahl(r.preis) : null,
       mwst_satz: r.mwst_ermaessigt === true ? MWST_ERMAESSIGT : MWST_REGEL,
       pfand_artikel_nr: r.pfand_produkt_id == null ? null : (nrZuId.get(String(r.pfand_produkt_id)) || null),
+      // SER nennt die mitverkaufte Flasche „Steuer-Produkt“
+      kaufflasche_artikel_nr: r.steuer_produkt_id == null ? null : (nrZuId.get(String(r.steuer_produkt_id)) || null),
       kategorie: typ === 'F' ? (istPropan ? 'propan' : 'technisch') : null,
       kg_fuellung: istPropan ? gewicht : null,
     },
     pfandVerweisOffen: r.pfand_produkt_id != null && !nrZuId.has(String(r.pfand_produkt_id)),
+    kaufflascheVerweisOffen: r.steuer_produkt_id != null && !nrZuId.has(String(r.steuer_produkt_id)),
   };
 }
 
@@ -110,7 +113,9 @@ function leseArtikelExport(buffer, { versorgerId = RANDL_VERSORGER_ID } = {}) {
       warnings.push(`${a.artikel_nr}: ADR-Faktor ${r.ggvs_faktor} ist keiner Beförderungskategorie zugeordnet`);
     }
     if (a.werte.typ === 'F' && a.aktiv && !a.werte.un_nr) warnings.push(`${a.artikel_nr}: Füllung ohne UN-Nummer`);
+    if (a.kaufflascheVerweisOffen) warnings.push(`${a.artikel_nr}: Kaufflasche im Export nicht (mehr) vorhanden, Zuordnung bleibt leer`);
     delete a.pfandVerweisOffen;
+    delete a.kaufflascheVerweisOffen;
     artikel.push(a);
   }
 
@@ -123,6 +128,8 @@ function leseArtikelExport(buffer, { versorgerId = RANDL_VERSORGER_ID } = {}) {
   for (const a of artikel) {
     const p = a.werte.pfand_artikel_nr;
     if (p && !nummern.has(p)) warnings.push(`${a.artikel_nr}: Pfandartikel ${p} steht nicht in der Datei`);
+    const k = a.werte.kaufflasche_artikel_nr;
+    if (k && !nummern.has(k)) warnings.push(`${a.artikel_nr}: Kaufflasche ${k} steht nicht in der Datei`);
   }
 
   return { artikel, warnings, stats: { rows: rows.length, delimiter, encoding, uebernommen: artikel.length } };

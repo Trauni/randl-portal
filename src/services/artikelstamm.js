@@ -21,7 +21,7 @@ async function ladeBestand(db = getPool()) {
 async function liste() {
   const [rows] = await getPool().query(
     `SELECT artikel_nr, bezeichnung, typ, aktiv, un_nr, gefahrklasse, befoerderungskategorie, fuellgewicht_kg, inhalt_l,
-            ggvs_faktor, preis_netto_cent, mwst_satz, pfand_artikel_nr, geaendert_am
+            ggvs_faktor, preis_netto_cent, mwst_satz, pfand_artikel_nr, kaufflasche_artikel_nr, geaendert_am
        FROM gas_artikel ORDER BY artikel_nr`);
   return rows;
 }
@@ -109,6 +109,10 @@ async function aendere(nummern, eingabe, user = {}) {
       const [p] = await conn.query('SELECT typ FROM gas_artikel WHERE artikel_nr = ?', [werte.pfand_artikel_nr]);
       if (!p.length) throw fehler400(`Pfandartikel ${werte.pfand_artikel_nr} gibt es nicht`);
       if (p[0].typ !== 'P') throw fehler400(`${werte.pfand_artikel_nr} ist kein Pfandartikel (Typ P)`);
+    }
+    if (werte.kaufflasche_artikel_nr) {
+      const [k] = await conn.query('SELECT 1 FROM gas_artikel WHERE artikel_nr = ?', [werte.kaufflasche_artikel_nr]);
+      if (!k.length) throw fehler400(`Kaufflasche ${werte.kaufflasche_artikel_nr} gibt es nicht`);
     }
     const spalten = Object.keys(werte);
     const [rows] = await conn.query(

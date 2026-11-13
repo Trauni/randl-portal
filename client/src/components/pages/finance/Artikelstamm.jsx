@@ -23,7 +23,8 @@ const EDIT_FELDER = [
   ['mwst_satz', 'MwSt. %', 'select:19,7', ''],
   ['fuellgewicht_kg', 'Gewicht (kg)', 'text', ''],
   ['inhalt_l', 'Inhalt (Liter)', 'text', ''],
-  ['pfand_artikel_nr', 'Pfandartikel', 'pfand', 'nur Artikel vom Typ Pfand'],
+  ['pfand_artikel_nr', 'Pfandartikel', 'pfand', 'Leergut-Rücknahme, nur Typ Pfand'],
+  ['kaufflasche_artikel_nr', 'Kaufflasche', 'kauf', 'wird mit der Füllung verkauft (1:1 oder 1:0)'],
   ['aktiv', 'Status', 'select:1,0', '1 = aktiv, 0 = inaktiv'],
 ];
 const aktivText = { 1: 'aktiv', 0: 'inaktiv' };
@@ -92,6 +93,7 @@ export default function Artikelstamm() {
     });
   }, [artikel, suche, typ, nurAktiv, luecke]);
 
+  const kaufListe = useMemo(() => (artikel || []).filter(a => a.typ === 'S' && a.aktiv), [artikel]);
   const pfandListe = useMemo(() => (artikel || []).filter(a => a.typ === 'P' && a.aktiv), [artikel]);
   const gewaehlt = useMemo(() => (artikel || []).filter(a => auswahl.has(a.artikel_nr)), [artikel, auswahl]);
   const alleSichtbar = gefiltert.length > 0 && gefiltert.every(a => auswahl.has(a.artikel_nr));
@@ -223,11 +225,11 @@ export default function Artikelstamm() {
                   <input type="checkbox" checked={aktiv.has(feld)}
                     onChange={e => setAktiv(prev => { const n = new Set(prev); e.target.checked ? n.add(feld) : n.delete(feld); return n; })} /> {label}
                 </label>
-                {typ_ === 'pfand' ? (
+                {typ_ === 'pfand' || typ_ === 'kauf' ? (
                   <select style={{ ...inp, width: '100%', display: 'block', marginTop: 2 }} value={eingabe[feld] ?? ''}
                     onChange={e => { setEingabe({ ...eingabe, [feld]: e.target.value }); setAktiv(p => new Set(p).add(feld)); }}>
                     <option value="">– keiner –</option>
-                    {pfandListe.map(p => <option key={p.artikel_nr} value={p.artikel_nr}>{p.artikel_nr} {p.bezeichnung}</option>)}
+                    {(typ_ === 'kauf' ? kaufListe : pfandListe).map(p => <option key={p.artikel_nr} value={p.artikel_nr}>{p.artikel_nr} {p.bezeichnung}</option>)}
                   </select>
                 ) : typ_.startsWith('select:') ? (
                   <select style={{ ...inp, width: '100%', display: 'block', marginTop: 2 }} value={eingabe[feld] ?? ''}
@@ -264,7 +266,7 @@ export default function Artikelstamm() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
             <th style={th}><input type="checkbox" checked={alleSichtbar} onChange={alleUmschalten} title="Alle sichtbaren auswählen" /></th>
-            {['Nr.', 'Bezeichnung', 'Typ', 'UN', 'Klasse', 'Kat.', 'kg', 'Liter', 'Netto', 'MwSt.', 'Pfand'].map(h => <th key={h} style={th}>{h}</th>)}
+            {['Nr.', 'Bezeichnung', 'Typ', 'UN', 'Klasse', 'Kat.', 'kg', 'Liter', 'Netto', 'MwSt.', 'Pfand', 'Kaufflasche'].map(h => <th key={h} style={th}>{h}</th>)}
           </tr></thead>
           <tbody>
             {gefiltert.map(a => (
@@ -281,9 +283,10 @@ export default function Artikelstamm() {
                 <td style={td}>{eur(a.preis_netto_cent)}</td>
                 <td style={td}>{a.mwst_satz == null ? '–' : `${zahl(a.mwst_satz)} %`}</td>
                 <td style={td}>{a.pfand_artikel_nr || '–'}</td>
+                <td style={td}>{a.kaufflasche_artikel_nr || '–'}</td>
               </tr>
             ))}
-            {artikel && !gefiltert.length && <tr><td style={td} colSpan={12}>Keine Artikel.</td></tr>}
+            {artikel && !gefiltert.length && <tr><td style={td} colSpan={13}>Keine Artikel.</td></tr>}
           </tbody>
         </table>
       </div>

@@ -29,6 +29,7 @@ const FELDER = {
   preis_netto_cent: { parse: zahl(0, 100000000, true), nullable: true },
   mwst_satz: { parse: zahl(0, 30), nullable: true },
   pfand_artikel_nr: { parse: txt(16), nullable: true },
+  kaufflasche_artikel_nr: { parse: txt(16), nullable: true },
 };
 
 /**
