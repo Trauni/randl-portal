@@ -280,6 +280,7 @@ function artikelFuerApp(a) {
     unNr: a.un_nr || null, gefahrklasse: a.gefahrklasse || null, befoerderungskategorie: zahl(a.befoerderungskategorie),
     fuellgewichtKg: zahl(a.fuellgewicht_kg), inhaltL: zahl(a.inhalt_l),
     preisNettoCent: zahl(a.preis_netto_cent), mwstSatz: zahl(a.mwst_satz), pfandArtikelId: a.pfand_artikel_nr || null,
+    kaufflascheArtikelId: a.kaufflasche_artikel_nr || null,
   };
 }
 

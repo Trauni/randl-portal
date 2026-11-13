@@ -14,6 +14,21 @@ const TYPEN = { F: 'Füllung', P: 'Pfand', S: 'Sonstiges', V: 'Provision' };
 const eur = c => (c == null ? '–' : (c / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €');
 const zahl = v => (v == null ? '–' : Number(v).toLocaleString('de-DE', { maximumFractionDigits: 3 }));
 
+// Felder der Bearbeitung: [Spalte, Beschriftung, Eingabe-Typ, Hinweis]
+const EDIT_FELDER = [
+  ['un_nr', 'UN-Nr.', 'text', '4 Ziffern, z. B. 1965'],
+  ['gefahrklasse', 'Gefahrklasse', 'text', 'z. B. 2.1'],
+  ['ggvs_faktor', 'ADR-Faktor', 'select:50,3,1', 'ADR 1.1.3.6 (50 = Kat. 1, 3 = Kat. 2, 1 = Kat. 3)'],
+  ['preis_netto_cent', 'Netto-Preis (Cent)', 'text', 'z. B. 2926 für 29,26 €'],
+  ['mwst_satz', 'MwSt. %', 'select:19,7', ''],
+  ['fuellgewicht_kg', 'Gewicht (kg)', 'text', ''],
+  ['inhalt_l', 'Inhalt (Liter)', 'text', ''],
+  ['pfand_artikel_nr', 'Pfandartikel', 'pfand', 'Leergut-Rücknahme, nur Typ Pfand'],
+  ['kaufflasche_artikel_nr', 'Kaufflasche', 'kauf', 'wird mit der Füllung verkauft (1:1 oder 1:0)'],
+  ['aktiv', 'Status', 'select:1,0', '1 = aktiv, 0 = inaktiv'],
+];
+const aktivText = { 1: 'aktiv', 0: 'inaktiv' };
+
 async function api(url, opts) {
   const r = await fetch(url, opts);
   const d = await r.json();
@@ -27,6 +42,13 @@ export default function Artikelstamm() {
   const [suche, setSuche] = useState('');
   const [typ, setTyp] = useState('');
   const [nurAktiv, setNurAktiv] = useState(true);
+  const [luecke, setLuecke] = useState('');
+  const [auswahl, setAuswahl] = useState(new Set());
+  const [aktiv, setAktiv] = useState(new Set());      // Felder, die geändert werden sollen
+  const [eingabe, setEingabe] = useState({});
+  const [bezeichnung, setBezeichnung] = useState(null);
+  const [meldung, setMeldung] = useState('');
+  const [protokoll, setProtokoll] = useState([]);
   const [datei, setDatei] = useState(null);
   const [vorschau, setVorschau] = useState(null);
   const [ergebnis, setErgebnis] = useState(null);
@@ -60,10 +82,53 @@ export default function Artikelstamm() {
   };
 
   const gefiltert = useMemo(() => {
-    const q = suche.trim().toLowerCase();
-    return (artikel || []).filter(a => (!nurAktiv || a.aktiv) && (!typ || a.typ === typ)
-      && (!q || a.artikel_nr.toLowerCase().includes(q) || (a.bezeichnung || '').toLowerCase().includes(q)));
-  }, [artikel, suche, typ, nurAktiv]);
+    const woerter = suche.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    return (artikel || []).filter(a => {
+      if (nurAktiv && !a.aktiv) return false;
+      if (typ && a.typ !== typ) return false;
+      if (luecke === 'pfand' && !(a.typ === 'F' && !a.pfand_artikel_nr)) return false;
+      if (luecke === 'un' && !(a.typ === 'F' && !a.un_nr)) return false;
+      const heu = `${a.artikel_nr} ${a.bezeichnung || ''}`.toLowerCase();
+      return woerter.every(w => heu.includes(w));
+    });
+  }, [artikel, suche, typ, nurAktiv, luecke]);
+
+  const kaufListe = useMemo(() => (artikel || []).filter(a => a.typ === 'S' && a.aktiv), [artikel]);
+  const pfandListe = useMemo(() => (artikel || []).filter(a => a.typ === 'P' && a.aktiv), [artikel]);
+  const gewaehlt = useMemo(() => (artikel || []).filter(a => auswahl.has(a.artikel_nr)), [artikel, auswahl]);
+  const alleSichtbar = gefiltert.length > 0 && gefiltert.every(a => auswahl.has(a.artikel_nr));
+
+  const umschalten = nr => setAuswahl(prev => { const n = new Set(prev); n.has(nr) ? n.delete(nr) : n.add(nr); return n; });
+  const alleUmschalten = () => setAuswahl(prev => {
+    const n = new Set(prev);
+    gefiltert.forEach(a => (alleSichtbar ? n.delete(a.artikel_nr) : n.add(a.artikel_nr)));
+    return n;
+  });
+
+  // Protokoll bei genau einem gewählten Artikel
+  const einzel = gewaehlt.length === 1 ? gewaehlt[0].artikel_nr : null;
+  useEffect(() => {
+    setProtokoll([]);
+    if (!einzel) return;
+    api(`/api/finance/artikelstamm/${encodeURIComponent(einzel)}/protokoll`).then(d => setProtokoll(d.eintraege)).catch(() => {});
+  }, [einzel, artikel]);
+
+  const speichern = async () => {
+    const werte = {};
+    for (const f of aktiv) werte[f] = eingabe[f] ?? '';
+    if (einzel && bezeichnung != null && bezeichnung !== gewaehlt[0].bezeichnung) werte.bezeichnung = bezeichnung;
+    setBusy(true); setFehler(''); setMeldung('');
+    try {
+      const r = await api('/api/finance/artikelstamm/aendern', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nummern: [...auswahl], werte }),
+      });
+      setMeldung(`${r.geaendert} Artikel geändert, ${r.unveraendert} unverändert.`);
+      setAktiv(new Set()); setEingabe({}); setBezeichnung(null);
+      await laden();
+    } catch (err) { setFehler(err.message); }
+    finally { setBusy(false); }
+  };
 
   const s = (vorschau || ergebnis)?.summary;
   const r = vorschau || ergebnis;
@@ -124,34 +189,104 @@ export default function Artikelstamm() {
           <option value="">Alle Typen</option>
           {Object.entries(TYPEN).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
+        <select style={inp} value={luecke} onChange={e => setLuecke(e.target.value)}>
+          <option value="">Alle Füllungen/Artikel</option>
+          <option value="pfand">Füllung ohne Pfandartikel</option>
+          <option value="un">Füllung ohne UN-Nr.</option>
+        </select>
         <label style={{ fontSize: '.82rem', color: 'var(--text2)' }}>
           <input type="checkbox" checked={nurAktiv} onChange={e => setNurAktiv(e.target.checked)} /> nur aktive
         </label>
         <span style={{ fontSize: '.8rem', color: 'var(--text3)' }}>{artikel ? `${gefiltert.length} von ${artikel.length}` : 'lade…'}</span>
       </div>
 
+      {meldung && <div style={{ color: 'var(--text2)', fontSize: '.82rem', marginBottom: '.6rem' }}>✓ {meldung}</div>}
+      {gewaehlt.length > 0 && (
+        <div style={card}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.6rem' }}>
+            <b style={{ color: 'var(--text1)', fontSize: '.88rem' }}>
+              {gewaehlt.length === 1 ? `${gewaehlt[0].artikel_nr} bearbeiten` : `${gewaehlt.length} Artikel gemeinsam bearbeiten`}
+            </b>
+            <button style={btn} onClick={() => { setAuswahl(new Set()); setAktiv(new Set()); setEingabe({}); setBezeichnung(null); }}>Auswahl aufheben</button>
+          </div>
+          <div style={{ fontSize: '.78rem', color: 'var(--text3)', marginBottom: '.6rem' }}>
+            Nur angehakte Felder werden geändert. Leer gelassen und angehakt: Wert wird gelöscht.
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '.6rem' }}>
+            {einzel && (
+              <label style={{ fontSize: '.78rem', color: 'var(--text2)', gridColumn: '1 / -1' }}>Bezeichnung
+                <input style={{ ...inp, width: '100%', display: 'block', marginTop: 2 }}
+                  value={bezeichnung ?? gewaehlt[0].bezeichnung ?? ''} onChange={e => setBezeichnung(e.target.value)} />
+              </label>
+            )}
+            {EDIT_FELDER.map(([feld, label, typ_, hinweis]) => (
+              <div key={feld} style={{ fontSize: '.78rem', color: 'var(--text2)' }}>
+                <label>
+                  <input type="checkbox" checked={aktiv.has(feld)}
+                    onChange={e => setAktiv(prev => { const n = new Set(prev); e.target.checked ? n.add(feld) : n.delete(feld); return n; })} /> {label}
+                </label>
+                {typ_ === 'pfand' || typ_ === 'kauf' ? (
+                  <select style={{ ...inp, width: '100%', display: 'block', marginTop: 2 }} value={eingabe[feld] ?? ''}
+                    onChange={e => { setEingabe({ ...eingabe, [feld]: e.target.value }); setAktiv(p => new Set(p).add(feld)); }}>
+                    <option value="">– keiner –</option>
+                    {(typ_ === 'kauf' ? kaufListe : pfandListe).map(p => <option key={p.artikel_nr} value={p.artikel_nr}>{p.artikel_nr} {p.bezeichnung}</option>)}
+                  </select>
+                ) : typ_.startsWith('select:') ? (
+                  <select style={{ ...inp, width: '100%', display: 'block', marginTop: 2 }} value={eingabe[feld] ?? ''}
+                    onChange={e => { setEingabe({ ...eingabe, [feld]: e.target.value }); setAktiv(p => new Set(p).add(feld)); }}>
+                    <option value="">–</option>
+                    {typ_.slice(7).split(',').map(v => <option key={v} value={v}>{feld === 'aktiv' ? aktivText[v] : v}</option>)}
+                  </select>
+                ) : (
+                  <input style={{ ...inp, width: '100%', display: 'block', marginTop: 2 }} placeholder={hinweis} value={eingabe[feld] ?? ''}
+                    onChange={e => { setEingabe({ ...eingabe, [feld]: e.target.value }); setAktiv(p => new Set(p).add(feld)); }} />
+                )}
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: '.8rem', display: 'flex', gap: '.6rem', alignItems: 'center' }}>
+            <button style={btnPrimary} disabled={busy || (!aktiv.size && (bezeichnung == null || bezeichnung === gewaehlt[0]?.bezeichnung))} onClick={speichern}>
+              {busy ? 'Speichere…' : `Auf ${gewaehlt.length} Artikel anwenden`}
+            </button>
+          </div>
+          {protokoll.length > 0 && (
+            <details style={{ marginTop: '.8rem', fontSize: '.78rem', color: 'var(--text2)' }}>
+              <summary style={{ cursor: 'pointer' }}>Änderungsprotokoll ({protokoll.length})</summary>
+              <ul style={{ margin: '.4rem 0 0', paddingLeft: '1.2rem' }}>
+                {protokoll.map((p, i) => (
+                  <li key={i}>{new Date(p.geaendert_am).toLocaleString('de-DE')} · {p.von_name || '–'}: {p.feld} „{p.alt ?? '–'}“ → „{p.neu ?? '–'}“</li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
+
       <div style={{ ...card, padding: 0, overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
-            {['Nr.', 'Bezeichnung', 'Typ', 'UN', 'Klasse', 'Kat.', 'kg', 'Liter', 'Netto', 'MwSt.', 'Pfand'].map(h => <th key={h} style={th}>{h}</th>)}
+            <th style={th}><input type="checkbox" checked={alleSichtbar} onChange={alleUmschalten} title="Alle sichtbaren auswählen" /></th>
+            {['Nr.', 'Bezeichnung', 'Typ', 'UN', 'Klasse', 'Kat.', 'kg', 'Liter', 'Netto', 'MwSt.', 'Pfand', 'Kaufflasche'].map(h => <th key={h} style={th}>{h}</th>)}
           </tr></thead>
           <tbody>
             {gefiltert.map(a => (
               <tr key={a.artikel_nr} style={{ borderTop: '1px solid var(--border)', opacity: a.aktiv ? 1 : .5 }}>
+                <td style={td}><input type="checkbox" checked={auswahl.has(a.artikel_nr)} onChange={() => umschalten(a.artikel_nr)} /></td>
                 <td style={td}>{a.artikel_nr}</td>
                 <td style={td}>{a.bezeichnung}{!a.aktiv && ' (inaktiv)'}</td>
                 <td style={td}>{TYPEN[a.typ] || '–'}</td>
                 <td style={td}>{a.un_nr || '–'}</td>
                 <td style={td}>{a.gefahrklasse || '–'}</td>
-                <td style={td}>{a.befoerderungskategorie || '–'}</td>
+                <td style={td}>{a.befoerderungskategorie || '–'}{a.ggvs_faktor && !a.befoerderungskategorie ? ` (×${a.ggvs_faktor})` : ''}</td>
                 <td style={td}>{zahl(a.fuellgewicht_kg)}</td>
                 <td style={td}>{zahl(a.inhalt_l)}</td>
                 <td style={td}>{eur(a.preis_netto_cent)}</td>
                 <td style={td}>{a.mwst_satz == null ? '–' : `${zahl(a.mwst_satz)} %`}</td>
                 <td style={td}>{a.pfand_artikel_nr || '–'}</td>
+                <td style={td}>{a.kaufflasche_artikel_nr || '–'}</td>
               </tr>
             ))}
-            {artikel && !gefiltert.length && <tr><td style={td} colSpan={11}>Keine Artikel.</td></tr>}
+            {artikel && !gefiltert.length && <tr><td style={td} colSpan={13}>Keine Artikel.</td></tr>}
           </tbody>
         </table>
       </div>
