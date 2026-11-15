@@ -5,7 +5,7 @@ import { AlertTriangle, UploadCloud, FileUp } from 'lucide-react'
 // passiert bewusst separat. Das Panel zeigt, was noch offen ist, und bietet die Sammel-Übertragung.
 //
 // Die Bestellungen-Zahl kommt aus kacheln.bestellungenOhneSer (/api/dashboard), nicht aus einem
-// eigenen Zähler: die Kachel filtert stornierte, bereits übertragene und Kunden ohne in_ser_fvk
+// eigenen Zähler: die Kachel filtert stornierte, erledigte, bereits übertragene und Kunden ohne in_ser_fvk
 // heraus. Beim Absenden wird clientseitig genauso gefiltert.
 export default function SerLexwarePanel({ ohneSer, onSerFertig }) {
   const [pendingCustomers, setPendingCustomers] = useState(null)
@@ -28,7 +28,7 @@ export default function SerLexwarePanel({ ohneSer, onSerFertig }) {
     try {
       const listRes = await fetch('/api/finance/orders?ser_filter=not_sent&limit=500', { credentials: 'include' })
       const listData = await listRes.json()
-      const ids = (listData.orders || []).filter((o) => o.status !== 'cancelled' && o.in_ser_fvk).map((o) => o.id)
+      const ids = (listData.orders || []).filter((o) => o.status !== 'cancelled' && o.in_ser_fvk && !o.done).map((o) => o.id)
       if (ids.length === 0) { setSerMsg('Keine offenen Bestellungen.'); return }
       const res = await fetch('/api/finance/orders/mass-ser', {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }),
