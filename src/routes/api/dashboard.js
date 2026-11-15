@@ -114,9 +114,10 @@ router.get('/', async (req, res, next) => {
       try {
         const d = await (await shopFetch('/admin/webshop-orders')).json();
         const alle = d.orders || [];
-        // Storniertes und Kunden ohne SER-Anbindung zaehlen nicht - sonst zeigt die
-        // Kachel auf etwas, das man gar nicht bearbeiten kann.
-        const serRelevant = alle.filter(o => o.status !== 'cancelled' && o.in_ser_fvk !== false);
+        // Storniertes, Erledigtes und Kunden ohne SER-Anbindung zaehlen nicht - sonst zeigt
+        // die Kachel auf etwas, das man gar nicht (mehr) bearbeiten kann. "Erledigt" ist der
+        // Weg, eine von SER abgelehnte Bestellung abzuschliessen.
+        const serRelevant = alle.filter(o => o.status !== 'cancelled' && o.in_ser_fvk !== false && !o.done);
         antwort.kacheln.bestellungenOhneSer = serRelevant.filter(
           o => o.ser_status !== 'ok' && o.ser_status !== 'pending'
         ).length;
