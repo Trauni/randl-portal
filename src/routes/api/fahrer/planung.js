@@ -50,11 +50,33 @@ const stoppAnsicht = (s) => ({
  * @param {object} deps.store             Datenzugriff (services/fahrerTourPlanung.js)
  * @param {() => Promise<object[]>} deps.holeBestellungen  Bestellungen aus der Shop-API
  * @param {(q: string) => Promise<object[]>} [deps.sucheKunden]  Kundensuche in der Shop-API (nur lesen)
+ * @param {(id: string) => Promise<object|null>} [deps.holeKunde]  Kundenzeile aus der Shop-API (nur lesen), für die Adresse
  * @param {boolean} [deps.erledigteAkzeptierte]  Testphase: erledigte, von SER akzeptierte Bestellungen bleiben wählbar
  * @param {() => number} [deps.uhr]       Millisekunden, für Tests
  */
-function erstellePlanungRouter({ store, holeBestellungen, sucheKunden = async () => [], erledigteAkzeptierte = false, uhr = Date.now }) {
+function erstellePlanungRouter({ store, holeBestellungen, sucheKunden = async () => [], holeKunde = async () => null, erledigteAkzeptierte = false, uhr = Date.now }) {
   const istOffen = (b, belegt) => plan.istOffen(b, belegt, { erledigteAkzeptierte });
+
+  // Adresse aus dem Kundenstamm nachladen, wenn die Bestellung keine eigene Lieferadresse hat. Kurz gemerkt, damit die Liste nicht je Aufruf alle Kunden holt.
+  const kundenCache = new Map();
+  const KUNDEN_TTL_MS = 10 * 60 * 1000;
+  async function kundeZu(customerId) {
+    const alt = kundenCache.get(customerId);
+    if (alt && uhr() - alt.zeit < KUNDEN_TTL_MS) return alt.kunde;
+    let kunde = null;
+    try { kunde = (await holeKunde(customerId)) || null; } catch { return null; } // Shop kurz nicht erreichbar: Adresse bleibt leer, nichts merken
+    kundenCache.set(customerId, { kunde, zeit: uhr() });
+    return kunde;
+  }
+  async function mitAdresse(bestellungen) {
+    const offene = bestellungen.filter((b) => b.customer_id && !b.delivery_strasse);
+    const ids = [...new Set(offene.map((b) => b.customer_id))];
+    const kunden = new Map();
+    for (let i = 0; i < ids.length; i += 8) {
+      await Promise.all(ids.slice(i, i + 8).map(async (id) => kunden.set(id, await kundeZu(id))));
+    }
+    return bestellungen.map((b) => (kunden.get(b.customer_id) ? { ...b, kunde: kunden.get(b.customer_id) } : b));
+  }
   const router = express.Router();
 
   async function oder404(id) {
@@ -100,7 +122,7 @@ function erstellePlanungRouter({ store, holeBestellungen, sucheKunden = async ()
 
   router.get('/offene-bestellungen', sicher(async (req, res) => {
     const belegt = await store.belegteBestellungen();
-    const offen = (await holeBestellungen()).filter((b) => b && b.id != null && istOffen(b, belegt));
+    const offen = await mitAdresse((await holeBestellungen()).filter((b) => b && b.id != null && istOffen(b, belegt)));
     res.json(offen.map(plan.bestellAnsicht));
   }));
 
@@ -150,7 +172,9 @@ function erstellePlanungRouter({ store, holeBestellungen, sucheKunden = async ()
     const datum = text(req.body?.datum, 10);
     if (!DATUM.test(datum)) throw new FahrerFehler(400, 'ungueltig', 'Datum fehlt (JJJJ-MM-TT)');
     const belegt = await store.belegteBestellungen();
-    const offen = (await holeBestellungen()).filter((b) => b && b.id != null && istOffen(b, belegt));
+    const vorlagenKunden = new Set(vorlage.kunden.map((k) => k.kunde_nr));
+    const passende = (await holeBestellungen()).filter((b) => b && b.id != null && istOffen(b, belegt) && vorlagenKunden.has(plan.bestellAnsicht(b).kundeNr));
+    const offen = await mitAdresse(passende);
     const { stopps, ohneBestellung, fehler } = plan.stoppsAusVorlage(vorlage.kunden, offen);
     const fehlen = new Set(await store.unbekannteArtikel([...new Set(stopps.flatMap((s) => s.positionen.map((p) => p.artikelNr)))]));
     const t = await store.legeAn({
@@ -207,7 +231,8 @@ function erstellePlanungRouter({ store, holeBestellungen, sucheKunden = async ()
     plan.pruefeBearbeitbar(t);
     const ids = [...new Set((Array.isArray(req.body?.bestellIds) ? req.body.bestellIds : []).map(String))];
     if (!ids.length) throw new FahrerFehler(400, 'ungueltig', 'bestellIds fehlt');
-    const alle = new Map((await holeBestellungen()).map((b) => [String(b.id), b]));
+    const gewaehlt = new Set(ids);
+    const alle = new Map((await mitAdresse((await holeBestellungen()).filter((b) => gewaehlt.has(String(b.id))))).map((b) => [String(b.id), b]));
     const belegt = await store.belegteBestellungen();
     // Erst alles prüfen und umbauen, dann buchen: Fehler in der dritten Bestellung lassen keine halbe Auswahl zurück.
     const stopps = ids.map((id) => {
