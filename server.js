@@ -188,6 +188,12 @@ app.use('/api/fahrer-touren', requireArea('fahrer.geraete'), require('./src/rout
     if (!res.ok) throw new Error(`Shop-API ${res.status}`);
     return (await res.json()).orders || [];
   },
+  holeKunde: async (id) => {
+    const res = await require('./src/routes/api/finance/shopClient').shopFetch(`/admin/customers/${encodeURIComponent(id)}`);
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`Shop-API ${res.status}`);
+    return res.json();
+  },
   sucheKunden: async (q) => {
     const res = await require('./src/routes/api/finance/shopClient').shopFetch(`/admin/customers?limit=15&q=${encodeURIComponent(q)}`);
     if (!res.ok) throw new Error(`Shop-API ${res.status}`);

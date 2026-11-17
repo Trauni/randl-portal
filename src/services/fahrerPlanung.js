@@ -79,13 +79,21 @@ function bestellAnsicht(b) {
   };
 }
 
+/**
+ * Lieferadresse in dieser Reihenfolge: abweichende Lieferadresse der Bestellung (delivery_address_id),
+ * Lieferadresse am Kundenstamm (shipping_*), Hauptadresse des Kunden (billing_*), PLZ/Ort an der Bestellung.
+ * b.kunde ist die Kundenzeile aus der Shop-API (wird in der Route nachgeladen); ohne sie bleibt nur, was an der Bestellung steht.
+ */
+function zeile(strasse, plz, ort) {
+  return [String(strasse || '').trim(), [plz, ort].filter(Boolean).join(' ').trim()].filter(Boolean).join(', ') || null;
+}
+
 function lieferadresse(b) {
-  const strasse = b.delivery_strasse;
-  const ort = [b.delivery_plz, b.delivery_ort].filter(Boolean).join(' ');
-  const teile = [strasse, ort].filter(Boolean);
-  if (teile.length) return teile.join(', ');
-  const rechnung = [b.billing_zip, b.billing_city].filter(Boolean).join(' ');
-  return rechnung || null;
+  const k = b.kunde || {};
+  return zeile(b.delivery_strasse, b.delivery_plz, b.delivery_ort)
+    || (k.shipping_street ? zeile(k.shipping_street, k.shipping_zip, k.shipping_city) : null)
+    || zeile(k.billing_street, k.billing_zip, k.billing_city)
+    || zeile(null, b.billing_zip, b.billing_city);
 }
 
 function lieferzeit(b) {
@@ -167,4 +175,4 @@ function stoppsAusVorlage(vorlageKunden, offeneBestellungen) {
   return { stopps, ohneBestellung, fehler };
 }
 
-module.exports = { kundeAnsicht, vorlageKundenAusStopps, stoppsAusVorlage, wechsel, pruefeBearbeitbar, pruefeLoeschbar, istOffen, artikelNr, bestellAnsicht, stoppAusBestellung };
+module.exports = { lieferadresse, kundeAnsicht, vorlageKundenAusStopps, stoppsAusVorlage, wechsel, pruefeBearbeitbar, pruefeLoeschbar, istOffen, artikelNr, bestellAnsicht, stoppAusBestellung };

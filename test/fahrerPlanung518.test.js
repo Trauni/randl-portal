@@ -63,6 +63,7 @@ test('Löschen nur bei leerer oder stornierter Tour', () => {
 
 // ── Router mit RAM-Store ──
 let kundenTreffer = [{ name: 'Gasthof Rosenheim', lexware_customer_number: '10001', billing_zip: '83022', billing_city: 'Rosenheim' }, { name: 'Gasthof ohne Nummer' }, { company_name: 'x', customer_number: 'K5' }];
+const kundenStamm = { 'cust-1': { billing_street: 'Salmering 1a', billing_zip: '83134', billing_city: 'Prutting' }, 'cust-2': { billing_street: 'Hauptstr. 5', billing_zip: '83022', billing_city: 'Rosenheim', shipping_street: 'Lager 3', shipping_zip: '83024', shipping_city: 'Rosenheim' } };
 let touren; let stopps; let bestellungen; let naechsteId; let vorlagen;
 const aktive = () => new Set(stopps.filter((s) => s.sperre).map((s) => s.sperre));
 const ramStore = {
@@ -76,7 +77,7 @@ const ramStore = {
   async fuegeStoppHinzu(tourId, s) {
     if (aktive().has(s.bestellId)) throw new FahrerFehler(409, 'bestellung_belegt', 'belegt');
     const id = naechsteId++;
-    stopps.push({ id, tour_id: tourId, reihenfolge: stopps.filter((x) => x.tour_id === tourId).length + 1, auftrag_ref: s.auftragRef, bestell_id: s.bestellId, sperre: s.bestellId, kunde_nr: s.kundeNr, kunde_name: s.kundeName, positionen: s.positionen });
+    stopps.push({ id, tour_id: tourId, reihenfolge: stopps.filter((x) => x.tour_id === tourId).length + 1, auftrag_ref: s.auftragRef, bestell_id: s.bestellId, sperre: s.bestellId, kunde_adresse: s.kundeAdresse, kunde_nr: s.kundeNr, kunde_name: s.kundeName, positionen: s.positionen });
     touren.find((t) => t.id === tourId).version += 1;
     return id;
   },
@@ -110,7 +111,7 @@ beforeEach(() => {
 before(async () => {
   const app = express();
   app.use(express.json());
-  app.use('/api/fahrer-touren', erstellePlanungRouter({ store: ramStore, holeBestellungen: async () => bestellungen, sucheKunden: async (q) => kundenTreffer.filter((c) => (c.name || '').toLowerCase().includes(q.toLowerCase())), uhr: () => Date.parse('2026-11-18T10:00:00Z') }));
+  app.use('/api/fahrer-touren', erstellePlanungRouter({ store: ramStore, holeBestellungen: async () => bestellungen, holeKunde: async (id) => kundenStamm[id] || null, sucheKunden: async (q) => kundenTreffer.filter((c) => (c.name || '').toLowerCase().includes(q.toLowerCase())), uhr: () => Date.parse('2026-11-18T10:00:00Z') }));
   await new Promise((r) => { server = app.listen(0, '127.0.0.1', r); });
   basis = `http://127.0.0.1:${server.address().port}/api/fahrer-touren`;
 });
@@ -277,4 +278,26 @@ test('Nach Tourende werden nur Stopps ohne Lieferung frei (offen, nicht angetrof
   assert.match(aufrufe[0].sql, /status IN \('offen', 'nicht_angetroffen'\)/);
   assert.doesNotMatch(aufrufe[0].sql, /beliefert/);
   assert.deepEqual(aufrufe[0].params, [6]);
+});
+
+test('Adresse: Lieferadresse der Bestellung, sonst Lieferadresse am Kunden, sonst Hauptadresse, sonst PLZ/Ort der Bestellung', () => {
+  const k = kundenStamm['cust-1']; const k2 = kundenStamm['cust-2'];
+  assert.equal(plan.lieferadresse({ delivery_strasse: 'Weg 1', delivery_plz: '83000', delivery_ort: 'X', kunde: k }), 'Weg 1, 83000 X');
+  assert.equal(plan.lieferadresse({ kunde: k2 }), 'Lager 3, 83024 Rosenheim');
+  assert.equal(plan.lieferadresse({ kunde: k }), 'Salmering 1a, 83134 Prutting');
+  assert.equal(plan.lieferadresse({ billing_zip: '83134', billing_city: 'Prutting' }), '83134 Prutting');
+  assert.equal(plan.lieferadresse({}), null);
+});
+
+test('Adresse aus dem Kundenstamm: Liste, Zuordnung zur Tour und Tour aus Vorlage', async () => {
+  bestellungen = [bestellung(B1, { customer_id: 'cust-1', delivery_strasse: null, delivery_plz: null, delivery_ort: null }), bestellung(B2, { customer_id: 'unbekannt', delivery_strasse: null, delivery_plz: null, delivery_ort: null, lexware_customer_number: '20002' })];
+  const liste = (await rufe('GET', '/offene-bestellungen')).daten;
+  assert.equal(liste.find((b) => b.id === B1).adresse, 'Salmering 1a, 83134 Prutting');
+  assert.equal(liste.find((b) => b.id === B2).adresse, null);
+  const t = await neueTour();
+  await rufe('POST', `/${t.id}/bestellungen`, { bestellIds: [B1] });
+  assert.equal((await rufe('GET', `/${t.id}`)).daten.stoppListe[0].adresse, 'Salmering 1a, 83134 Prutting');
+  const v = (await rufe('POST', '/vorlagen', { name: 'A', employeeId: 7, kunden: [{ kundeNr: '20002', kundeName: 'Zweiter' }] })).daten;
+  const r = await rufe('POST', '/aus-vorlage', { vorlageId: v.id, datum: '2026-11-24' });
+  assert.equal(r.daten.uebernommen, 1);
 });
