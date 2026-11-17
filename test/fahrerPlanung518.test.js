@@ -30,6 +30,13 @@ test('offen: nicht storniert, nicht erledigt, nicht belegt; SER-abgelehnt bleibt
   assert.equal(plan.istOffen(bestellung(B1, { done: true }), belegt), false);
   assert.equal(plan.istOffen(bestellung(B2), belegt), false);
   assert.equal(plan.istOffen(bestellung(B1, { ser_status: 'err' }), belegt), true);
+  // Testphase: erledigt + SER akzeptiert zählt als offen, erledigt + abgelehnt und storniert + akzeptiert nicht
+  const test = { erledigteAkzeptierte: true };
+  assert.equal(plan.istOffen(bestellung(B1, { done: true, ser_status: 'ok' }), belegt, test), true);
+  assert.equal(plan.istOffen(bestellung(B1, { done: true, ser_status: 'err' }), belegt, test), false);
+  assert.equal(plan.istOffen(bestellung(B1, { done: true, ser_status: 'ok', status: 'cancelled' }), belegt, test), false);
+  assert.equal(plan.istOffen(bestellung(B2, { done: true, ser_status: 'ok' }), belegt, test), false);
+  assert.equal(plan.istOffen(bestellung(B1, { done: true, ser_status: 'ok' }), belegt), false);
   assert.equal(plan.bestellAnsicht(bestellung(B1, { ser_status: 'err' })).serAbgelehnt, true);
 });
 
@@ -249,4 +256,13 @@ test('Kundensuche: ab 2 Zeichen, Kunden ohne Nummer fallen raus, Ort kommt mit',
   assert.deepEqual(r.daten, [{ kundeNr: '10001', kundeName: 'Gasthof Rosenheim', ort: '83022 Rosenheim' }]);
   assert.equal(plan.kundeAnsicht({ company_name: 'x', customer_number: 'K5' }).kundeName, 'x');
   assert.equal(plan.kundeAnsicht({ name: 'ohne' }), null);
+});
+
+test('Artikelnummer: Lexware-Präfix RG- entfällt, auch bei UUID-Positionen; T-Nummern bleiben', () => {
+  assert.equal(plan.artikelNr({ product_id: 'RG-7801200' }), '7801200');
+  assert.equal(plan.artikelNr({ product_id: 'RG-T039' }), 'T039');
+  assert.equal(plan.artikelNr({ product_id: 'a0b1c2d3-1111-2222-3333-444455556666', articleNumber: 'RG-7801100' }), '7801100');
+  assert.equal(plan.artikelNr({ product_id: '7801200' }), '7801200');
+  assert.equal(plan.artikelNr({ product_id: 'RG-' }), null);
+  assert.equal(plan.artikelNr({}), null);
 });

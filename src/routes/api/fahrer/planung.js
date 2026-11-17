@@ -50,9 +50,11 @@ const stoppAnsicht = (s) => ({
  * @param {object} deps.store             Datenzugriff (services/fahrerTourPlanung.js)
  * @param {() => Promise<object[]>} deps.holeBestellungen  Bestellungen aus der Shop-API
  * @param {(q: string) => Promise<object[]>} [deps.sucheKunden]  Kundensuche in der Shop-API (nur lesen)
+ * @param {boolean} [deps.erledigteAkzeptierte]  Testphase: erledigte, von SER akzeptierte Bestellungen bleiben wählbar
  * @param {() => number} [deps.uhr]       Millisekunden, für Tests
  */
-function erstellePlanungRouter({ store, holeBestellungen, sucheKunden = async () => [], uhr = Date.now }) {
+function erstellePlanungRouter({ store, holeBestellungen, sucheKunden = async () => [], erledigteAkzeptierte = false, uhr = Date.now }) {
+  const istOffen = (b, belegt) => plan.istOffen(b, belegt, { erledigteAkzeptierte });
   const router = express.Router();
 
   async function oder404(id) {
@@ -98,7 +100,7 @@ function erstellePlanungRouter({ store, holeBestellungen, sucheKunden = async ()
 
   router.get('/offene-bestellungen', sicher(async (req, res) => {
     const belegt = await store.belegteBestellungen();
-    const offen = (await holeBestellungen()).filter((b) => b && b.id != null && plan.istOffen(b, belegt));
+    const offen = (await holeBestellungen()).filter((b) => b && b.id != null && istOffen(b, belegt));
     res.json(offen.map(plan.bestellAnsicht));
   }));
 
@@ -148,7 +150,7 @@ function erstellePlanungRouter({ store, holeBestellungen, sucheKunden = async ()
     const datum = text(req.body?.datum, 10);
     if (!DATUM.test(datum)) throw new FahrerFehler(400, 'ungueltig', 'Datum fehlt (JJJJ-MM-TT)');
     const belegt = await store.belegteBestellungen();
-    const offen = (await holeBestellungen()).filter((b) => b && b.id != null && plan.istOffen(b, belegt));
+    const offen = (await holeBestellungen()).filter((b) => b && b.id != null && istOffen(b, belegt));
     const { stopps, ohneBestellung, fehler } = plan.stoppsAusVorlage(vorlage.kunden, offen);
     const fehlen = new Set(await store.unbekannteArtikel([...new Set(stopps.flatMap((s) => s.positionen.map((p) => p.artikelNr)))]));
     const t = await store.legeAn({
@@ -210,7 +212,7 @@ function erstellePlanungRouter({ store, holeBestellungen, sucheKunden = async ()
     // Erst alles prüfen und umbauen, dann buchen: Fehler in der dritten Bestellung lassen keine halbe Auswahl zurück.
     const stopps = ids.map((id) => {
       const b = alle.get(id);
-      if (!b || !plan.istOffen(b, belegt)) throw new FahrerFehler(409, 'bestellung_nicht_offen', `Bestellung ${id} ist nicht (mehr) offen`);
+      if (!b || !istOffen(b, belegt)) throw new FahrerFehler(409, 'bestellung_nicht_offen', `Bestellung ${id} ist nicht (mehr) offen`);
       return plan.stoppAusBestellung(b);
     });
     const fehlen = await store.unbekannteArtikel([...new Set(stopps.flatMap((s) => s.positionen.map((p) => p.artikelNr)))]);
