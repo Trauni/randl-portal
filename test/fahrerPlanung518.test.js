@@ -55,7 +55,7 @@ test('Löschen nur bei leerer oder stornierter Tour', () => {
 });
 
 // ── Router mit RAM-Store ──
-let touren; let stopps; let bestellungen; let naechsteId;
+let touren; let stopps; let bestellungen; let naechsteId; let vorlagen;
 const aktive = () => new Set(stopps.filter((s) => s.sperre).map((s) => s.sperre));
 const ramStore = {
   async touren() { return touren.map((t) => ({ ...t, stopps: stopps.filter((s) => s.tour_id === t.id).length })); },
@@ -83,11 +83,20 @@ const ramStore = {
     return true;
   },
   async loesche(id) { touren = touren.filter((t) => t.id !== id); },
+  async vorlagen() { return vorlagen; },
+  async vorlageNachId(id) { return vorlagen.find((v) => v.id === id) || null; },
+  async speichereVorlage(id, v) {
+    if (vorlagen.some((x) => x.name === v.name && x.id !== id)) throw new FahrerFehler(409, 'name_vergeben', 'doppelt');
+    const neu = { id: id ?? naechsteId++, name: v.name, employee_id: v.employeeId, fahrzeug: v.fahrzeug, ladebasis_id: v.ladebasisId, kunden: v.kunden.map((k) => ({ kunde_nr: k.kundeNr, kunde_name: k.kundeName, lieferzeit: k.lieferzeit, hinweise: k.hinweise })) };
+    vorlagen = id == null ? [...vorlagen, neu] : vorlagen.map((x) => (x.id === id ? neu : x));
+    return neu.id;
+  },
+  async loescheVorlage(id) { const n = vorlagen.length; vorlagen = vorlagen.filter((v) => v.id !== id); return vorlagen.length < n; },
 };
 
 let server; let basis;
 beforeEach(() => {
-  naechsteId = 100; touren = []; stopps = [];
+  naechsteId = 100; touren = []; stopps = []; vorlagen = [];
   bestellungen = [bestellung(B1), bestellung(B2, { customer_name: 'Zweiter' })];
 });
 before(async () => {
@@ -157,4 +166,78 @@ test('Tour im Büro beenden nur, wenn sie unterwegs ist', async () => {
   assert.equal((await rufe('POST', `/${t.id}/beenden`)).status, 409);
   touren[0].status = 'unterwegs';
   assert.equal((await rufe('POST', `/${t.id}/beenden`)).daten.status, 'beendet');
+});
+
+// ── Vorlagen (#518) ──
+const B3 = '33333333-aaaa-bbbb-cccc-000000000003';
+
+test('Vorlagen-Logik: Kunden in Vorlagenreihenfolge, mehrere Bestellungen nach Alter, Lücken und Fehler werden gemeldet', () => {
+  const kunden = [
+    { kunde_nr: '20002', kunde_name: 'Zweiter', lieferzeit: 'vormittags', hinweise: 'Tor B' },
+    { kunde_nr: '10001', kunde_name: 'Gasthof Rosenheim', lieferzeit: null, hinweise: null },
+    { kunde_nr: '30003', kunde_name: 'Ohne Bestellung', lieferzeit: null, hinweise: null },
+  ];
+  const offen = [
+    bestellung(B1, { created_at: '2026-11-10T08:00:00Z' }),
+    bestellung(B2, { lexware_customer_number: '20002', delivery_time_to: null, delivery_note: null, created_at: '2026-11-11T08:00:00Z' }),
+    bestellung(B3, { created_at: '2026-11-09T08:00:00Z', items: [] }),
+  ];
+  const r = plan.stoppsAusVorlage(kunden, offen);
+  assert.deepEqual(r.stopps.map((s) => s.bestellId), [B2, B1]);
+  assert.equal(r.stopps[0].lieferzeit, 'vormittags');
+  assert.equal(r.stopps[0].hinweise, 'Tor B');
+  assert.equal(r.stopps[1].lieferzeit, 'bis 11:00 Uhr');
+  assert.deepEqual(r.ohneBestellung.map((k) => k.kundeNr), ['30003']);
+  assert.deepEqual(r.fehler.map((f) => [f.bestellId, f.grund.includes('keine Positionen')]), [[B3, true]]);
+});
+
+test('Vorlage aus Stopps: ein Eintrag je Kunde, erste Reihenfolge zählt', () => {
+  const k = plan.vorlageKundenAusStopps([
+    { kunde_nr: '2', kunde_name: 'B', lieferzeit: '8 Uhr' }, { kunde_nr: '1', kunde_name: 'A' }, { kunde_nr: '2', kunde_name: 'B' },
+  ]);
+  assert.deepEqual(k.map((x) => x.kundeNr), ['2', '1']);
+  assert.equal(k[0].lieferzeit, '8 Uhr');
+});
+
+test('Vorlage anlegen, ändern, doppelter Name, doppelter Kunde, löschen', async () => {
+  const kopf = { name: 'Montag Rosenheim', employeeId: 7, kunden: [{ kundeNr: '10001', kundeName: 'Gasthof' }] };
+  const neu = await rufe('POST', '/vorlagen', kopf);
+  assert.equal(neu.status, 201);
+  assert.equal(neu.daten.kunden[0].kundeNr, '10001');
+  assert.equal((await rufe('POST', '/vorlagen', kopf)).status, 409);
+  assert.equal((await rufe('POST', '/vorlagen', { ...kopf, name: 'x', kunden: [{ kundeNr: '1', kundeName: 'a' }, { kundeNr: '1', kundeName: 'a' }] })).status, 400);
+  assert.equal((await rufe('POST', '/vorlagen', { ...kopf, name: '' })).status, 400);
+  assert.equal((await rufe('PUT', `/vorlagen/${neu.daten.id}`, { ...kopf, kunden: [] })).daten.kunden.length, 0);
+  assert.equal((await rufe('PUT', '/vorlagen/9999', kopf)).status, 404);
+  assert.equal((await rufe('DELETE', `/vorlagen/${neu.daten.id}`)).status, 200);
+  assert.equal((await rufe('DELETE', `/vorlagen/${neu.daten.id}`)).status, 404);
+});
+
+test('Tour aus Vorlage: übernimmt offene Bestellungen der Stammkunden, meldet Kunden ohne Bestellung', async () => {
+  const v = (await rufe('POST', '/vorlagen', {
+    name: 'Standard', employeeId: 7, fahrzeug: 'RO-DR 101',
+    kunden: [{ kundeNr: '10001', kundeName: 'Gasthof' }, { kundeNr: '99999', kundeName: 'Nichts offen' }],
+  })).daten;
+  const r = await rufe('POST', '/aus-vorlage', { vorlageId: v.id, datum: '2026-11-23' });
+  assert.equal(r.status, 201);
+  assert.equal(r.daten.tour.bezeichnung, 'Standard');
+  assert.equal(r.daten.tour.fahrzeug, 'RO-DR 101');
+  assert.equal(r.daten.uebernommen, 2);
+  assert.deepEqual(r.daten.ohneBestellung.map((k) => k.kundeNr), ['99999']);
+  // Zweiter Lauf: die Bestellungen stecken schon in der ersten Tour
+  const r2 = await rufe('POST', '/aus-vorlage', { vorlageId: v.id, datum: '2026-11-30' });
+  assert.equal(r2.daten.uebernommen, 0);
+  assert.equal(r2.daten.ohneBestellung.length, 2);
+  assert.equal((await rufe('POST', '/aus-vorlage', { vorlageId: v.id, datum: 'morgen' })).status, 400);
+  assert.equal((await rufe('POST', '/aus-vorlage', { vorlageId: 9999, datum: '2026-11-23' })).status, 404);
+});
+
+test('Vorlage aus Tour speichern: braucht Stopps', async () => {
+  const t = await neueTour();
+  assert.equal((await rufe('POST', `/${t.id}/als-vorlage`, { name: 'Neu' })).daten.code, 'tour_leer');
+  await rufe('POST', `/${t.id}/bestellungen`, { bestellIds: [B2, B1] });
+  const v = await rufe('POST', `/${t.id}/als-vorlage`, { name: 'Neu' });
+  assert.equal(v.status, 201);
+  assert.deepEqual(v.daten.kunden.map((k) => k.kundeNr), ['10001']);
+  assert.equal(v.daten.employeeId, 7);
 });

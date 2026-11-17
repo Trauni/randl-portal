@@ -117,18 +117,97 @@ function OffeneBestellungen({ offen, auswahl, setAuswahl, onHinzu, aktiv }) {
   );
 }
 
+function AusVorlage({ vorlagen, onAngelegt, onFehler }) {
+  const [vid, setVid] = useState('');
+  const [datum, setDatum] = useState(heute());
+  const [ergebnis, setErgebnis] = useState(null);
+  const los = async () => {
+    try {
+      const r = await api('/api/fahrer-touren/aus-vorlage', 'POST', { vorlageId: Number(vid), datum });
+      setErgebnis(r);
+      onAngelegt(r.tour);
+    } catch (e) { onFehler(e.message); }
+  };
+  return (
+    <div style={karte}>
+      <div style={{ display:'flex', gap:'.6rem', alignItems:'end', flexWrap:'wrap' }}>
+        <label style={{ flex:1, minWidth:200 }}><div style={klein}>Tour aus Vorlage</div>
+          <select style={input} value={vid} onChange={(e) => setVid(e.target.value)}><option value="">Vorlage wählen …</option>{vorlagen.map((v) => <option key={v.id} value={v.id}>{v.name} ({v.kunden.length} Kunden)</option>)}</select></label>
+        <label><div style={klein}>Datum</div><input style={input} type="date" value={datum} onChange={(e) => setDatum(e.target.value)} /></label>
+        <button style={knopf} disabled={!vid || !datum} onClick={los}>Tour anlegen</button>
+      </div>
+      {ergebnis && (
+        <div style={{ ...klein, marginTop:'.6rem', lineHeight:1.5 }}>
+          <div style={{ color:'var(--text2)' }}>{ergebnis.uebernommen} Bestellung(en) übernommen.</div>
+          {ergebnis.ohneBestellung.length > 0 && <div>Keine offene Bestellung: {ergebnis.ohneBestellung.map((k) => k.kundeName).join(', ')}</div>}
+          {ergebnis.fehler.map((f) => <div key={f.bestellId} style={{ color:'var(--red, #e5484d)' }}>Nicht übernommen (Kunde {f.kundeNr}): {f.grund}</div>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Vorlagen({ vorlagen, onGeaendert, onFehler }) {
+  const [offen, setOffen] = useState(false);
+  const speichern = async (v, kunden, name = v.name) => {
+    try { await api(`/api/fahrer-touren/vorlagen/${v.id}`, 'PUT', { name, employeeId: v.employeeId, fahrzeug: v.fahrzeug, ladebasisId: v.ladebasisId, kunden }); await onGeaendert(); } catch (e) { onFehler(e.message); }
+  };
+  const verschiebe = (v, i, r) => { const k = [...v.kunden]; [k[i], k[i + r]] = [k[i + r], k[i]]; return speichern(v, k); };
+  const umbenennen = (v) => { const n = window.prompt('Neuer Name der Vorlage', v.name); if (n && n.trim()) speichern(v, v.kunden, n.trim()); };
+  const loeschen = async (v) => {
+    if (!window.confirm(`Vorlage „${v.name}“ löschen? Bereits angelegte Touren bleiben.`)) return;
+    try { await api(`/api/fahrer-touren/vorlagen/${v.id}`, 'DELETE'); await onGeaendert(); } catch (e) { onFehler(e.message); }
+  };
+  return (
+    <div style={karte}>
+      <div style={{ display:'flex', alignItems:'center', cursor:'pointer' }} onClick={() => setOffen((o) => !o)}>
+        <h2 style={{ fontSize:'1rem', color:'var(--text1)', margin:0, flex:1 }}>Vorlagen ({vorlagen.length})</h2>
+        <span style={klein}>{offen ? 'zuklappen' : 'aufklappen'}</span>
+      </div>
+      {offen && (
+        <div style={{ marginTop:'.6rem' }}>
+          <div style={{ ...klein, marginBottom:'.5rem' }}>Neue Vorlage: eine Tour mit Stopps öffnen und „Als Vorlage speichern“ wählen.</div>
+          {vorlagen.map((v) => (
+            <div key={v.id} style={{ borderTop:'1px solid var(--border)', padding:'.6rem 0' }}>
+              <div style={{ display:'flex', gap:'.5rem', alignItems:'center' }}>
+                <div style={{ flex:1, color:'var(--text1)', fontSize:'.9rem' }}>{v.name} <span style={klein}>{v.fahrerName} · {v.fahrzeug || 'kein Fahrzeug'} · {v.ladebasisName || 'keine Ladebasis'}</span></div>
+                <button style={knopf} onClick={() => umbenennen(v)}>Umbenennen</button>
+                <button style={knopf} onClick={() => loeschen(v)}>Löschen</button>
+              </div>
+              {v.kunden.map((k, i) => (
+                <div key={k.kundeNr} style={{ display:'grid', gridTemplateColumns:'1.5rem 1fr auto', gap:'.4rem', padding:'.25rem 0 .25rem .5rem', fontSize:'.85rem', color:'var(--text2)' }}>
+                  <span>{i + 1}</span>
+                  <span>{k.kundeName} <span style={klein}>#{k.kundeNr}{k.lieferzeit ? ` · ${k.lieferzeit}` : ''}</span></span>
+                  <span style={{ display:'flex', gap:'.25rem' }}>
+                    <button style={knopf} disabled={i === 0} onClick={() => verschiebe(v, i, -1)}>↑</button>
+                    <button style={knopf} disabled={i === v.kunden.length - 1} onClick={() => verschiebe(v, i, 1)}>↓</button>
+                    <button style={knopf} onClick={() => speichern(v, v.kunden.filter((x) => x.kundeNr !== k.kundeNr))}>Raus</button>
+                  </span>
+                </div>
+              ))}
+              {!v.kunden.length && <div style={klein}>Keine Kunden.</div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Tourplanung() {
   const [von, setVon] = useState(heute());
   const [touren, setTouren] = useState(null);
   const [fahrer, setFahrer] = useState([]);
   const [basen, setBasen] = useState([]);
   const [offen, setOffen] = useState([]);
+  const [vorlagen, setVorlagen] = useState([]);
   const [tour, setTour] = useState(null);
   const [auswahl, setAuswahl] = useState([]);
   const [fehler, setFehler] = useState(null);
 
   const ladeTouren = useCallback(async () => { setTouren(await api(`/api/fahrer-touren?von=${von}`)); }, [von]);
   const ladeOffen = useCallback(async () => { setOffen(await api('/api/fahrer-touren/offene-bestellungen')); }, []);
+  const ladeVorlagen = useCallback(async () => { setVorlagen(await api('/api/fahrer-touren/vorlagen')); }, []);
   const ladeTour = useCallback(async (id) => { setTour(await api(`/api/fahrer-touren/${id}`)); }, []);
 
   const sicher = useCallback(async (fn) => {
@@ -140,8 +219,8 @@ export default function Tourplanung() {
   useEffect(() => { sicher(async () => { await ladeTouren(); }); }, [sicher, ladeTouren]);
   useEffect(() => {
     sicher(async () => {
-      const [f, b, o] = await Promise.all([api('/api/fahrer-touren/fahrer'), api('/api/fahrer-ladebasen'), api('/api/fahrer-touren/offene-bestellungen')]);
-      setFahrer(f); setBasen(b); setOffen(o);
+      const [f, b, o, v] = await Promise.all([api('/api/fahrer-touren/fahrer'), api('/api/fahrer-ladebasen'), api('/api/fahrer-touren/offene-bestellungen'), api('/api/fahrer-touren/vorlagen')]);
+      setFahrer(f); setBasen(b); setOffen(o); setVorlagen(v);
     });
   }, [sicher]);
 
@@ -175,6 +254,8 @@ export default function Tourplanung() {
       {fehler && <div style={{ color:'var(--red, #e5484d)', fontSize:'.85rem', marginBottom:'.75rem' }}>{fehler}</div>}
 
       <NeueTour fahrer={fahrer} basen={basen} onFehler={setFehler} onAngelegt={(t) => alles(t.id)} />
+      <AusVorlage vorlagen={vorlagen} onFehler={setFehler} onAngelegt={(t) => alles(t.id)} />
+      <Vorlagen vorlagen={vorlagen} onFehler={setFehler} onGeaendert={() => sicher(ladeVorlagen)} />
 
       <div style={{ display:'grid', gridTemplateColumns:'minmax(240px, 1fr) 2fr', gap:'1rem', alignItems:'start' }}>
         <div style={karte}>
@@ -201,6 +282,7 @@ export default function Tourplanung() {
               </div>
               <div style={{ display:'flex', gap:'.4rem', flexWrap:'wrap' }}>
                 {tour.status === 'entwurf' && <button style={knopf} onClick={aktion('freigeben')}>Freigeben</button>}
+                {stopps.length > 0 && <button style={knopf} onClick={() => { const n = window.prompt('Name der Vorlage', tour.bezeichnung); if (n && n.trim()) sicher(async () => { await api(`/api/fahrer-touren/${tour.id}/als-vorlage`, 'POST', { name: n.trim() }); await ladeVorlagen(); }); }}>Als Vorlage speichern</button>}
                 {tour.status === 'freigegeben' && <button style={knopf} onClick={aktion('zurueck', 'Tour zurück in den Entwurf? Das Tablet lädt sie dann nicht mehr.')}>Zurück in Entwurf</button>}
                 {['entwurf', 'freigegeben', 'unterwegs'].includes(tour.status) && (
                   <button style={knopf} onClick={aktion('stornieren', 'Tour stornieren? Die Bestellungen werden wieder frei.')}>Stornieren</button>)}

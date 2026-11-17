@@ -163,11 +163,67 @@ async function setzeStatus(tourId, aktion, von, nach, jetzt) {
   }
 }
 
+const VORLAGE = 'v.id, v.name, v.employee_id, v.fahrzeug, v.ladebasis_id, e.full_name AS fahrer_name, l.name AS ladebasis_name';
+const VORLAGE_VON = 'fahrer_tour_vorlage v LEFT JOIN employees e ON e.id = v.employee_id LEFT JOIN fahrer_ladebasis l ON l.id = v.ladebasis_id';
+
+async function vorlagen() {
+  const [rows] = await getPool().execute(`SELECT ${VORLAGE} FROM ${VORLAGE_VON} ORDER BY v.name`);
+  if (!rows.length) return [];
+  const [kunden] = await getPool().query(
+    'SELECT id, vorlage_id, kunde_nr, kunde_name, lieferzeit, hinweise FROM fahrer_tour_vorlage_kunde WHERE vorlage_id IN (?) ORDER BY reihenfolge, id', [rows.map((r) => r.id)]);
+  return rows.map((r) => ({ ...r, kunden: kunden.filter((k) => k.vorlage_id === r.id) }));
+}
+
+async function vorlageNachId(id) {
+  return (await vorlagen()).find((v) => v.id === id) || null;
+}
+
+async function schreibeKunden(conn, vorlageId, kunden) {
+  await conn.execute('DELETE FROM fahrer_tour_vorlage_kunde WHERE vorlage_id = ?', [vorlageId]);
+  for (let i = 0; i < kunden.length; i += 1) {
+    const k = kunden[i];
+    await conn.execute(
+      'INSERT INTO fahrer_tour_vorlage_kunde (vorlage_id, reihenfolge, kunde_nr, kunde_name, lieferzeit, hinweise) VALUES (?, ?, ?, ?, ?, ?)',
+      [vorlageId, i + 1, k.kundeNr, k.kundeName, k.lieferzeit, k.hinweise]);
+  }
+}
+
+/** Neu anlegen (id = null) oder ersetzen. 409 name_vergeben bei doppeltem Namen. */
+async function speichereVorlage(id, { name, employeeId, fahrzeug, ladebasisId, kunden }) {
+  const conn = await getPool().getConnection();
+  try {
+    await conn.beginTransaction();
+    let vorlageId = id;
+    if (id == null) {
+      const [r] = await conn.execute('INSERT INTO fahrer_tour_vorlage (name, employee_id, fahrzeug, ladebasis_id) VALUES (?, ?, ?, ?)', [name, employeeId, fahrzeug, ladebasisId]);
+      vorlageId = r.insertId;
+    } else {
+      const [r] = await conn.execute('UPDATE fahrer_tour_vorlage SET name = ?, employee_id = ?, fahrzeug = ?, ladebasis_id = ? WHERE id = ?', [name, employeeId, fahrzeug, ladebasisId, id]);
+      if (!r.affectedRows) throw new FahrerFehler(404, 'vorlage_nicht_gefunden', 'Vorlage nicht gefunden');
+    }
+    await schreibeKunden(conn, vorlageId, kunden);
+    await conn.commit();
+    return vorlageId;
+  } catch (err) {
+    await conn.rollback();
+    if (err.code === 'ER_DUP_ENTRY') throw new FahrerFehler(409, 'name_vergeben', `Vorlage „${name}“ gibt es schon`);
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
+async function loescheVorlage(id) {
+  const [r] = await getPool().execute('DELETE FROM fahrer_tour_vorlage WHERE id = ?', [id]);
+  return r.affectedRows > 0;
+}
+
 async function loesche(tourId) {
   await getPool().execute('DELETE FROM fahrer_tour WHERE id = ?', [tourId]);
 }
 
 module.exports = {
+  vorlagen, vorlageNachId, speichereVorlage, loescheVorlage,
   fahrer, touren, tourNachId, stopps, legeAn, aendereKopf, belegteBestellungen, unbekannteArtikel,
   fuegeStoppHinzu, entferneStopp, aendereStopp, sortiere, setzeStatus, loesche,
 };

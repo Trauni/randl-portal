@@ -5,6 +5,12 @@
  *   POST   /api/fahrer-touren                        { datum, bezeichnung, employeeId, fahrzeug?, ladebasisId? }
  *   GET    /api/fahrer-touren/fahrer                 Fahrer-Auswahl (aktive Mitarbeiter)
  *   GET    /api/fahrer-touren/offene-bestellungen    Bestellungen, die in keiner aktiven Tour stecken
+ *   GET    /api/fahrer-touren/vorlagen               Vorlagen mit Kunden in Reihenfolge
+ *   POST   /api/fahrer-touren/vorlagen               { name, employeeId, fahrzeug?, ladebasisId?, kunden: [{ kundeNr, kundeName, lieferzeit?, hinweise? }] }
+ *   PUT    /api/fahrer-touren/vorlagen/:vid          dasselbe, ersetzt die Vorlage
+ *   DELETE /api/fahrer-touren/vorlagen/:vid
+ *   POST   /api/fahrer-touren/aus-vorlage            { vorlageId, datum, bezeichnung? } → { tour, uebernommen, ohneBestellung, fehler }
+ *   POST   /api/fahrer-touren/:id/als-vorlage        { name } – Vorlage aus den Stopps dieser Tour
  *   GET    /api/fahrer-touren/:id                    Tour mit Stopps
  *   PATCH  /api/fahrer-touren/:id                    Kopfdaten (nur Entwurf)
  *   DELETE /api/fahrer-touren/:id                    nur leere oder stornierte Tour
@@ -86,6 +92,85 @@ function erstellePlanungRouter({ store, holeBestellungen, uhr = Date.now }) {
     const belegt = await store.belegteBestellungen();
     const offen = (await holeBestellungen()).filter((b) => b && b.id != null && plan.istOffen(b, belegt));
     res.json(offen.map(plan.bestellAnsicht));
+  }));
+
+  // ── Vorlagen (müssen vor '/:id' stehen) ──
+  const vorlageAnsicht = (v) => ({
+    id: v.id, name: v.name, employeeId: v.employee_id, fahrerName: v.fahrer_name || null, fahrzeug: v.fahrzeug || null,
+    ladebasisId: v.ladebasis_id ?? null, ladebasisName: v.ladebasis_name || null,
+    kunden: v.kunden.map((k) => ({ kundeNr: k.kunde_nr, kundeName: k.kunde_name, lieferzeit: k.lieferzeit || null, hinweise: k.hinweise || null })),
+  });
+
+  function vorlageAus(k) {
+    const name = text(k.name, 120);
+    if (!name) throw new FahrerFehler(400, 'ungueltig', 'Name der Vorlage fehlt');
+    const employeeId = ganzzahl(k.employeeId);
+    if (employeeId == null) throw new FahrerFehler(400, 'ungueltig', 'Fahrer fehlt');
+    const kunden = (Array.isArray(k.kunden) ? k.kunden : []).map((x) => ({
+      kundeNr: text(x?.kundeNr, 20), kundeName: text(x?.kundeName, 160), lieferzeit: text(x?.lieferzeit, 60) || null, hinweise: text(x?.hinweise, 500) || null,
+    }));
+    if (kunden.some((x) => !x.kundeNr || !x.kundeName)) throw new FahrerFehler(400, 'ungueltig', 'Kunde ohne Nummer oder Name');
+    if (new Set(kunden.map((x) => x.kundeNr)).size !== kunden.length) throw new FahrerFehler(400, 'ungueltig', 'Kunde kommt doppelt vor');
+    return { name, employeeId, fahrzeug: text(k.fahrzeug, 40) || null, ladebasisId: ganzzahl(k.ladebasisId), kunden };
+  }
+
+  router.get('/vorlagen', sicher(async (req, res) => res.json((await store.vorlagen()).map(vorlageAnsicht))));
+
+  router.post('/vorlagen', sicher(async (req, res) => {
+    const id = await store.speichereVorlage(null, vorlageAus(req.body || {}));
+    res.status(201).json(vorlageAnsicht(await store.vorlageNachId(id)));
+  }));
+
+  router.put('/vorlagen/:vid', sicher(async (req, res) => {
+    const id = ganzzahl(req.params.vid);
+    if (id == null || !(await store.vorlageNachId(id))) throw new FahrerFehler(404, 'vorlage_nicht_gefunden', 'Vorlage nicht gefunden');
+    await store.speichereVorlage(id, vorlageAus(req.body || {}));
+    res.json(vorlageAnsicht(await store.vorlageNachId(id)));
+  }));
+
+  router.delete('/vorlagen/:vid', sicher(async (req, res) => {
+    if (!(await store.loescheVorlage(ganzzahl(req.params.vid)))) throw new FahrerFehler(404, 'vorlage_nicht_gefunden', 'Vorlage nicht gefunden');
+    res.json({ ok: true });
+  }));
+
+  /** Neue Tour aus Vorlage: Fahrer, Fahrzeug, Ladebasis aus der Vorlage; Stopps aus den offenen Bestellungen der Stammkunden. */
+  router.post('/aus-vorlage', sicher(async (req, res) => {
+    const vorlage = await store.vorlageNachId(ganzzahl(req.body?.vorlageId));
+    if (!vorlage) throw new FahrerFehler(404, 'vorlage_nicht_gefunden', 'Vorlage nicht gefunden');
+    const datum = text(req.body?.datum, 10);
+    if (!DATUM.test(datum)) throw new FahrerFehler(400, 'ungueltig', 'Datum fehlt (JJJJ-MM-TT)');
+    const belegt = await store.belegteBestellungen();
+    const offen = (await holeBestellungen()).filter((b) => b && b.id != null && plan.istOffen(b, belegt));
+    const { stopps, ohneBestellung, fehler } = plan.stoppsAusVorlage(vorlage.kunden, offen);
+    const fehlen = new Set(await store.unbekannteArtikel([...new Set(stopps.flatMap((s) => s.positionen.map((p) => p.artikelNr)))]));
+    const t = await store.legeAn({
+      datum, bezeichnung: text(req.body?.bezeichnung, 120) || vorlage.name, employeeId: vorlage.employee_id,
+      fahrzeug: vorlage.fahrzeug, ladebasisId: vorlage.ladebasis_id, erstelltVon: req.session?.user?.id ?? null,
+    });
+    let uebernommen = 0;
+    for (const s of stopps) {
+      const unbekannt = s.positionen.filter((p) => fehlen.has(p.artikelNr)).map((p) => p.artikelNr);
+      if (unbekannt.length) { fehler.push({ bestellId: s.bestellId, kundeNr: s.kundeNr, grund: `Artikel nicht im Stamm: ${unbekannt.join(', ')}` }); continue; }
+      try {
+        await store.fuegeStoppHinzu(t.id, s);
+        uebernommen += 1;
+      } catch (err) {
+        if (!(err instanceof FahrerFehler)) throw err;
+        fehler.push({ bestellId: s.bestellId, kundeNr: s.kundeNr, grund: err.message });
+      }
+    }
+    res.status(201).json({ tour: tourAnsicht(await store.tourNachId(t.id)), uebernommen, ohneBestellung, fehler });
+  }));
+
+  /** Vorlage aus einer vorhandenen Tour: Fahrer, Fahrzeug, Ladebasis und die Kunden in Stopp-Reihenfolge. */
+  router.post('/:id/als-vorlage', sicher(async (req, res) => {
+    const t = await oder404(req.params.id);
+    const kunden = plan.vorlageKundenAusStopps(await store.stopps(t.id));
+    if (!kunden.length) throw new FahrerFehler(422, 'tour_leer', 'Tour ohne Stopps kann keine Vorlage werden');
+    const id = await store.speichereVorlage(null, vorlageAus({
+      name: req.body?.name, employeeId: t.employee_id, fahrzeug: t.fahrzeug, ladebasisId: t.ladebasis_id, kunden,
+    }));
+    res.status(201).json(vorlageAnsicht(await store.vorlageNachId(id)));
   }));
 
   router.get('/:id', sicher(async (req, res) => {

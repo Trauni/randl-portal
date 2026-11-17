@@ -109,4 +109,43 @@ function stoppAusBestellung(b) {
   };
 }
 
-module.exports = { wechsel, pruefeBearbeitbar, pruefeLoeschbar, istOffen, artikelNr, bestellAnsicht, stoppAusBestellung };
+/** Vorlage aus den Stopps einer Tour: ein Eintrag je Kunde in der Reihenfolge des ersten Stopps. */
+function vorlageKundenAusStopps(stopps) {
+  const gesehen = new Set();
+  const kunden = [];
+  for (const s of stopps) {
+    if (gesehen.has(s.kunde_nr)) continue;
+    gesehen.add(s.kunde_nr);
+    kunden.push({ kundeNr: s.kunde_nr, kundeName: s.kunde_name, lieferzeit: s.lieferzeit || null, hinweise: s.hinweise || null });
+  }
+  return kunden;
+}
+
+const nachAlter = (a, b) => String(a.created_at || '').localeCompare(String(b.created_at || ''));
+
+/**
+ * Stopps für eine Tour aus Vorlage + offenen Bestellungen. Je offener Bestellung eines Stammkunden ein Stopp,
+ * Kunden in Vorlagenreihenfolge, mehrere Bestellungen eines Kunden nach Alter. Werte der Bestellung gehen vor
+ * den Standardwerten der Vorlage. Kunden ohne offene Bestellung und nicht baubare Bestellungen werden gemeldet, nicht still ausgelassen.
+ */
+function stoppsAusVorlage(vorlageKunden, offeneBestellungen) {
+  const stopps = [];
+  const ohneBestellung = [];
+  const fehler = [];
+  for (const k of vorlageKunden) {
+    const passende = offeneBestellungen.filter((b) => bestellAnsicht(b).kundeNr === k.kunde_nr).sort(nachAlter);
+    if (!passende.length) { ohneBestellung.push({ kundeNr: k.kunde_nr, kundeName: k.kunde_name }); continue; }
+    for (const b of passende) {
+      try {
+        const st = stoppAusBestellung(b);
+        stopps.push({ ...st, lieferzeit: st.lieferzeit || k.lieferzeit || null, hinweise: st.hinweise || k.hinweise || null });
+      } catch (err) {
+        if (!(err instanceof FahrerFehler)) throw err;
+        fehler.push({ bestellId: String(b.id), kundeNr: k.kunde_nr, grund: err.message });
+      }
+    }
+  }
+  return { stopps, ohneBestellung, fehler };
+}
+
+module.exports = { vorlageKundenAusStopps, stoppsAusVorlage, wechsel, pruefeBearbeitbar, pruefeLoeschbar, istOffen, artikelNr, bestellAnsicht, stoppAusBestellung };
