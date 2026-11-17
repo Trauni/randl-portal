@@ -181,6 +181,8 @@ app.use('/api/fahrer-ladebasen', requireArea('fahrer.geraete'), require('./src/r
 // #518: Tourplanung im Büro (Bestellungen kommen aus der Shop-API)
 app.use('/api/fahrer-touren', requireArea('fahrer.geraete'), require('./src/routes/api/fahrer/planung').erstellePlanungRouter({
   store: require('./src/services/fahrerTourPlanung'),
+  // Testphase (#518): erledigte, von SER akzeptierte Bestellungen bleiben für Touren wählbar. Abschalten mit TOUR_ERLEDIGTE_AKZEPTIERTE=0.
+  erledigteAkzeptierte: process.env.TOUR_ERLEDIGTE_AKZEPTIERTE !== '0',
   holeBestellungen: async () => {
     const res = await require('./src/routes/api/finance/shopClient').shopFetch('/admin/webshop-orders?limit=500');
     if (!res.ok) throw new Error(`Shop-API ${res.status}`);

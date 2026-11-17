@@ -35,9 +35,13 @@ function pruefeLoeschbar(tour, anzahlStopps) {
 /**
  * Offen für eine Tour: nicht storniert, nicht erledigt, in keiner aktiven Tour.
  * Von SER abgelehnte Bestellungen bleiben auswählbar, tragen aber eine Warnung.
+ * Mit erledigteAkzeptierte zählen auch erledigte Bestellungen mit SER-Status „akzeptiert“ als offen (Testphase).
  */
-function istOffen(bestellung, belegteIds) {
-  return bestellung.status !== 'cancelled' && bestellung.done !== true && !belegteIds.has(String(bestellung.id));
+function istOffen(bestellung, belegteIds, { erledigteAkzeptierte = false } = {}) {
+  if (bestellung.status === 'cancelled' || belegteIds.has(String(bestellung.id))) return false;
+  // Testphase: von SER akzeptierte Bestellungen bleiben wählbar, auch wenn sie als erledigt markiert sind.
+  if (bestellung.done === true) return erledigteAkzeptierte && bestellung.ser_status === 'ok';
+  return true;
 }
 
 /**

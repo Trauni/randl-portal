@@ -30,6 +30,13 @@ test('offen: nicht storniert, nicht erledigt, nicht belegt; SER-abgelehnt bleibt
   assert.equal(plan.istOffen(bestellung(B1, { done: true }), belegt), false);
   assert.equal(plan.istOffen(bestellung(B2), belegt), false);
   assert.equal(plan.istOffen(bestellung(B1, { ser_status: 'err' }), belegt), true);
+  // Testphase: erledigt + SER akzeptiert zählt als offen, erledigt + abgelehnt und storniert + akzeptiert nicht
+  const test = { erledigteAkzeptierte: true };
+  assert.equal(plan.istOffen(bestellung(B1, { done: true, ser_status: 'ok' }), belegt, test), true);
+  assert.equal(plan.istOffen(bestellung(B1, { done: true, ser_status: 'err' }), belegt, test), false);
+  assert.equal(plan.istOffen(bestellung(B1, { done: true, ser_status: 'ok', status: 'cancelled' }), belegt, test), false);
+  assert.equal(plan.istOffen(bestellung(B2, { done: true, ser_status: 'ok' }), belegt, test), false);
+  assert.equal(plan.istOffen(bestellung(B1, { done: true, ser_status: 'ok' }), belegt), false);
   assert.equal(plan.bestellAnsicht(bestellung(B1, { ser_status: 'err' })).serAbgelehnt, true);
 });
 
