@@ -4,6 +4,7 @@
  */
 const { getPool } = require('../db');
 const { FahrerFehler } = require('./fahrerKrypto');
+const { gibNichtGelieferteFrei } = require('./fahrerTouren');
 
 const TOUR = `t.id, DATE_FORMAT(t.datum, '%Y-%m-%d') AS datum, t.bezeichnung, t.employee_id, t.fahrzeug, t.ladebasis_id, t.status,
   t.version, t.geraet_id, t.gestartet_am, t.beendet_am, t.beendet_durch, e.full_name AS fahrer_name, l.name AS ladebasis_name,
@@ -152,6 +153,7 @@ async function setzeStatus(tourId, aktion, von, nach, jetzt) {
       `UPDATE fahrer_tour SET status = ?, version = version + 1${zusatz} WHERE id = ? AND status IN (${von.map(() => '?').join(', ')})`,
       [nach, ...(nach === 'beendet' ? [jetzt] : []), tourId, ...von]);
     if (!r.affectedRows) { await conn.rollback(); return false; }
+    if (nach === 'beendet') await gibNichtGelieferteFrei(conn, tourId);
     if (nach === 'storniert') await conn.execute('UPDATE fahrer_stopp SET bestell_sperre = NULL, status = IF(status = \'offen\', \'storniert\', status) WHERE tour_id = ?', [tourId]);
     await conn.commit();
     return true;

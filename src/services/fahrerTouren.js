@@ -77,6 +77,15 @@ async function lsStand(geraetId) {
   return Number(rows[0]?.ls_stand) || 0;
 }
 
+/**
+ * Nach Tourende (#518): Bestellungen von Stopps, die nicht beliefert wurden (nicht angetroffen oder nie bearbeitet),
+ * werden wieder frei und können neu eingeplant werden. Beliefert bleibt belegt. Der Stopp behält seinen Status.
+ * Gilt für das Ende am Tablet und im Büro (fahrerTourPlanung.setzeStatus).
+ */
+async function gibNichtGelieferteFrei(conn, tourId) {
+  await conn.execute("UPDATE fahrer_stopp SET bestell_sperre = NULL WHERE tour_id = ? AND status IN ('offen', 'nicht_angetroffen')", [tourId]);
+}
+
 /** Eine Änderung aus der Fachlogik innerhalb der Buchungs-Transaktion anwenden. */
 async function wendeAn(conn, a, ereignisId) {
   switch (a.art) {
@@ -91,6 +100,7 @@ async function wendeAn(conn, a, ereignisId) {
         "UPDATE fahrer_tour SET status = 'beendet', beendet_am = ?, beendet_durch = 'fahrer' WHERE id = ? AND status = 'unterwegs'",
         [a.zeit, a.tourId]
       );
+      await gibNichtGelieferteFrei(conn, a.tourId);
       return;
     case 'stoppStatus':
       await conn.execute(
@@ -165,6 +175,7 @@ async function bucheEreignis({ ereignis: e, aenderungen = [] }) {
 }
 
 module.exports = {
+  gibNichtGelieferteFrei,
   ladbareTouren,
   stoppsZuTouren,
   positionenZuStopps,
