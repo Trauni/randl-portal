@@ -178,6 +178,15 @@ app.locals.requireFahrer = fahrer.requireFahrer;
 app.use('/api/fahrer', require('cors')({ origin: ['https://localhost', 'capacitor://localhost'] }),
   require('./src/routes/api/fahrer/touren').erstelleTourRouter({ store: require('./src/services/fahrerTouren'), requireFahrer: fahrer.requireFahrer }));
 app.use('/api/fahrer-ladebasen', requireArea('fahrer.geraete'), require('./src/routes/api/fahrer/ladebasen').erstelleLadebasenRouter({ store: require('./src/services/fahrerLadebasen') }));
+// #518: Tourplanung im Büro (Bestellungen kommen aus der Shop-API)
+app.use('/api/fahrer-touren', requireArea('fahrer.geraete'), require('./src/routes/api/fahrer/planung').erstellePlanungRouter({
+  store: require('./src/services/fahrerTourPlanung'),
+  holeBestellungen: async () => {
+    const res = await require('./src/routes/api/finance/shopClient').shopFetch('/admin/webshop-orders?limit=500');
+    if (!res.ok) throw new Error(`Shop-API ${res.status}`);
+    return (await res.json()).orders || [];
+  },
+}));
 app.use('/api/fahrer-geraete', requireArea('fahrer.geraete'), require('./src/routes/api/fahrer/geraete').erstelleGeraeteRouter({ store: fahrerStore }));
 
 
