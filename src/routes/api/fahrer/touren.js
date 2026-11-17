@@ -2,6 +2,7 @@
  * Fahrer-App (#542): Tagesdaten laden und Ereignisse aus der Outbox annehmen. Konzept #513 Abschnitt 5, 6 und 8.
  *
  *   GET  /api/fahrer/heute        Bearer → { datum, stand, geraet, touren, kunden, artikel, andereGeraete }
+ *                                 je Tour auch ladebasis: { name, adresse } | null (#514)
  *   POST /api/fahrer/ereignisse   Bearer, { ereignisse: [...] } → { ergebnisse: [{ id, status, code?, meldung?, markierung? }], lsStand }
  *
  * Ereignisse kommen so, wie die App sie in die Outbox schreibt (fahrer-app/www/speicher.js):
@@ -249,6 +250,7 @@ function erstelleTourRouter({ store, requireFahrer, uhr = Date.now }) {
       touren: touren.map((t) => ({
         id: id(t.id), name: t.bezeichnung, datum: t.datum, fahrer: t.fahrer_name || null, fahrzeug: t.fahrzeug || null,
         status: t.status, version: id(t.version),
+        ladebasis: ladebasisFuerApp(t),
         stopps: stopps.filter((s) => s.tour_id === t.id).map((s) => ({
           id: id(s.id), reihenfolge: s.reihenfolge, auftragId: s.auftrag_ref || null, kundeId: s.kunde_nr,
           lieferzeit: s.lieferzeit || null, status: s.status,
@@ -264,6 +266,9 @@ function erstelleTourRouter({ store, requireFahrer, uhr = Date.now }) {
 
   return router;
 }
+
+/** Ladebasis der Tour für die Kopfzeile des Beförderungspapiers (#514); null, wenn keine zugeordnet ist. */
+const ladebasisFuerApp = (t) => (t.ladebasis_name ? { name: t.ladebasis_name, adresse: t.ladebasis_adresse || null } : null);
 
 /** „UN 1965 · Klasse 2.1“ für Anzeige und Ladeliste; leer, wenn der Artikel kein Gefahrgut ist. */
 function druckText(a) {
