@@ -10,6 +10,12 @@ const TOUR = `t.id, DATE_FORMAT(t.datum, '%Y-%m-%d') AS datum, t.bezeichnung, t.
   (SELECT COUNT(*) FROM fahrer_stopp s WHERE s.tour_id = t.id) AS stopps`;
 const TOUR_VON = 'fahrer_tour t LEFT JOIN employees e ON e.id = t.employee_id LEFT JOIN fahrer_ladebasis l ON l.id = t.ladebasis_id';
 
+/** Aktive Mitarbeiter für die Fahrer-Auswahl. */
+async function fahrer() {
+  const [rows] = await getPool().execute('SELECT id, full_name FROM employees WHERE active = 1 ORDER BY full_name');
+  return rows.map((r) => ({ id: r.id, name: r.full_name }));
+}
+
 async function touren({ von, bis } = {}) {
   const [rows] = await getPool().execute(
     `SELECT ${TOUR} FROM ${TOUR_VON} WHERE t.datum BETWEEN ? AND ? ORDER BY t.datum, t.id`,
@@ -162,6 +168,6 @@ async function loesche(tourId) {
 }
 
 module.exports = {
-  touren, tourNachId, stopps, legeAn, aendereKopf, belegteBestellungen, unbekannteArtikel,
+  fahrer, touren, tourNachId, stopps, legeAn, aendereKopf, belegteBestellungen, unbekannteArtikel,
   fuegeStoppHinzu, entferneStopp, aendereStopp, sortiere, setzeStatus, loesche,
 };

@@ -3,6 +3,7 @@
  *
  *   GET    /api/fahrer-touren?von=&bis=              Touren (Standard: heute bis +14 Tage)
  *   POST   /api/fahrer-touren                        { datum, bezeichnung, employeeId, fahrzeug?, ladebasisId? }
+ *   GET    /api/fahrer-touren/fahrer                 Fahrer-Auswahl (aktive Mitarbeiter)
  *   GET    /api/fahrer-touren/offene-bestellungen    Bestellungen, die in keiner aktiven Tour stecken
  *   GET    /api/fahrer-touren/:id                    Tour mit Stopps
  *   PATCH  /api/fahrer-touren/:id                    Kopfdaten (nur Entwurf)
@@ -78,6 +79,8 @@ function erstellePlanungRouter({ store, holeBestellungen, uhr = Date.now }) {
     const t = await store.legeAn({ ...kopf, erstelltVon: req.session?.user?.id ?? null });
     res.status(201).json(tourAnsicht(t));
   }));
+
+  router.get('/fahrer', sicher(async (req, res) => res.json(await store.fahrer())));
 
   router.get('/offene-bestellungen', sicher(async (req, res) => {
     const belegt = await store.belegteBestellungen();

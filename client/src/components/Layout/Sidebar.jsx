@@ -209,6 +209,7 @@ export default function Sidebar({ user }) {
             {showArtikelstamm && <NavItem to="/gashandel/artikel" icon="products" label="Artikelstamm" collapsed={collapsed}/>}
             {showGasAuswertung && <NavItem to="/gashandel/auswertung" icon="documents" label="Gas-Auswertung" collapsed={collapsed}/>}
             {showGasAuswertung && <NavItem to="/gashandel/einkaufspreise" icon="products" label="Einkaufspreise" collapsed={collapsed}/>}
+            {showLadebasen && <NavItem to="/gashandel/tourplanung" icon="documents" label="Tourplanung" collapsed={collapsed}/>}
             {showLadebasen && <NavItem to="/gashandel/ladebasen" icon="products" label="Ladebasen" collapsed={collapsed}/>}
           </NavSection>
         )}
