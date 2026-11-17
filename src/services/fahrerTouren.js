@@ -7,8 +7,10 @@ const { getPool } = require('../db');
 const { FahrerFehler } = require('./fahrerKrypto');
 
 const TOUR_FELDER = `t.id, DATE_FORMAT(t.datum, '%Y-%m-%d') AS datum, t.bezeichnung, t.employee_id, t.fahrzeug, t.status,
-  t.version, t.geraet_id, t.beendet_durch, e.full_name AS fahrer_name, g.kennung AS geraet_kennung`;
-const TOUR_JOIN = 'fahrer_tour t LEFT JOIN employees e ON e.id = t.employee_id LEFT JOIN fahrer_geraet g ON g.id = t.geraet_id';
+  t.version, t.geraet_id, t.beendet_durch, e.full_name AS fahrer_name, g.kennung AS geraet_kennung,
+  l.name AS ladebasis_name, l.adresse AS ladebasis_adresse`;
+const TOUR_JOIN = 'fahrer_tour t LEFT JOIN employees e ON e.id = t.employee_id LEFT JOIN fahrer_geraet g ON g.id = t.geraet_id
+  LEFT JOIN fahrer_ladebasis l ON l.id = t.ladebasis_id';
 
 const platzhalter = (n) => Array(n).fill('?').join(', ');
 

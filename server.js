@@ -177,6 +177,7 @@ app.locals.requireFahrer = fahrer.requireFahrer;
 // #542: Tagesdaten und Ereignis-Eingang (Bearer wie oben)
 app.use('/api/fahrer', require('cors')({ origin: ['https://localhost', 'capacitor://localhost'] }),
   require('./src/routes/api/fahrer/touren').erstelleTourRouter({ store: require('./src/services/fahrerTouren'), requireFahrer: fahrer.requireFahrer }));
+app.use('/api/fahrer-ladebasen', requireArea('fahrer.geraete'), require('./src/routes/api/fahrer/ladebasen').erstelleLadebasenRouter({ store: require('./src/services/fahrerLadebasen') }));
 app.use('/api/fahrer-geraete', requireArea('fahrer.geraete'), require('./src/routes/api/fahrer/geraete').erstelleGeraeteRouter({ store: fahrerStore }));
 
 

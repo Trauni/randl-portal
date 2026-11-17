@@ -71,7 +71,7 @@ const ANNA = { ...SEPP, mitarbeiterId: 8 };
 
 function befuelle(s) {
   s.touren.push(
-    { id: 1, datum: '2026-11-13', bezeichnung: 'Freitag Obing', employee_id: 7, fahrer_name: 'Sepp Huber', fahrzeug: 'RO-DR 101', status: 'freigegeben', version: 2, geraet_id: null, beendet_durch: null },
+    { id: 1, datum: '2026-11-13', bezeichnung: 'Freitag Obing', employee_id: 7, fahrer_name: 'Sepp Huber', fahrzeug: 'RO-DR 101', status: 'freigegeben', version: 2, geraet_id: null, beendet_durch: null, ladebasis_name: 'Seeon', ladebasis_adresse: 'Grünweg 1, 83370 Seeon' },
     { id: 2, datum: '2026-11-13', bezeichnung: 'Entwurf', employee_id: 7, status: 'entwurf', version: 1, geraet_id: null },
     { id: 3, datum: '2026-11-12', bezeichnung: 'Gestern', employee_id: 7, status: 'freigegeben', version: 1, geraet_id: null },
     { id: 4, datum: '2026-11-13', bezeichnung: 'Annas Tour', employee_id: 8, status: 'freigegeben', version: 1, geraet_id: null },
@@ -164,6 +164,17 @@ test('heute: nur freigegebene/laufende Touren des Fahrers von heute, mit Stopps,
   assert.equal(daten.artikel[1].druckText, ''); // kein Gefahrgut-Eintrag → kein Druckzeilen-Text
   assert.equal(daten.artikel[1].preisNettoCent, null);
   assert.deepEqual(daten.andereGeraete, [{ tourId: '5', name: 'Läuft auf Handy', kennung: 'HSEPP' }]);
+});
+
+test('heute (#514): Ladebasis je Tour, null ohne Zuordnung, Adresse null solange sie fehlt', async () => {
+  const mit = (await rufe('/heute')).daten.touren[0];
+  assert.deepEqual(mit.ladebasis, { name: 'Seeon', adresse: 'Grünweg 1, 83370 Seeon' });
+
+  const ohne = (await rufe('/heute', { fahrer: 'sepp-handy' })).daten.touren.find((t) => t.id === '5');
+  assert.equal(ohne.ladebasis, null);
+
+  Object.assign(store.touren[0], { ladebasis_name: 'Rimsting Tyczka', ladebasis_adresse: null });
+  assert.deepEqual((await rufe('/heute')).daten.touren[0].ladebasis, { name: 'Rimsting Tyczka', adresse: null });
 });
 
 test('heute: Tour auf dem Notfall-Handy lädt nur das Handy', async () => {
