@@ -40,12 +40,19 @@ function istOffen(bestellung, belegteIds) {
   return bestellung.status !== 'cancelled' && bestellung.done !== true && !belegteIds.has(String(bestellung.id));
 }
 
-/** SER-Produktnummer wie im Shop (ser-xml.js): UUID als product_id → articleNumber. */
+/**
+ * SER-Produktnummer wie im Shop (ser-xml.js): UUID als product_id → articleNumber, Lexware-Präfix „RG-“ entfällt
+ * („RG-7801200“ → „7801200“). Der Artikelstamm folgt der SER-Vorgabe, also ohne Präfix.
+ */
+const LEXWARE_PREFIX = process.env.ARTICLE_PREFIX || 'RG-';
 function artikelNr(position) {
   const roh = position.product_id || position.productId || position.prodnr || position.id;
   const istUuid = roh && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(String(roh));
   const nr = istUuid ? position.articleNumber || roh : roh;
-  return nr == null || nr === '' ? null : String(nr);
+  if (nr == null || nr === '') return null;
+  const s = String(nr);
+  const ohne = s.startsWith(LEXWARE_PREFIX) ? s.slice(LEXWARE_PREFIX.length) : s;
+  return ohne || null;
 }
 
 const WARN_SER = new Set(['err', 'upload_error']);

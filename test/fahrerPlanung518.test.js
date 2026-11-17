@@ -250,3 +250,12 @@ test('Kundensuche: ab 2 Zeichen, Kunden ohne Nummer fallen raus, Ort kommt mit',
   assert.equal(plan.kundeAnsicht({ company_name: 'x', customer_number: 'K5' }).kundeName, 'x');
   assert.equal(plan.kundeAnsicht({ name: 'ohne' }), null);
 });
+
+test('Artikelnummer: Lexware-Präfix RG- entfällt, auch bei UUID-Positionen; T-Nummern bleiben', () => {
+  assert.equal(plan.artikelNr({ product_id: 'RG-7801200' }), '7801200');
+  assert.equal(plan.artikelNr({ product_id: 'RG-T039' }), 'T039');
+  assert.equal(plan.artikelNr({ product_id: 'a0b1c2d3-1111-2222-3333-444455556666', articleNumber: 'RG-7801100' }), '7801100');
+  assert.equal(plan.artikelNr({ product_id: '7801200' }), '7801200');
+  assert.equal(plan.artikelNr({ product_id: 'RG-' }), null);
+  assert.equal(plan.artikelNr({}), null);
+});
