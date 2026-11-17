@@ -147,6 +147,33 @@ function AusVorlage({ vorlagen, onAngelegt, onFehler }) {
   );
 }
 
+function KundeHinzu({ vorhanden, onWahl }) {
+  const [q, setQ] = useState('');
+  const [treffer, setTreffer] = useState([]);
+  useEffect(() => {
+    if (q.trim().length < 2) { setTreffer([]); return undefined; }
+    let aktuell = true;
+    const t = setTimeout(async () => {
+      try { const r = await api(`/api/fahrer-touren/kunden?q=${encodeURIComponent(q.trim())}`); if (aktuell) setTreffer(r); } catch { if (aktuell) setTreffer([]); }
+    }, 300);
+    return () => { aktuell = false; clearTimeout(t); };
+  }, [q]);
+  return (
+    <div style={{ padding:'.4rem 0 0 .5rem' }}>
+      <input style={{ ...input, maxWidth:320 }} placeholder="Kunde suchen (Name, Nr., Ort) und hinzufügen" value={q} onChange={(e) => setQ(e.target.value)} />
+      {treffer.map((k) => {
+        const schon = vorhanden.includes(k.kundeNr);
+        return (
+          <div key={k.kundeNr} style={{ display:'flex', gap:'.5rem', alignItems:'center', padding:'.25rem 0', fontSize:'.85rem', color:'var(--text2)' }}>
+            <span style={{ flex:1 }}>{k.kundeName} <span style={klein}>#{k.kundeNr}{k.ort ? ` · ${k.ort}` : ''}</span></span>
+            <button style={knopf} disabled={schon} onClick={async () => { await onWahl(k); setQ(''); }}>{schon ? 'schon drin' : 'Hinzufügen'}</button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function Vorlagen({ vorlagen, onGeaendert, onFehler }) {
   const [offen, setOffen] = useState(false);
   const speichern = async (v, kunden, name = v.name) => {
@@ -166,7 +193,7 @@ function Vorlagen({ vorlagen, onGeaendert, onFehler }) {
       </div>
       {offen && (
         <div style={{ marginTop:'.6rem' }}>
-          <div style={{ ...klein, marginBottom:'.5rem' }}>Neue Vorlage: eine Tour mit Stopps öffnen und „Als Vorlage speichern“ wählen.</div>
+          <div style={{ ...klein, marginBottom:'.5rem' }}>Neue Vorlage: eine Tour mit Stopps öffnen und „Als Vorlage speichern“ wählen. Weitere Kunden fügst du hier über die Suche hinzu.</div>
           {vorlagen.map((v) => (
             <div key={v.id} style={{ borderTop:'1px solid var(--border)', padding:'.6rem 0' }}>
               <div style={{ display:'flex', gap:'.5rem', alignItems:'center' }}>
@@ -186,6 +213,7 @@ function Vorlagen({ vorlagen, onGeaendert, onFehler }) {
                 </div>
               ))}
               {!v.kunden.length && <div style={klein}>Keine Kunden.</div>}
+              <KundeHinzu vorhanden={v.kunden.map((x) => x.kundeNr)} onWahl={(k) => speichern(v, [...v.kunden, { kundeNr:k.kundeNr, kundeName:k.kundeName, lieferzeit:null, hinweise:null }])} />
             </div>
           ))}
         </div>

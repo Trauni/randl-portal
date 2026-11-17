@@ -4,6 +4,7 @@
  *   GET    /api/fahrer-touren?von=&bis=              Touren (Standard: heute bis +14 Tage)
  *   POST   /api/fahrer-touren                        { datum, bezeichnung, employeeId, fahrzeug?, ladebasisId? }
  *   GET    /api/fahrer-touren/fahrer                 Fahrer-Auswahl (aktive Mitarbeiter)
+ *   GET    /api/fahrer-touren/kunden?q=              Kundensuche für Vorlagen (ab 2 Zeichen, nur Kunden mit Nummer)
  *   GET    /api/fahrer-touren/offene-bestellungen    Bestellungen, die in keiner aktiven Tour stecken
  *   GET    /api/fahrer-touren/vorlagen               Vorlagen mit Kunden in Reihenfolge
  *   POST   /api/fahrer-touren/vorlagen               { name, employeeId, fahrzeug?, ladebasisId?, kunden: [{ kundeNr, kundeName, lieferzeit?, hinweise? }] }
@@ -48,9 +49,10 @@ const stoppAnsicht = (s) => ({
  * @param {object} deps
  * @param {object} deps.store             Datenzugriff (services/fahrerTourPlanung.js)
  * @param {() => Promise<object[]>} deps.holeBestellungen  Bestellungen aus der Shop-API
+ * @param {(q: string) => Promise<object[]>} [deps.sucheKunden]  Kundensuche in der Shop-API (nur lesen)
  * @param {() => number} [deps.uhr]       Millisekunden, für Tests
  */
-function erstellePlanungRouter({ store, holeBestellungen, uhr = Date.now }) {
+function erstellePlanungRouter({ store, holeBestellungen, sucheKunden = async () => [], uhr = Date.now }) {
   const router = express.Router();
 
   async function oder404(id) {
@@ -87,6 +89,12 @@ function erstellePlanungRouter({ store, holeBestellungen, uhr = Date.now }) {
   }));
 
   router.get('/fahrer', sicher(async (req, res) => res.json(await store.fahrer())));
+
+  router.get('/kunden', sicher(async (req, res) => {
+    const q = text(req.query.q, 60);
+    if (q.length < 2) return res.json([]);
+    res.json((await sucheKunden(q)).map(plan.kundeAnsicht).filter(Boolean));
+  }));
 
   router.get('/offene-bestellungen', sicher(async (req, res) => {
     const belegt = await store.belegteBestellungen();

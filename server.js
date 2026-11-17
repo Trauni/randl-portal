@@ -186,6 +186,11 @@ app.use('/api/fahrer-touren', requireArea('fahrer.geraete'), require('./src/rout
     if (!res.ok) throw new Error(`Shop-API ${res.status}`);
     return (await res.json()).orders || [];
   },
+  sucheKunden: async (q) => {
+    const res = await require('./src/routes/api/finance/shopClient').shopFetch(`/admin/customers?limit=15&q=${encodeURIComponent(q)}`);
+    if (!res.ok) throw new Error(`Shop-API ${res.status}`);
+    return (await res.json()).customers || [];
+  },
 }));
 app.use('/api/fahrer-geraete', requireArea('fahrer.geraete'), require('./src/routes/api/fahrer/geraete').erstelleGeraeteRouter({ store: fahrerStore }));
 

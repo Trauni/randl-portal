@@ -55,6 +55,7 @@ test('Löschen nur bei leerer oder stornierter Tour', () => {
 });
 
 // ── Router mit RAM-Store ──
+let kundenTreffer = [{ name: 'Gasthof Rosenheim', lexware_customer_number: '10001', billing_zip: '83022', billing_city: 'Rosenheim' }, { name: 'Gasthof ohne Nummer' }, { company_name: 'x', customer_number: 'K5' }];
 let touren; let stopps; let bestellungen; let naechsteId; let vorlagen;
 const aktive = () => new Set(stopps.filter((s) => s.sperre).map((s) => s.sperre));
 const ramStore = {
@@ -102,7 +103,7 @@ beforeEach(() => {
 before(async () => {
   const app = express();
   app.use(express.json());
-  app.use('/api/fahrer-touren', erstellePlanungRouter({ store: ramStore, holeBestellungen: async () => bestellungen, uhr: () => Date.parse('2026-11-18T10:00:00Z') }));
+  app.use('/api/fahrer-touren', erstellePlanungRouter({ store: ramStore, holeBestellungen: async () => bestellungen, sucheKunden: async (q) => kundenTreffer.filter((c) => (c.name || '').toLowerCase().includes(q.toLowerCase())), uhr: () => Date.parse('2026-11-18T10:00:00Z') }));
   await new Promise((r) => { server = app.listen(0, '127.0.0.1', r); });
   basis = `http://127.0.0.1:${server.address().port}/api/fahrer-touren`;
 });
@@ -240,4 +241,12 @@ test('Vorlage aus Tour speichern: braucht Stopps', async () => {
   assert.equal(v.status, 201);
   assert.deepEqual(v.daten.kunden.map((k) => k.kundeNr), ['10001']);
   assert.equal(v.daten.employeeId, 7);
+});
+
+test('Kundensuche: ab 2 Zeichen, Kunden ohne Nummer fallen raus, Ort kommt mit', async () => {
+  assert.deepEqual((await rufe('GET', '/kunden?q=g')).daten, []);
+  const r = await rufe('GET', '/kunden?q=gasthof');
+  assert.deepEqual(r.daten, [{ kundeNr: '10001', kundeName: 'Gasthof Rosenheim', ort: '83022 Rosenheim' }]);
+  assert.equal(plan.kundeAnsicht({ company_name: 'x', customer_number: 'K5' }).kundeName, 'x');
+  assert.equal(plan.kundeAnsicht({ name: 'ohne' }), null);
 });

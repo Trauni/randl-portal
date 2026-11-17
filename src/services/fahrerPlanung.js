@@ -109,6 +109,14 @@ function stoppAusBestellung(b) {
   };
 }
 
+/** Kunde aus dem Shop für die Suche in Vorlagen. Ohne Kundennummer ist er nicht wählbar (Stopps brauchen sie). */
+function kundeAnsicht(c) {
+  const kundeNr = c.lexware_customer_number || c.customer_number || null;
+  if (!kundeNr) return null;
+  const name = c.name || c.company_name || [c.first_name, c.last_name].filter(Boolean).join(' ') || kundeNr;
+  return { kundeNr: String(kundeNr), kundeName: name, ort: [c.billing_zip, c.billing_city].filter(Boolean).join(' ') || null };
+}
+
 /** Vorlage aus den Stopps einer Tour: ein Eintrag je Kunde in der Reihenfolge des ersten Stopps. */
 function vorlageKundenAusStopps(stopps) {
   const gesehen = new Set();
@@ -148,4 +156,4 @@ function stoppsAusVorlage(vorlageKunden, offeneBestellungen) {
   return { stopps, ohneBestellung, fehler };
 }
 
-module.exports = { vorlageKundenAusStopps, stoppsAusVorlage, wechsel, pruefeBearbeitbar, pruefeLoeschbar, istOffen, artikelNr, bestellAnsicht, stoppAusBestellung };
+module.exports = { kundeAnsicht, vorlageKundenAusStopps, stoppsAusVorlage, wechsel, pruefeBearbeitbar, pruefeLoeschbar, istOffen, artikelNr, bestellAnsicht, stoppAusBestellung };
