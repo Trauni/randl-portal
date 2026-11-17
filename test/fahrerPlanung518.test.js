@@ -266,3 +266,15 @@ test('Artikelnummer: Lexware-Präfix RG- entfällt, auch bei UUID-Positionen; T-
   assert.equal(plan.artikelNr({ product_id: 'RG-' }), null);
   assert.equal(plan.artikelNr({}), null);
 });
+
+// ── Sperre nach Tourende (#518) ──
+test('Nach Tourende werden nur Stopps ohne Lieferung frei (offen, nicht angetroffen); beliefert bleibt belegt', async () => {
+  const { gibNichtGelieferteFrei } = require('../src/services/fahrerTouren');
+  const aufrufe = [];
+  await gibNichtGelieferteFrei({ execute: async (sql, params) => { aufrufe.push({ sql, params }); } }, 6);
+  assert.equal(aufrufe.length, 1);
+  assert.match(aufrufe[0].sql, /SET bestell_sperre = NULL/);
+  assert.match(aufrufe[0].sql, /status IN \('offen', 'nicht_angetroffen'\)/);
+  assert.doesNotMatch(aufrufe[0].sql, /beliefert/);
+  assert.deepEqual(aufrufe[0].params, [6]);
+});
