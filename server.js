@@ -35,6 +35,7 @@ const financeArtikelstammRouter = require('./src/routes/api/finance/artikelstamm
 const gasAuswertungRouter = require('./src/routes/api/finance/gas-auswertung');
 const contentCmsRouter    = require('./src/routes/api/content/cms');
 const contentBilderRouter  = require('./src/routes/api/content/bilder');
+const contentHinweisRouter = require('./src/routes/api/content/hinweis');
 const shopImagesRouter     = require('./src/routes/api/content/shop-images');
 const shopCmsRouter        = require('./src/routes/api/content/shop-cms');
 const shopProductsRouter   = require('./src/routes/api/content/shop-products');
@@ -146,6 +147,7 @@ app.use('/api/finance/artikelstamm', requireArea('gashandel.preise'), financeArt
 app.use('/api/finance/gas-auswertung', requireArea('gashandel.auswertung'), gasAuswertungRouter);
 app.use('/api/content/cms',    requireArea('content'), contentCmsRouter);
 app.use('/api/content/bilder', requireArea('content'), contentBilderRouter);
+app.use('/api/content/hinweis', requireArea('content'), contentHinweisRouter);
 app.use('/api/shop-images',    requireArea('content'), shopImagesRouter);
 app.use('/api/shop-cms',       requireArea('content'), shopCmsRouter);
 app.use('/api/shop-products',  requireArea('content'), shopProductsRouter);

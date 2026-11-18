@@ -27,6 +27,7 @@ import { CmsPage, CmsEditorPage } from './components/pages/content/CmsEditor'
 import Mitarbeiter from './components/pages/hr/Mitarbeiter'
 import Bilderverwaltung from './components/pages/content/Bilderverwaltung'
 import CMSShopseite from './components/pages/content/CMSShopseite'
+import Hinweisbalken from './components/pages/content/Hinweisbalken'
 import Zeiterfassung from './components/pages/hr/Zeiterfassung'
 import Zeltplaner from './components/pages/zeltverleih/Zeltplaner'
 import Zeltprojekte from './components/pages/zeltverleih/Zeltprojekte'
@@ -106,6 +107,7 @@ function AppRoutes() {
         <Route path="content/cms/edit/:id" element={<CmsEditorPage />} />
         <Route path="content/bilder" element={<Bilderverwaltung />} />
         <Route path="content/shop" element={<CMSShopseite />} />
+        <Route path="content/hinweis" element={<Hinweisbalken />} />
         <Route path="zeltverleih/zeltplaner" element={<Zeltplaner />} />
         <Route path="zeltverleih/projekte" element={<Zeltprojekte />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

@@ -534,6 +534,7 @@ export default function Bilderverwaltung() {
     { id: 'gas',        label: '🔵 Gashandel /gas/',          count: null },
     { id: 'metall',     label: '⚙️ Metallarbeiten /metall/', count: null },
       { id: 'fotobox',   label: '📸 Fotobox /fotobox/',      count: null },
+    { id: 'messe',      label: '🎪 Messe /messe/',           count: null },
   ];
 
   return (
@@ -577,6 +578,8 @@ export default function Bilderverwaltung() {
         <SektionUnterseite group="metall" title="Metallarbeiten – Bilder"     subtitle="randl.group/metall/ · WebP · max. 1920px" />
       ) : activeTab === 'fotobox' ? (
         <SektionUnterseite group="fotobox" title="Fotobox – Bilder"        subtitle="randl.group/fotobox/ · WebP · max. 1920px" />
+      ) : activeTab === 'messe' ? (
+        <SektionUnterseite group="messe" title="Hochzeitsmesse – Bilder" subtitle="randl.group/messe/ · WebP · max. 1920px" />
       ) : loading ? (
         <div style={{ textAlign: 'center', padding: '48px', color: 'var(--text3)', fontSize: 13 }}>Lade Bilddaten…</div>
       ) : error ? (
