@@ -41,6 +41,15 @@ const IMG_TARGETS = [
   { id:'fotobox-foto-03',    label:'Slider Foto 3',       file:'fotobox/foto-03.webp',    group:'fotobox' },
   { id:'fotobox-setup',      label:'Zubehör: Setup',      file:'fotobox/setup.webp',      group:'fotobox' },
   { id:'fotobox-requisiten', label:'Zubehör: Requisiten', file:'fotobox/requisiten.webp', group:'fotobox' },
+  // ── Hochzeitsmesse 2026 (randl.group/messe/) ───────────────────
+  { id:'messe-banner', label:'Messe-Banner', file:'messe/banner.webp', group:'messe' },
+  { id:'messe-galerie-01', label:'Rückblick: Gedeckte Tafel', file:'messe/galerie-01.webp', group:'messe' },
+  { id:'messe-galerie-02', label:'Rückblick: Traubogen', file:'messe/galerie-02.webp', group:'messe' },
+  { id:'messe-galerie-03', label:'Rückblick: Tischdeko', file:'messe/galerie-03.webp', group:'messe' },
+  { id:'messe-galerie-04', label:'Rückblick: Sekt und Gläser', file:'messe/galerie-04.webp', group:'messe' },
+  { id:'messe-galerie-05', label:'Rückblick: Brautmodenschau', file:'messe/galerie-05.webp', group:'messe' },
+  { id:'messe-galerie-06', label:'Rückblick: Stehtisch', file:'messe/galerie-06.webp', group:'messe' },
+  { id:'messe-galerie-07', label:'Rückblick: Trauungs-Szene', file:'messe/galerie-07.webp', group:'messe' },
 ];
 
 const upload = multer({
@@ -93,6 +102,7 @@ router.post('/upload', (req, res, next) => {
       fs.mkdirSync(BACKUP_DIR, { recursive: true });
       fs.copyFileSync(destPath, path.join(BACKUP_DIR, `${target.id}-${ts}.bak`));
     }
+    fs.mkdirSync(path.dirname(destPath), { recursive: true });
     await sharp(req.file.buffer)
       .rotate()
       .resize({ width: 1920, height: 1920, fit: 'inside', withoutEnlargement: true })

@@ -254,6 +254,7 @@ export default function Sidebar({ user }) {
             <NavItem to="/content/cms"    icon="cms"    label="CMS Landingpage"  collapsed={collapsed}/>
             <NavItem to="/content/shop"   icon="shop"   label="CMS Shopseite"    collapsed={collapsed}/>
             <NavItem to="/content/bilder" icon="images" label="Bilderverwaltung" collapsed={collapsed}/>
+            <NavItem to="/content/hinweis" icon="bell" label="Hinweisbalken Website" collapsed={collapsed}/>
           </NavSection>
         )}
       </nav>
