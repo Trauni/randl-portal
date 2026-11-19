@@ -5,9 +5,10 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 
 const BASE = 'https://randl.group/zelt/galerie/';
 const API  = '/api/content/galerie';
-const ver = b => (b.v ? `?v=${b.v}` : '');
-const thumbUrl = b => (b.ausgeblendet ? `${API}/papierkorb/${b.file}` : `${BASE}img/thumb/${b.file}${ver(b)}`);
-const fullUrl  = b => `${BASE}img/full/${b.file}${ver(b)}`;
+// Nach dem Verpixeln heißt die Datei name.vN.webp (neuer Pfad → kein Cache liefert die alte Fassung)
+const phys = b => (b.v ? b.file.replace(/\.webp$/, `.v${b.v}.webp`) : b.file);
+const thumbUrl = b => (b.ausgeblendet ? `${API}/papierkorb/${b.file}` : `${BASE}img/thumb/${phys(b)}`);
+const fullUrl  = b => `${BASE}img/full/${phys(b)}`;
 const faces = b => (b.boxen || []).length;
 
 const btn = (variant = 'neutral', extra = {}) => ({

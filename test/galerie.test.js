@@ -139,17 +139,26 @@ test('Gesichter verpixeln und wiederherstellen (Original gesichert, Cache-Buster
   assert.strictEqual(r.verpixelt, 1); assert.strictEqual(r.uebersprungen, 1, 'Bild ohne Gesichter wird übersprungen');
   const b = galerie.list().bilder.find(x => x.file === f);
   assert.ok(b.verpixelt); assert.strictEqual(b.v, 1);
-  assert.ok(html().includes(`img/full/${f}?v=1`) && html().includes(`img/thumb/${f}?v=1`));
+  const f1 = f.replace('.webp', '.v1.webp');
+  assert.ok(html().includes(`img/full/${f1}`) && html().includes(`img/thumb/${f1}`), 'neuer Dateiname statt ?v=');
+  assert.ok(!exists('full', f) && exists('full', f1), 'alte Fassung weg, neue unter neuem Namen');
   assert.deepStrictEqual(st().verpixelt.aaaaaaa2, [[0.45, 0.4333, 0.1, 0.1333]]);
   assert.ok(fs.existsSync(path.join(process.env.GALERIE_BACKUP_DIR, 'original', 'full', 'aaaaaaa2.webp')));
-  assert.ok(!fs.readFileSync(path.join(DIR, 'img', 'full', f)).equals(full), 'Bild wurde verändert');
-  const meta = await sharp(path.join(DIR, 'img', 'thumb', f)).metadata();
+  assert.ok(!fs.readFileSync(path.join(DIR, 'img', 'full', f1)).equals(full), 'Bild wurde verändert');
+  const meta = await sharp(path.join(DIR, 'img', 'thumb', f1)).metadata();
   assert.strictEqual(meta.width, 640, 'Vorschau neu aus dem verpixelten Bild');
 
   const u = galerie.unblur([f]);
   assert.strictEqual(u.entpixelt, 1);
-  assert.ok(fs.readFileSync(path.join(DIR, 'img', 'full', f)).equals(full), 'Original zurück');
+  const f2 = f.replace('.webp', '.v2.webp');
+  assert.ok(fs.readFileSync(path.join(DIR, 'img', 'full', f2)).equals(full), 'Original zurück unter neuem Namen');
+  assert.ok(!exists('full', f1), 'verpixelte Fassung entfernt');
+  assert.ok(html().includes(`img/full/${f2}`));
   const b2 = galerie.list().bilder.find(x => x.file === f);
   assert.ok(!b2.verpixelt); assert.strictEqual(b2.v, 2);
   assert.ok(!st().verpixelt.aaaaaaa2);
+  // Löschen/Wiederherstellen/Verschieben arbeiten mit der versionierten Datei
+  galerie.hide([f]); assert.ok(!exists('full', f2));
+  galerie.restore([f]); assert.ok(exists('full', f2));
+  galerie.move([f], 'weinzelt'); assert.ok(exists('full', 'weinzelt-aaaaaaa2.v2.webp'));
 });

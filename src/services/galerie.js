@@ -9,7 +9,8 @@
 //   hinzugefuegt  im Portal hochgeladene Bilder (gibt es nicht in der Nextcloud)
 //   zuordnung     { sha8: albumId } für umsortierte Nextcloud-Bilder
 //   verpixelt     { sha8: boxen } – Gesichter unkenntlich gemacht (Original im Papierkorb-Ordner /original)
-//   version       { sha8: n } – Cache-Buster (?v=n) nach Bildänderung
+//   version       { sha8: n } – nach Bildänderung heißt die Datei name.vN.webp (neuer Pfad: kein Cloudflare-
+//                 oder nginx-Cache liefert die alte Fassung). Der logische Name (file) bleibt gleich.
 // Gesichter (boxen = [[x,y,w,h] relativ]) erkennt build-galerie.py lokal mit OpenCV.
 // Dateien: galerie.json (sichtbare Bilder), index.html (statischer Block zwischen GALERIE-Markern),
 // img/full + img/thumb (WebP). Gelöschte WebPs liegen im Papierkorb (BACKUP), nicht im Webroot.
@@ -57,7 +58,8 @@ function moveFile(from, to) {
   catch (e) { if (e.code !== 'EXDEV') throw e; fs.copyFileSync(from, to); fs.unlinkSync(from); }
   return true;
 }
-const imgPath = (size, file) => path.join(DIR(), 'img', size, file);
+const phys = (file, v) => (v ? file.replace(/\.webp$/, `.v${v}.webp`) : file);
+const imgPath = (size, file, v) => path.join(DIR(), 'img', size, phys(file, v));
 const binPath = (size, file) => path.join(BACKUP(), size, file);
 const origPath = (size, sha) => path.join(BACKUP(), 'original', size, `${sha}.webp`);
 
@@ -66,10 +68,10 @@ function renderBlock(alben, bilder) {
   const sichtbar = alben.filter(a => a.anzahl > 0);
   const figs = bilder.map((m, i) => {
     const lazy = i > 7 ? 'loading="lazy" decoding="async"' : i === 0 ? 'fetchpriority="high"' : '';
-    const q = m.v ? `?v=${m.v}` : '';
+    const f = phys(m.file, m.v);
     return `<figure class="g-item" data-album="${m.album}">`
-      + `<a href="img/full/${m.file}${q}" data-w="${m.w}" data-h="${m.h}">`
-      + `<img src="img/thumb/${m.file}${q}" width="${m.tw}" height="${m.th}" alt="${esc(m.alt)}" ${lazy}></a>`
+      + `<a href="img/full/${f}" data-w="${m.w}" data-h="${m.h}">`
+      + `<img src="img/thumb/${f}" width="${m.tw}" height="${m.th}" alt="${esc(m.alt)}" ${lazy}></a>`
       + (m.caption ? `<figcaption>${esc(m.caption)}</figcaption>` : '')
       + '</figure>';
   });
@@ -154,7 +156,7 @@ function hide(files, user) {
     let n = 0;
     data.bilder.forEach((b, pos) => {
       if (!set.has(b.file)) return;
-      for (const size of ['full', 'thumb']) moveFile(imgPath(size, b.file), binPath(size, b.file));
+      for (const size of ['full', 'thumb']) moveFile(imgPath(size, b.file, b.v), binPath(size, b.file));
       state.ausgeblendet.push({ ...b, pos, ausgeblendet: now(), von: user || null });
       n++;
     });
@@ -169,7 +171,7 @@ function restore(files) {
     const back = state.ausgeblendet.filter(h => set.has(h.file) && !h.endgueltig).sort((a, b) => a.pos - b.pos);
     let ok = 0, fehlend = 0;
     for (const h of back) {
-      const da = ['full', 'thumb'].every(size => fs.existsSync(imgPath(size, h.file)) || moveFile(binPath(size, h.file), imgPath(size, h.file)));
+      const da = ['full', 'thumb'].every(size => fs.existsSync(imgPath(size, h.file, h.v)) || moveFile(binPath(size, h.file), imgPath(size, h.file, h.v)));
       if (!da) { fehlend++; continue; }  // kommt beim nächsten Lauf von build-galerie.py zurück
       const { pos, ausgeblendet, von, endgueltig, ...entry } = h;
       data.bilder.splice(Math.min(pos, data.bilder.length), 0, entry);
@@ -207,7 +209,7 @@ function move(files, album) {
     data.bilder.forEach(b => {
       if (!set.has(b.file) || b.album === album) return;
       const neu = fileName(album, b.caption, sha8(b.file));
-      for (const size of ['full', 'thumb']) moveFile(imgPath(size, b.file), imgPath(size, neu));
+      for (const size of ['full', 'thumb']) moveFile(imgPath(size, b.file, b.v), imgPath(size, neu, b.v));
       const h = state.hinzugefuegt.find(x => x.file === b.file);
       if (h) { h.file = neu; h.album = album; } else state.zuordnung[sha8(b.file)] = album;
       b.file = neu; b.album = album;
@@ -286,9 +288,9 @@ function saveAlben(liste) {
 
 // ── Gesichter verpixeln / wiederherstellen ───────────────────────────
 // Gleiche Werte wie pixelate() in build-galerie.py: Rand 25 %, 7 Blöcke über die längere Seite.
-async function pixelateFile(file, boxen) {
+async function pixelateFile(file, boxen, vonV, nachV) {
   const sharp = require('sharp');
-  const src = imgPath('full', file);
+  const src = imgPath('full', file, vonV);
   const { width: W, height: H } = await sharp(src).metadata();
   const comps = [];
   for (const [x, y, w, h] of boxen) {
@@ -303,28 +305,31 @@ async function pixelateFile(file, boxen) {
   }
   const full = await sharp(src).composite(comps).webp({ quality: 80 }).toBuffer();
   const thumb = await sharp(full).resize({ width: THUMB_W }).webp({ quality: 72 }).toBuffer();
-  fs.writeFileSync(`${src}.tmp`, full); fs.renameSync(`${src}.tmp`, src);
-  const th = imgPath('thumb', file);
-  fs.writeFileSync(`${th}.tmp`, thumb); fs.renameSync(`${th}.tmp`, th);
+  fs.writeFileSync(imgPath('full', file, nachV), full);
+  fs.writeFileSync(imgPath('thumb', file, nachV), thumb);
+  for (const size of ['full', 'thumb']) fs.rmSync(imgPath(size, file, vonV), { force: true });
 }
 
 async function blur(files) {
   const set = checkFiles(files);
   const { data, state } = load();
   const ziele = data.bilder.filter(b => set.has(b.file) && !state.verpixelt[sha8(b.file)] && (b.boxen || []).length);
+  const neuV = {};
   for (const b of ziele) {
+    const s = sha8(b.file), alt = state.version[s];
     for (const size of ['full', 'thumb']) {                // Original sichern (nur beim ersten Mal)
-      const o = origPath(size, sha8(b.file));
-      if (!fs.existsSync(o)) { fs.mkdirSync(path.dirname(o), { recursive: true }); fs.copyFileSync(imgPath(size, b.file), o); }
+      const o = origPath(size, s);
+      if (!fs.existsSync(o)) { fs.mkdirSync(path.dirname(o), { recursive: true }); fs.copyFileSync(imgPath(size, b.file, alt), o); }
     }
-    await pixelateFile(b.file, b.boxen);
+    neuV[s] = (alt || 0) + 1;
+    await pixelateFile(b.file, b.boxen, alt, neuV[s]);
   }
   const ohne = [...set].filter(f => !ziele.some(b => b.file === f)).length;
   return mutate(({ data, state }) => {
     for (const z of ziele) {
       const s = sha8(z.file), b = data.bilder.find(x => x.file === z.file);
       state.verpixelt[s] = z.boxen;
-      state.version[s] = (state.version[s] || 0) + 1;
+      state.version[s] = neuV[s];
       if (b) { b.verpixelt = true; b.v = state.version[s]; }
     }
     return { verpixelt: ziele.length, uebersprungen: ohne };
@@ -339,9 +344,13 @@ function unblur(files) {
       const s = sha8(b.file);
       if (!set.has(b.file) || !state.verpixelt[s]) continue;
       if (!['full', 'thumb'].every(size => fs.existsSync(origPath(size, s)))) { fehlend++; continue; }
-      for (const size of ['full', 'thumb']) moveFile(origPath(size, s), imgPath(size, b.file));
+      const alt = state.version[s], neu = (alt || 0) + 1;
+      for (const size of ['full', 'thumb']) {
+        moveFile(origPath(size, s), imgPath(size, b.file, neu));
+        fs.rmSync(imgPath(size, b.file, alt), { force: true });
+      }
       delete state.verpixelt[s];
-      state.version[s] = (state.version[s] || 0) + 1;
+      state.version[s] = neu;
       delete b.verpixelt; b.v = state.version[s];
       n++;
     }
