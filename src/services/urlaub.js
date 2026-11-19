@@ -448,7 +448,8 @@ async function kompensationNachRentman(antragId) {
   for (const { tag, minuten } of tage) {
     const off = offsetFuer(tag);
     // Stundenweise: echte Uhrzeit, damit die Disposition sieht, wann die Person fehlt
-    const [start, ende] = zeiten ? [zeiten.von, zeiten.bis] : ['08:00', '16:00'];
+    // Ganzer Tag: Ende aus den Minuten, Rentman rechnet die Kompensation aus Start/Ende
+    const [start, ende] = zeiten ? [zeiten.von, zeiten.bis] : ['08:00', bisUhrzeit('08:00', minuten)];
     const neu = await api('POST', '/leaverequest/' + lr.id + '/timeregistration', {
       crewmember: crew, leavetype: KOMPENSATION,
       start: `${tag}T${start}:00${off}`, end: `${tag}T${ende}:00${off}`,
@@ -469,6 +470,13 @@ async function kompensationNachRentman(antragId) {
 /** Uhrzeiten eines stundenweisen Gleitzeitabbaus, sonst null (ganzer Tag). */
 function abbauZeiten(a) {
   return a.zeitVon && a.zeitBis ? { von: a.zeitVon, bis: a.zeitBis } : null;
+}
+
+/** 'HH:MM' + Minuten -> 'HH:MM' (innerhalb eines Tages). */
+function bisUhrzeit(start, minuten) {
+  const [h, m] = start.split(':').map(Number);
+  const t = h * 60 + m + minuten;
+  return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
 }
 
 /**
