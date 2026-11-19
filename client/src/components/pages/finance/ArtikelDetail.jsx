@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { Panel, Tabs, Tag, GasCylinder } from '../../ui';
 import FeldFormular from './artikel/FeldFormular';
@@ -29,7 +29,8 @@ export default function ArtikelDetail() {
 
   const [daten, setDaten] = useState(null);
   const [fehler, setFehler] = useState('');
-  const [tab, setTab] = useState('stamm');
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState(() => (['stamm', 'flaschen', 'adr', 'preis', 'einkauf', 'verlauf'].includes(params.get('reiter')) ? params.get('reiter') : 'stamm'));
   const [stand, setStand] = useState(0);   // zählt hoch, wenn etwas gespeichert wurde (Verlauf neu laden)
 
   const laden = useCallback(async () => {
@@ -69,6 +70,8 @@ export default function ArtikelDetail() {
     { id: 'preis', label: 'Preis' }, ...(zeigeEinkauf && stammRecht ? [{ id: 'einkauf', label: 'Einkauf' }] : []),
     ...(stammRecht ? [{ id: 'verlauf', label: 'Verlauf' }] : []),
   ];
+  // Ein Reiter aus dem Link, den es für dieses Konto nicht gibt (z. B. Einkauf ohne Auswertungs-Recht), fällt auf Stammdaten zurück
+  if (!tabs.some((t) => t.id === tab)) setTab('stamm');
   const formular = (felder, key) => (
     <FeldFormular key={`${key}-${stand}`} artikel={artikel} felder={felder} alle={daten.artikel} canEdit={canEdit && imStamm} onGespeichert={laden} />
   );

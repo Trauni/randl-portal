@@ -120,7 +120,6 @@ export default function Sidebar({ user }) {
 
   const showGashandel = can('gashandel');
   const showGasAuswertung = can('gashandel.auswertung');
-  const showArtikelstamm = can('gashandel.preise');
   const showLadebasen = can('fahrer.geraete');
   const showZeltplaner = can('zeltplanung');
   const showZeltprojekte = can('zeltverleih.projekte');
@@ -205,13 +204,10 @@ export default function Sidebar({ user }) {
             <NavItem to="/finance/rhythmus"     icon="calendar"  label="Lieferrhythmus"    collapsed={collapsed}/>
             <NavItem to="/finance/mitteilungen" icon="bell"      label="Mitteilungen"      collapsed={collapsed}/>
             <NavItem to="/finance/info-mail"    icon="documents" label="Info-Mail Rollout" collapsed={collapsed}/>
-            <NavItem to="/gashandel/artikel/liste" icon="products" label="Artikel (neu)" collapsed={collapsed}/>
-            <NavItem to="/finance/produkte"     icon="products"  label="Produkte"          collapsed={collapsed}/>
-            <NavItem to="/finance/widmann-bestand" icon="products" label="Widmann-Bestand" collapsed={collapsed}/>
-            {showArtikelstamm && <NavItem to="/gashandel/artikel" icon="products" label="Artikelstamm" collapsed={collapsed}/>}
-            {showGasAuswertung && <NavItem to="/gashandel/auswertung" icon="documents" label="Gas-Auswertung" collapsed={collapsed}/>}
-            {showGasAuswertung && <NavItem to="/gashandel/einkaufspreise" icon="products" label="Einkaufspreise" collapsed={collapsed}/>}
             {showLadebasen && <NavItem to="/gashandel/tourplanung" icon="documents" label="Tourplanung" collapsed={collapsed}/>}
+            <NavItem to="/gashandel/artikel/liste" icon="products" label="Artikel" collapsed={collapsed}/>
+            <NavItem to="/finance/widmann-bestand" icon="products" label="Bestände" collapsed={collapsed}/>
+            {showGasAuswertung && <NavItem to="/gashandel/auswertung" icon="documents" label="Gas-Auswertung" collapsed={collapsed}/>}
             {showLadebasen && <NavItem to="/gashandel/ladebasen" icon="products" label="Ladebasen" collapsed={collapsed}/>}
           </NavSection>
         )}
