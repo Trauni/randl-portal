@@ -27,33 +27,34 @@ run()  { if [ "$DRY_RUN" = 1 ]; then echo "    [dry-run] $*"; else "$@"; fi; }
 cd "$PORTAL_DIR" || fail "Ordner $PORTAL_DIR nicht gefunden"
 [ -f .env ] || fail ".env fehlt in $PORTAL_DIR"
 
-# --- Zugang aus .env, ohne die Datei zu sourcen und ohne Werte auszugeben ---
+# --- Zugang aus .env, genauso gelesen wie vom Portal selbst (dotenv), ohne Werte auszugeben ---
 env_wert() {
-  local zeile
-  zeile=$(grep -m1 "^$1=" .env || true)
-  zeile="${zeile#*=}"
-  zeile="${zeile%\"}"; zeile="${zeile#\"}"
-  zeile="${zeile%\'}"; zeile="${zeile#\'}"
-  printf '%s' "$zeile"
+  node -e "const v=require('dotenv').parse(require('fs').readFileSync('.env'))[process.argv[1]]; process.stdout.write(v==null?'':v)" "$1"
 }
 DB_HOST_W=$(env_wert DB_HOST); DB_PORT_W=$(env_wert DB_PORT)
 DB_NAME_W=$(env_wert DB_NAME); DB_USER_W=$(env_wert DB_USER); DB_PASS_W=$(env_wert DB_PASS)
 [ -n "$DB_NAME_W" ] && [ -n "$DB_USER_W" ] || fail "DB_NAME/DB_USER fehlen in .env"
 
-# Passwort über eine temporäre Optionsdatei, damit es nicht in der Prozessliste steht
+# Passwort über eine temporäre Optionsdatei, damit es nicht in der Prozessliste steht.
+# In Optionsdateien ist # ein Kommentar und \ ein Fluchtzeichen, deshalb in Anführungszeichen und mit Fluchtzeichen.
+opt_wert() { local v=${1//\\/\\\\}; v=${v//\"/\\\"}; printf '"%s"' "$v"; }
 MYSQL_CNF=$(mktemp)
 trap 'rm -f "$MYSQL_CNF"' EXIT
 chmod 600 "$MYSQL_CNF"
 {
   echo "[client]"
-  echo "host=${DB_HOST_W:-127.0.0.1}"
+  echo "host=$(opt_wert "${DB_HOST_W:-127.0.0.1}")"
   echo "port=${DB_PORT_W:-3306}"
-  echo "user=$DB_USER_W"
-  echo "password=$DB_PASS_W"
+  echo "user=$(opt_wert "$DB_USER_W")"
+  echo "password=$(opt_wert "$DB_PASS_W")"
 } > "$MYSQL_CNF"
 
-sql()      { mysql --defaults-extra-file="$MYSQL_CNF" "$DB_NAME_W" -N -B -e "$1"; }
-sql_datei() { mysql --defaults-extra-file="$MYSQL_CNF" "$DB_NAME_W" < "$1"; }
+# Neuere MariaDB-Installationen melden die alten Programmnamen als veraltet
+CLIENT=mysql; command -v mariadb >/dev/null 2>&1 && CLIENT=mariadb
+DUMP=mysqldump; command -v mariadb-dump >/dev/null 2>&1 && DUMP=mariadb-dump
+
+sql()      { "$CLIENT" --defaults-extra-file="$MYSQL_CNF" "$DB_NAME_W" -N -B -e "$1"; }
+sql_datei() { "$CLIENT" --defaults-extra-file="$MYSQL_CNF" "$DB_NAME_W" < "$1"; }
 
 # --- 1. Arbeitsverzeichnis sauber? ---
 log "Prüfe git status"
@@ -70,11 +71,11 @@ STAMP=$(date +%Y-%m-%d_%H%M%S)
 BACKUP_DATEI="$BACKUP_DIR/portal-$STAMP.sql.gz"
 log "Sicherung nach $BACKUP_DATEI (${BACKUP_TAGE} Tage Aufbewahrung)"
 if [ "$DRY_RUN" = 1 ]; then
-  echo "    [dry-run] mysqldump | gzip, ältere Sicherungen als ${BACKUP_TAGE} Tage löschen"
+  echo "    [dry-run] $DUMP | gzip, ältere Sicherungen als ${BACKUP_TAGE} Tage löschen"
 else
   mkdir -p "$BACKUP_DIR"; chmod 700 "$BACKUP_DIR"
   ( umask 077
-    mysqldump --defaults-extra-file="$MYSQL_CNF" --single-transaction --routines --triggers "$DB_NAME_W" | gzip > "$BACKUP_DATEI" )
+    "$DUMP" --defaults-extra-file="$MYSQL_CNF" --single-transaction --routines --triggers "$DB_NAME_W" | gzip > "$BACKUP_DATEI" )
   [ -s "$BACKUP_DATEI" ] || fail "Sicherung ist leer"
   find "$BACKUP_DIR" -maxdepth 1 -name 'portal-*.sql.gz' -mtime +"$BACKUP_TAGE" -delete
   echo "    ok ($(du -h "$BACKUP_DATEI" | cut -f1))"
@@ -115,10 +116,10 @@ log "Neue Migrationen"
 OFFEN=()
 if [ "$DRY_RUN" = 1 ]; then
   if [ "$VORHER" != "$NACHHER" ]; then
-    while IFS= read -r datei; do OFFEN+=("$datei"); done < <(git diff --name-only --diff-filter=A "$VORHER" "$NACHHER" -- 'migration_*.sql' | sort)
+    while IFS= read -r datei; do OFFEN+=("$datei"); done < <(git diff --name-only --diff-filter=A "$VORHER" "$NACHHER" -- 'migration_*.sql' | LC_ALL=C sort)
   fi
 else
-  for datei in $(ls migration_*.sql 2>/dev/null | sort); do
+  for datei in $(ls migration_*.sql 2>/dev/null | LC_ALL=C sort); do
     schon=$(sql "SELECT COUNT(*) FROM schema_migrations WHERE name = '$datei'")
     [ "$schon" = 0 ] && OFFEN+=("$datei")
   done
