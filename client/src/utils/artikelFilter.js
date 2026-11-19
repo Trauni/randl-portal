@@ -1,7 +1,7 @@
 // Filter der Artikel-Liste (#606). Rein, damit er getestet werden kann (test/artikelFilter.test.js).
 // Zeilen kommen aus GET /api/finance/artikelliste (siehe src/utils/artikelListe.js).
 
-export const istAbweichend = (a) => a.lexware_status === 'abweichend' || a.ser_status === 'abweichend' || a.ser_status === 'Name anders';
+export const istAbweichend = (a) => a.lexware_status === 'abweichend' || a.ser_status === 'abweichend' || a.ser_status === 'Name anders' || a.shop_abweichend === true;
 
 /**
  * kurz:     alle | fuell | flasche | abw | luecke

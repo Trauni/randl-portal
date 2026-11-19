@@ -204,11 +204,11 @@ export default function Sidebar({ user }) {
             <NavItem to="/finance/rhythmus"     icon="calendar"  label="Lieferrhythmus"    collapsed={collapsed}/>
             <NavItem to="/finance/mitteilungen" icon="bell"      label="Mitteilungen"      collapsed={collapsed}/>
             <NavItem to="/finance/info-mail"    icon="documents" label="Info-Mail Rollout" collapsed={collapsed}/>
-            {showLadebasen && <NavItem to="/gashandel/tourplanung" icon="documents" label="Tourplanung" collapsed={collapsed}/>}
+            {showLadebasen && <NavItem to="/gashandel/disposition" icon="documents" label="Disposition" collapsed={collapsed}/>}
             <NavItem to="/gashandel/artikel/liste" icon="products" label="Artikel" collapsed={collapsed}/>
             <NavItem to="/finance/widmann-bestand" icon="products" label="Bestände" collapsed={collapsed}/>
-            {showGasAuswertung && <NavItem to="/gashandel/auswertung" icon="documents" label="Gas-Auswertung" collapsed={collapsed}/>}
-            {showLadebasen && <NavItem to="/gashandel/ladebasen" icon="products" label="Ladebasen" collapsed={collapsed}/>}
+            {showGasAuswertung && <NavItem to="/gashandel/auswertung" icon="documents" label="Auswertung" collapsed={collapsed}/>}
+            {showLadebasen && <NavItem to="/gashandel/einstellungen" icon="products" label="Einstellungen" collapsed={collapsed}/>}
           </NavSection>
         )}
 

@@ -1,11 +1,10 @@
 import { useState, useMemo } from 'react';
-import { GASARTEN, EK_GRUPPEN } from './artikelFelder';
-
-const aktivText = { 1: 'aktiv', 0: 'inaktiv' };
+import { GASARTEN, EK_GRUPPEN, JA_NEIN } from './artikelFelder';
 
 // Startwert eines Feldes als Text für das Formular
 const startwert = (artikel, feld) => {
   if (feld === 'aktiv') return artikel.aktiv ? '1' : '0';
+  if (feld === 'shop_sichtbar') return artikel.shop_sichtbar == null ? '' : String(artikel.shop_sichtbar);
   if (feld === 'ggvs_faktor') return artikel.ggvs_faktor != null ? String(artikel.ggvs_faktor) : '';
   const v = artikel[feld];
   return v == null ? '' : String(v);
@@ -45,7 +44,7 @@ export default function FeldFormular({ artikel, felder, alle, canEdit, onGespeic
     const fehltWert = wert === '' && ['un_nr', 'gefahrklasse', 'ggvs_faktor', 'fuellgewicht_kg', 'pfand_artikel_nr'].includes(f);
     const cls = `form-select${fehltWert ? ' ui-miss' : ''}`;
     let eingabeFeld;
-    if (!canEdit) eingabeFeld = <b>{wert === '' ? '–' : (f === 'aktiv' ? aktivText[wert] : wert)}</b>;
+    if (!canEdit) eingabeFeld = <b>{wert === '' ? (f === 'shop_sichtbar' ? 'nicht gesetzt' : '–') : (JA_NEIN[f] ? JA_NEIN[f][wert] : wert)}</b>;
     else if (typ === 'pfand' || typ === 'kauf') {
       eingabeFeld = (
         <select id={`f-${f}`} className={cls} value={wert} onChange={(e) => set(e.target.value)}>
@@ -70,8 +69,8 @@ export default function FeldFormular({ artikel, felder, alle, canEdit, onGespeic
     } else if (typ.startsWith('select:')) {
       eingabeFeld = (
         <select id={`f-${f}`} className={cls} value={wert} onChange={(e) => set(e.target.value)}>
-          <option value="">{f === 'aktiv' ? '' : '–'}</option>
-          {typ.slice(7).split(',').map((v) => <option key={v} value={v}>{f === 'aktiv' ? aktivText[v] : f === 'ggvs_faktor' ? `${{ 50: 1, 3: 2, 1: 3 }[v]} (Faktor ${v})` : v}</option>)}
+          <option value="">{f === 'aktiv' ? '' : f === 'shop_sichtbar' ? 'nicht gesetzt' : '–'}</option>
+          {typ.slice(7).split(',').map((v) => <option key={v} value={v}>{JA_NEIN[f] ? JA_NEIN[f][v] : f === 'ggvs_faktor' ? `${{ 50: 1, 3: 2, 1: 3 }[v]} (Faktor ${v})` : v}</option>)}
         </select>
       );
     } else {

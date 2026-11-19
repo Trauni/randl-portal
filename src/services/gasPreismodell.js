@@ -77,7 +77,7 @@ function rechneVariante(klass, ekZeilen, opts) {
     return [n, { stopps: s.length, pauschale: s.reduce((a, x) => a + x.fee, 0), lieferkosten: s.reduce((a, x) => a + x.kosten, 0), rohertrag: s.reduce((a, x) => a + x.re, 0) }];
   }));
   return {
-    preise: preisNeu, umsatz_ist: uIst, umsatz_neu: uNeu, ek, rohertrag_ist: uIst - ek, rohertrag_neu: uNeu - ek,
+    preise: preisNeu, preise_heute: Object.fromEntries(PM_ARTIKEL.map((a) => [a, vkAktuell(a)])), umsatz_ist: uIst, umsatz_neu: uNeu, ek, rohertrag_ist: uIst - ek, rohertrag_neu: uNeu - ek,
     rohertrag_vergleich: uIst - ekVergleich, pauschalen: pauschalen,
     // Gaspreisänderung, die den EK-Anstieg seit dem Vergleichsstand nach Abzug der Pauschalen ausgleicht
     noetige_aenderung: (ek - ekVergleich - pauschalen) / uIst,

@@ -78,3 +78,13 @@ test('Preis-Tool: gleicher Preis, unbekannter Artikel, ungültiger Preis schreib
   assert.equal((await uebernehmePreis(kein, { artikelNummer: 'RG-1', neuNetto: 0 })).status, 'ungueltig');
   assert.equal((await uebernehmePreis(kein, { artikelNummer: 'RG-1', neuNetto: 'x' })).status, 'ungueltig');
 });
+
+test('Preismodell liefert die heutigen Listenpreise aus dem Stamm mit (Preistabelle, #608)', () => {
+  const P = require('../src/services/gasPreismodell');
+  const stamm = baueStamm(ref.stammZeilen());
+  const r = P.rechneVariante([], [], { stamm, senkung: 0.04 });
+  assert.equal(r.preise_heute['7801100'], 30.8);
+  assert.equal(r.preise_heute['7802010'], 37.22);
+  assert.equal(r.preise['7801100'], 29.6); // 30,80 −4 % auf 10 ct gerundet
+  assert.deepEqual(Object.keys(r.preise_heute).sort(), [...P.PM_ARTIKEL].sort());
+});

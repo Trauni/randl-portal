@@ -302,6 +302,8 @@ internalApp.post('/internal/customers/:id/push-ser', async (req, res) => {
 });
 // Metall-Kundenbereich (#373): Vorgaenge, Belege, PDFs – eigenes Secret INTERNAL_METALL_SECRET
 internalApp.use('/internal/metall', require('./src/routes/internal/metall'));
+// Artikel-Kennzeichen "im Shop sichtbar" (#610): nur lesend, eigenes Secret INTERNAL_ARTIKEL_SECRET
+internalApp.use('/internal/artikel', require('./src/routes/internal/artikel').erstelleArtikelRouter());
 const INTERNAL_PORT = process.env.INTERNAL_PORT || 3338;
 const INTERNAL_BIND_IP = process.env.INTERNAL_BIND_IP || '172.19.0.1';
 internalApp.listen(INTERNAL_PORT, INTERNAL_BIND_IP, () => {

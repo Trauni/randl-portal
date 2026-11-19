@@ -104,6 +104,12 @@ function verbinde({ stamm, lexware = [], ser = [], lexwareVerfuegbar = true }) {
     else if (normName(s.name) !== normName(a?.bezeichnung ?? lex?.name)) serStatus = 'Name anders';
     else serStatus = 'ok';
 
+    // Shop-Kennzeichen (#610): der Wert im Portal führt; ohne Wert gilt das Lexware-Präfix. Weicht beides ab, folgt der Shop noch dem Präfix.
+    const portalWert = a && a.shop_sichtbar != null ? Number(a.shop_sichtbar) === 1 : null;
+    const lexWert = lex ? lex.shop === 'sichtbar' : null;
+    const shopStatus = portalWert == null ? 'nicht gesetzt' : portalWert ? 'sichtbar' : 'ausgeblendet';
+    const shopAbweichend = portalWert != null && lexWert != null && portalWert !== lexWert;
+
     const fehlt = a ? luecken(a) : [];
     return {
       artikel_nr: nr,
@@ -126,6 +132,9 @@ function verbinde({ stamm, lexware = [], ser = [], lexwareVerfuegbar = true }) {
       fahrer_app: a ? (a.aktiv ? 'aktiv' : 'inaktiv') : null,
       luecken: fehlt,
       ek_gruppe: a?.ek_gruppe ?? null,
+      shop_sichtbar: portalWert == null ? null : portalWert ? 1 : 0,
+      shop_status: shopStatus,
+      shop_abweichend: shopAbweichend,
     };
   }).map((z) => ({ ...z, laeuft: laeuftSchon(z) }));
 }
@@ -138,6 +147,8 @@ function zusammenfassung(zeilen) {
     unvollstaendig: zeilen.filter((z) => z.luecken.length > 0).map((z) => z.artikel_nr),
     abweichungen: zeilen.filter(abweichend).map((z) => z.artikel_nr),
     nicht_im_stamm: zeilen.filter((z) => !z.im_stamm).map((z) => z.artikel_nr),
+    shop_abweichungen: zeilen.filter((z) => z.shop_abweichend).map((z) => z.artikel_nr),
+    shop_ungesetzt: zeilen.filter((z) => z.im_stamm && z.typ === 'F' && z.shop_status === 'nicht gesetzt' && z.lexware).map((z) => z.artikel_nr),
   };
 }
 

@@ -21,8 +21,8 @@ import GasAuswertung from './components/pages/finance/GasAuswertung';
 import EinkaufspreiseWeiter from './components/pages/finance/EinkaufspreiseWeiter';
 import ArtikelListe from './components/pages/finance/ArtikelListe';
 import ArtikelDetail from './components/pages/finance/ArtikelDetail';
-import Ladebasen from './components/pages/finance/Ladebasen';
-import Tourplanung from './components/pages/finance/Tourplanung';
+import Einstellungen from './components/pages/finance/Einstellungen';
+import Disposition from './components/pages/finance/Disposition';
 import { CmsPage, CmsEditorPage } from './components/pages/content/CmsEditor'
 import Mitarbeiter from './components/pages/hr/Mitarbeiter'
 import Bilderverwaltung from './components/pages/content/Bilderverwaltung'
@@ -102,8 +102,10 @@ function AppRoutes() {
         <Route path="gashandel/artikel/liste" element={<ArtikelListe />} />
         <Route path="gashandel/artikel/:nr" element={<ArtikelDetail />} />
         <Route path="gashandel/einkaufspreise" element={<EinkaufspreiseWeiter />} />
-        <Route path="gashandel/ladebasen" element={<Ladebasen />} />
-        <Route path="gashandel/tourplanung" element={<Tourplanung />} />
+        <Route path="gashandel/einstellungen" element={<Einstellungen />} />
+        <Route path="gashandel/ladebasen" element={<Navigate to="/gashandel/einstellungen" replace />} />
+        <Route path="gashandel/disposition" element={<Disposition />} />
+        <Route path="gashandel/tourplanung" element={<Navigate to="/gashandel/disposition" replace />} />
         <Route path="finance/bestellungen" element={<Orders />} />
         <Route path="finance/produkte"     element={<Navigate to="/gashandel/artikel/liste" replace />} />
         <Route path="content/cms" element={<CmsPage />} />

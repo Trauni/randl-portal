@@ -13,7 +13,7 @@ import { FELD } from './artikel/artikelFelder';
 
 const TYPEN = { F: 'Füllung', P: 'Pfand / Leergut', S: 'Kaufflasche (Steuer/Nutzung)', V: 'Provision' };
 
-const FELDER_STAMM = [FELD.bezeichnung, FELD.gasart, FELD.mwst_satz, FELD.aktiv];
+const FELDER_STAMM = [FELD.bezeichnung, FELD.gasart, FELD.mwst_satz, FELD.shop_sichtbar, FELD.aktiv];
 const FELDER_FLASCHEN = [FELD.pfand_artikel_nr, FELD.kaufflasche_artikel_nr];
 const FELDER_ADR = [FELD.un_nr, FELD.gefahrklasse, FELD.bezadr, FELD.ggvs_faktor, FELD.fuellgewicht_kg, FELD.fuellmenge, FELD.fuellmenge_einheit];
 
@@ -107,7 +107,7 @@ export default function ArtikelDetail() {
             {tab === 'stamm' && (
               <>
                 <div className="ui-feld"><span>Artikelnummer</span><b style={{ fontSize: 17 }}>{artikel.artikel_nr}</b><span className="ui-table-sub">Schlüssel, entspricht SER, ohne Präfix</span></div>
-                <div className="ui-feld"><span>Im Shop</span><span>{artikel.lexware ? <Tag tone={artikel.lexware.shop === 'sichtbar' ? 'ok' : 'mute'}>{artikel.lexware.shop}</Tag> : '–'}</span><span className="ui-table-sub">RG- sichtbar, NRG- ausgeblendet (später Schalter am Artikel, #610)</span></div>
+                <div className="ui-feld"><span>Lexware-Kennzeichen</span><span>{artikel.lexware ? <><Tag tone={artikel.lexware.shop === 'sichtbar' ? 'ok' : 'mute'}>{artikel.lexware.nummer.startsWith('NRG-') ? 'NRG-' : 'RG-'}</Tag>{artikel.shop_abweichend && <> <Tag tone="warn">weicht vom Portal ab</Tag></>}</> : '–'}</span><span className="ui-table-sub">Der Shop folgt heute noch diesem Präfix, nicht dem Schalter unten.</span></div>
                 {imStamm ? formular(FELDER_STAMM, 'stamm') : <div className="ui-feld"><span>Bezeichnung</span><span>{artikel.bezeichnung}</span><span className="ui-table-sub">aus Lexware</span></div>}
               </>
             )}

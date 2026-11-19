@@ -4,7 +4,9 @@ const router = require('express').Router();
 const { getPool } = require('../../../db');
 const { hasArea } = require('../../../utils/permissions');
 const { loadGasArticles } = require('../../../services/gasArticles');
+const requireArea = require('../../../middleware/requireArea');
 const { verbinde, zusammenfassung } = require('../../../utils/artikelListe');
+const { uebernehmeShopAusLexware } = require('../../../services/shopSichtbar');
 
 // #606: eine Artikelliste aus Stamm, Lexware und SER (siehe utils/artikelListe.js)
 router.get('/', async (req, res) => {
@@ -22,7 +24,7 @@ router.get('/', async (req, res) => {
     if (darfStamm) {
       [stamm] = (await getPool().query(
         `SELECT artikel_nr, bezeichnung, typ, aktiv, gasart, un_nr, gefahrklasse, ggvs_faktor, befoerderungskategorie, bezadr,
-                fuellgewicht_kg, fuellmenge, fuellmenge_einheit, preis_netto_cent, mwst_satz, pfand_artikel_nr, kaufflasche_artikel_nr, ek_gruppe
+                fuellgewicht_kg, fuellmenge, fuellmenge_einheit, preis_netto_cent, mwst_satz, pfand_artikel_nr, kaufflasche_artikel_nr, ek_gruppe, shop_sichtbar
            FROM gas_artikel ORDER BY artikel_nr`));
       [ser] = await getPool().query('SELECT prodnr, name, preis_cent FROM ser_product_master');
     }
@@ -35,6 +37,18 @@ router.get('/', async (req, res) => {
     });
   } catch (err) {
     console.error('[Artikelliste] GET error:', err.message);
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+// #610: Shop-Kennzeichen aus dem Lexware-Präfix übernehmen (RG- = sichtbar, NRG- = ausgeblendet), nur wo im Portal noch nichts steht
+router.post('/shop-aus-lexware', requireArea('gashandel.preise'), async (req, res) => {
+  try {
+    const { articles } = await loadGasArticles();
+    const u = req.session.user || {};
+    res.json(await uebernehmeShopAusLexware(getPool(), articles, { id: u.id, name: u.fullName || u.username }));
+  } catch (err) {
+    console.error('[Artikelliste] shop-aus-lexware:', err.message);
     res.status(err.status || 500).json({ error: err.message });
   }
 });
