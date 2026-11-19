@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { Panel, Tabs, GasCylinder } from '../../ui';
+
+// Gas-Auswertung (#460), im neuen Look (#608). Rechnung und Daten unverändert, Verkaufspreise und Artikel kommen aus dem Artikelstamm (#604).
 
 // ── Formatierung (deutsch, netto) ───────────────────────────────────────
 const zahl = (n, d = 0) => (n == null ? '–' : Number(n).toLocaleString('de-DE', { minimumFractionDigits: d, maximumFractionDigits: d }));
@@ -7,14 +10,9 @@ const eur = (n, d = 0) => (n == null ? '–' : `${zahl(n, d)} €`);
 const pct = (n, d = 1) => (n == null ? '–' : `${zahl(n * 100, d)} %`);
 const MON = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 const monatName = (m) => MON[parseInt(m.slice(5), 10) - 1];
-const tab = { fontVariantNumeric: 'tabular-nums' };
 
-const card = { background: 'var(--bg1)', border: '1px solid var(--border)', borderRadius: 10, padding: '1rem' };
-const h2 = { fontSize: '.95rem', color: 'var(--text1)', margin: '1.5rem 0 .6rem' };
-const th = { textAlign: 'left', padding: '.4rem .6rem', fontSize: '.68rem', color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.06em', cursor: 'default' };
-const td = { padding: '.4rem .6rem', fontSize: '.85rem', color: 'var(--text1)', ...tab };
+const ROT = 'var(--chart-1)'; const BLAU = 'var(--chart-2)'; const GRUEN = 'var(--chart-3)';
 const num = { textAlign: 'right' };
-const inp = { background: 'var(--bg0)', border: '1px solid var(--border)', borderRadius: 6, padding: '.35rem .6rem', color: 'var(--text1)', fontSize: '.85rem', boxSizing: 'border-box' };
 
 async function api(url, opts) {
   const r = await fetch(url, opts);
@@ -29,16 +27,23 @@ const useApi = (url) => {
   return { daten, fehler };
 };
 
+const Meldung = ({ fehler }) => <div className="alert alert-error" role="alert">✗ {fehler}</div>;
+const Laedt = () => <div style={{ color: 'var(--text3)', padding: 20 }}>Lade …</div>;
+const Abschnitt = ({ titel, children, hinweis }) => (
+  <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <h2 className="ui-panel-title" style={{ fontSize: 22 }}>{titel}</h2>
+    {hinweis && <p className="ui-table-sub" style={{ margin: 0 }}>{hinweis}</p>}
+    {children}
+  </section>
+);
+
+// Kennzahlenleiste: Kacheln in einem Panel (wie im Mockup)
+const Kacheln = ({ children }) => <Panel><div className="ui-kz-leiste">{children}</div></Panel>;
 function Kachel({ titel, wert, sub }) {
   return (
-    <div style={{ ...card, padding: '.8rem 1rem' }}>
-      <div style={{ fontSize: '.68rem', color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{titel}</div>
-      <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text1)', ...tab }}>{wert}</div>
-      {sub && <div style={{ fontSize: '.72rem', color: 'var(--text2)' }}>{sub}</div>}
-    </div>
+    <div className="ui-kz"><span>{titel}</span><b>{wert}</b>{sub && <span>{sub}</span>}</div>
   );
 }
-const Kacheln = ({ children }) => <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: '.75rem' }}>{children}</div>;
 
 // Einfaches Balkendiagramm (gestapelt möglich). reihen: [{name, farbe, werte:[…]}]
 function Balken({ labels, reihen, format = zahl, hoehe = 180 }) {
@@ -47,81 +52,88 @@ function Balken({ labels, reihen, format = zahl, hoehe = 180 }) {
   const b = 100 / labels.length;
   return (
     <div>
-      <svg viewBox={`0 0 100 ${hoehe / 4}`} preserveAspectRatio="none" style={{ width: '100%', height: hoehe, display: 'block' }}>
+      <svg viewBox={`0 0 100 ${hoehe / 4}`} preserveAspectRatio="none" role="img" aria-label={reihen.map((r) => r.name).join(' und ')} style={{ width: '100%', height: hoehe, display: 'block' }}>
         {labels.map((l, i) => {
           let y = hoehe / 4;
           return reihen.map((r) => {
             const h = ((r.werte[i] || 0) / max) * (hoehe / 4 - 2);
             y -= h;
-            return <rect key={r.name + i} x={i * b + b * 0.15} y={y} width={b * 0.7} height={h} fill={r.farbe}><title>{`${l} · ${r.name}: ${format(r.werte[i])}`}</title></rect>;
+            return <rect key={r.name + i} x={i * b + b * 0.15} y={y} width={b * 0.7} height={h} style={{ fill: r.farbe }}><title>{`${l} · ${r.name}: ${format(r.werte[i])}`}</title></rect>;
           });
         })}
       </svg>
-      <div style={{ display: 'flex' }}>{labels.map((l) => <div key={l} style={{ flex: 1, textAlign: 'center', fontSize: '.65rem', color: 'var(--text3)' }}>{l}</div>)}</div>
+      <div style={{ display: 'flex', borderTop: '1px solid var(--border)', marginTop: 2 }}>{labels.map((l, i) => <div key={l + i} style={{ flex: 1, textAlign: 'center', fontSize: 13, color: 'var(--text2)' }}>{l}</div>)}</div>
       {reihen.length > 1 && (
-        <div style={{ display: 'flex', gap: '1rem', fontSize: '.72rem', color: 'var(--text2)', marginTop: '.3rem' }}>
-          {reihen.map((r) => <span key={r.name}><span style={{ color: r.farbe }}>■</span> {r.name}</span>)}
+        <div style={{ display: 'flex', gap: 18, fontSize: 14, marginTop: 8 }}>
+          {reihen.map((r) => <span key={r.name}><span aria-hidden="true" style={{ display: 'inline-block', width: 12, height: 12, background: r.farbe, borderRadius: 2, marginRight: 6, verticalAlign: -1 }} />{r.name}</span>)}
         </div>
       )}
     </div>
   );
 }
-const ROT = '#cc0000'; const BLAU = '#2b4a7a'; const GRUEN = '#1d7a4c'; const GRAU = '#8a8a86';
+const Diagramm = ({ children }) => <Panel><div style={{ padding: '16px 18px 18px' }}>{children}</div></Panel>;
 
+// kopf: Spaltenüberschriften, zeilen: Zellen (Text oder Element), rechts: Spalten rechtsbündig
 function Tabelle({ kopf, zeilen, rechts = [] }) {
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr>{kopf.map((k, i) => <th key={k} style={{ ...th, ...(rechts.includes(i) ? num : {}) }}>{k}</th>)}</tr></thead>
-        <tbody>{zeilen.map((z, r) => <tr key={r} style={{ borderTop: '1px solid var(--border)' }}>{z.map((c, i) => <td key={i} style={{ ...td, ...(rechts.includes(i) ? num : {}) }}>{c}</td>)}</tr>)}</tbody>
-      </table>
-    </div>
+    <Panel>
+      <div style={{ overflowX: 'auto' }}>
+        <table className="ui-table">
+          <thead><tr>{kopf.map((k, i) => <th key={k} className={rechts.includes(i) ? 'r' : undefined}>{k}</th>)}</tr></thead>
+          <tbody>{zeilen.map((z, r) => <tr key={r}>{z.map((c, i) => <td key={i} className={rechts.includes(i) ? 'r' : undefined}>{c}</td>)}</tr>)}</tbody>
+        </table>
+      </div>
+    </Panel>
   );
 }
+// Gasart mit Flaschensymbol in der Schulterfarbe (DIN EN 1089-3)
+const GasName = ({ gasart, children }) => <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}><GasCylinder gasart={gasart} />{children ?? gasart}</span>;
 
 // ── Überblick ───────────────────────────────────────────────────────────
 function Ueberblick() {
   const { daten: d, fehler } = useApi('/api/finance/gas-auswertung/uebersicht');
-  if (fehler) return <div style={{ color: ROT }}>{fehler}</div>;
-  if (!d) return <div style={{ color: 'var(--text2)' }}>Lade …</div>;
+  if (fehler) return <Meldung fehler={fehler} />;
+  if (!d) return <Laedt />;
   const k = d.kacheln; const L = d.monate.map((m) => monatName(m.monat));
   const rm = d.rohertrag_monat;
   return (
     <>
-      <p style={{ color: 'var(--text2)', fontSize: '.8rem' }}>Belege {d.stand.von?.split('-').reverse().join('.')} bis {d.stand.bis?.split('-').reverse().join('.')}. Beträge netto, Listenpreis am Belegtag.</p>
+      <p className="ui-table-sub" style={{ margin: 0 }}>Belege {d.stand.von?.split('-').reverse().join('.')} bis {d.stand.bis?.split('-').reverse().join('.')}. Beträge netto, Listenpreis am Belegtag.</p>
       <Kacheln>
         <Kachel titel="Umsatz alle Gase" wert={eur(k.umsatz)} />
+        <Kachel titel="Rohertrag Propan" wert={eur(rm.rohertrag)} sub={`${pct(rm.marge)} Marge, Jan.–Okt.`} />
         <Kachel titel="Touren" wert={zahl(k.touren)} />
         <Kachel titel="Stopps" wert={zahl(k.stopps)} />
-        <Kachel titel="Lieferkosten" wert={eur(k.lieferkosten)} sub="Modell, alle Gase" />
         <Kachel titel="Flaschen alle Gase" wert={zahl(k.flaschen)} />
-        <Kachel titel="Rohertrag Propan" wert={eur(rm.rohertrag)} sub={`${pct(rm.marge)} Marge, Jan.–Okt.`} />
+        <Kachel titel="Lieferkosten" wert={eur(k.lieferkosten)} sub="Modell, alle Gase" />
       </Kacheln>
 
-      <h2 style={h2}>Umsatz je Monat</h2>
-      <div style={card}><Balken labels={L} format={eur} reihen={[{ name: 'Tour', farbe: ROT, werte: d.monate.map((m) => m.umsatz_tour) }, { name: 'Lager/Sonstige', farbe: BLAU, werte: d.monate.map((m) => m.umsatz_lager) }]} /></div>
+      <Abschnitt titel="Umsatz je Monat">
+        <Diagramm><Balken labels={L} format={eur} reihen={[{ name: 'Tour', farbe: ROT, werte: d.monate.map((m) => m.umsatz_tour) }, { name: 'Lager und Sonstige', farbe: BLAU, werte: d.monate.map((m) => m.umsatz_lager) }]} /></Diagramm>
+      </Abschnitt>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: '1rem' }}>
-        <div><h2 style={h2}>Touren je Monat</h2><div style={card}><Balken labels={L} reihen={[{ name: 'Touren', farbe: ROT, werte: d.monate.map((m) => m.touren) }]} /></div></div>
-        <div><h2 style={h2}>Stopps je Monat</h2><div style={card}><Balken labels={L} reihen={[{ name: 'Stopps', farbe: BLAU, werte: d.monate.map((m) => m.stopps) }]} /></div></div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 16 }}>
+        <Abschnitt titel="Touren je Monat"><Diagramm><Balken labels={L} reihen={[{ name: 'Touren', farbe: ROT, werte: d.monate.map((m) => m.touren) }]} /></Diagramm></Abschnitt>
+        <Abschnitt titel="Stopps je Monat"><Diagramm><Balken labels={L} reihen={[{ name: 'Stopps', farbe: BLAU, werte: d.monate.map((m) => m.stopps) }]} /></Diagramm></Abschnitt>
       </div>
 
-      <h2 style={h2}>Rohertrag Propan je Monat (Einkauf je Gültigkeitsperiode)</h2>
-      <div style={card}>
-        <Balken labels={rm.monate.map((m) => monatName(m.monat))} format={eur} reihen={[{ name: 'Rohertrag', farbe: GRUEN, werte: rm.monate.map((m) => m.rohertrag) }]} />
-      </div>
-      <Tabelle kopf={['Monat', 'Flaschen', 'Umsatz', 'Einkauf', 'Rohertrag', 'Marge']} rechts={[1, 2, 3, 4, 5]}
-        zeilen={rm.monate.map((m) => [m.monat, zahl(m.flaschen), eur(m.umsatz), eur(m.ek), eur(m.rohertrag), pct(m.marge)])} />
+      <Abschnitt titel="Rohertrag Propan je Monat" hinweis="Einkauf je Gültigkeitsperiode.">
+        <Diagramm><Balken labels={rm.monate.map((m) => monatName(m.monat))} format={eur} reihen={[{ name: 'Rohertrag', farbe: GRUEN, werte: rm.monate.map((m) => m.rohertrag) }]} /></Diagramm>
+        <Tabelle kopf={['Monat', 'Flaschen', 'Umsatz', 'Einkauf', 'Rohertrag', 'Marge']} rechts={[1, 2, 3, 4, 5]}
+          zeilen={rm.monate.map((m) => [m.monat, zahl(m.flaschen), eur(m.umsatz), eur(m.ek), eur(m.rohertrag), pct(m.marge)])} />
+      </Abschnitt>
 
-      <h2 style={h2}>Umsatz nach Produktgruppe</h2>
-      <Tabelle kopf={['Gruppe', 'Flaschen', 'Umsatz']} rechts={[1, 2]} zeilen={d.produktgruppen.map((g) => [g.gruppe, zahl(g.flaschen), eur(g.umsatz)])} />
+      <Abschnitt titel="Umsatz nach Produktgruppe">
+        <Tabelle kopf={['Gruppe', 'Flaschen', 'Umsatz']} rechts={[1, 2]} zeilen={d.produktgruppen.map((g) => [g.gruppe, zahl(g.flaschen), eur(g.umsatz)])} />
+      </Abschnitt>
 
-      <h2 style={h2}>Propan-Stopps nach kg-Klasse (Einkauf heute)</h2>
-      <Tabelle kopf={['Klasse', 'Stopps', 'Rohertrag je Stopp', 'Lieferkosten je Stopp', 'Übrig je Stopp']} rechts={[1, 2, 3, 4]}
-        zeilen={Object.entries(d.kg_klassen).map(([n, v]) => {
-          const s = Math.max(v.stopps, 1);
-          return [n, zahl(v.stopps), eur(v.rohertrag / s, 2), eur(v.lieferkosten / s, 2), eur((v.rohertrag - v.lieferkosten) / s, 2)];
-        })} />
+      <Abschnitt titel="Propan-Stopps nach kg-Klasse" hinweis="Einkauf heute.">
+        <Tabelle kopf={['Klasse', 'Stopps', 'Rohertrag je Stopp', 'Lieferkosten je Stopp', 'Übrig je Stopp']} rechts={[1, 2, 3, 4]}
+          zeilen={Object.entries(d.kg_klassen).map(([n, v]) => {
+            const s = Math.max(v.stopps, 1);
+            return [n, zahl(v.stopps), eur(v.rohertrag / s, 2), eur(v.lieferkosten / s, 2), eur((v.rohertrag - v.lieferkosten) / s, 2)];
+          })} />
+      </Abschnitt>
     </>
   );
 }
@@ -138,11 +150,15 @@ function Flaschen() {
       .filter((a) => (kat === 'alle' || (kat === 'propan') === istProp(a)) && (!gasart || a.gasart === gasart) && (!suche || `${a.bezeichnung} ${a.artikel}`.toLowerCase().includes(suche.toLowerCase())))
       .sort((a, b) => ((a[sort.k] ?? -1) > (b[sort.k] ?? -1) ? 1 : -1) * sort.r);
   }, [d, kat, gasart, suche, sort]);
-  if (fehler) return <div style={{ color: ROT }}>{fehler}</div>;
-  if (!d) return <div style={{ color: 'var(--text2)' }}>Lade …</div>;
+  if (fehler) return <Meldung fehler={fehler} />;
+  if (!d) return <Laedt />;
   const k = d.kennzahlen; const g = d.gasarten.find((x) => x.gasart === verlauf) || d.gasarten[0];
   const sum = (f) => zeilen.reduce((s, a) => s + (a[f] || 0), 0);
-  const kopf = (label, key) => <th style={{ ...th, cursor: 'pointer', ...(key === 'bezeichnung' || key === 'gasart' ? {} : num) }} onClick={() => setSort((s) => ({ k: key, r: s.k === key ? -s.r : -1 }))}>{label}{sort.k === key ? (sort.r < 0 ? ' ↓' : ' ↑') : ''}</th>;
+  const kopf = (label, key) => (
+    <th className={key === 'bezeichnung' || key === 'gasart' ? undefined : 'r'} aria-sort={sort.k === key ? (sort.r < 0 ? 'descending' : 'ascending') : 'none'}>
+      <button type="button" onClick={() => setSort((s) => ({ k: key, r: s.k === key ? -s.r : -1 }))} style={{ all: 'inherit', cursor: 'pointer', padding: 0 }}>{label}{sort.k === key ? (sort.r < 0 ? ' ↓' : ' ↑') : ''}</button>
+    </th>
+  );
   return (
     <>
       <Kacheln>
@@ -152,51 +168,58 @@ function Flaschen() {
         <Kachel titel="Ø je Monat" wert={zahl(k.monat_avg, 1)} />
       </Kacheln>
 
-      <h2 style={h2}>Je Gasart</h2>
-      <Tabelle kopf={['Gasart', 'Voll', 'Leer', 'Ø Woche', '90 %-Woche', 'Max Woche', 'Ø Monat']} rechts={[1, 2, 3, 4, 5, 6]}
-        zeilen={d.gasarten.map((a) => [a.gasart, zahl(a.voll), zahl(a.leer), zahl(a.woche_avg, 1), zahl(a.woche_p90, 1), zahl(a.woche_max), zahl(a.monat_avg, 1)])} />
+      <Abschnitt titel="Je Gasart">
+        <Tabelle kopf={['Gasart', 'Voll', 'Leer', 'Ø Woche', '90 %-Woche', 'Max. Woche', 'Ø Monat']} rechts={[1, 2, 3, 4, 5, 6]}
+          zeilen={d.gasarten.map((a) => [<GasName key={a.gasart} gasart={a.gasart} />, zahl(a.voll), zahl(a.leer), zahl(a.woche_avg, 1), zahl(a.woche_p90, 1), zahl(a.woche_max), zahl(a.monat_avg, 1)])} />
+      </Abschnitt>
 
-      <h2 style={h2}>Verlauf</h2>
-      <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.5rem' }}>
-        <select style={inp} value={g.gasart} onChange={(e) => setVerlauf(e.target.value)}>{d.gasarten.map((a) => <option key={a.gasart}>{a.gasart}</option>)}</select>
-        <select style={inp} value={ansicht} onChange={(e) => setAnsicht(e.target.value)}><option value="wochen">je Woche</option><option value="monate">je Monat</option></select>
-      </div>
-      <div style={card}>
-        {ansicht === 'wochen'
-          ? <Balken labels={g.wochen.map((w, i) => (i % 4 === 0 ? w.montag.slice(5).split('-').reverse().join('.') : ''))} reihen={[{ name: 'Flaschen', farbe: ROT, werte: g.wochen.map((w) => w.voll) }]} />
-          : <Balken labels={g.monate.map((m) => monatName(m.monat))} reihen={[{ name: 'Flaschen', farbe: ROT, werte: g.monate.map((m) => m.voll) }]} />}
-      </div>
+      <Abschnitt titel="Verlauf">
+        <div style={{ display: 'flex', gap: 8 }}>
+          <select className="form-select" style={{ width: 'auto' }} aria-label="Gasart" value={g.gasart} onChange={(e) => setVerlauf(e.target.value)}>{d.gasarten.map((a) => <option key={a.gasart}>{a.gasart}</option>)}</select>
+          <select className="form-select" style={{ width: 'auto' }} aria-label="Zeitraum" value={ansicht} onChange={(e) => setAnsicht(e.target.value)}><option value="wochen">je Woche</option><option value="monate">je Monat</option></select>
+        </div>
+        <Diagramm>
+          {ansicht === 'wochen'
+            ? <Balken labels={g.wochen.map((w, i) => (i % 4 === 0 ? w.montag.slice(5).split('-').reverse().join('.') : ''))} reihen={[{ name: 'Flaschen', farbe: ROT, werte: g.wochen.map((w) => w.voll) }]} />
+            : <Balken labels={g.monate.map((m) => monatName(m.monat))} reihen={[{ name: 'Flaschen', farbe: ROT, werte: g.monate.map((m) => m.voll) }]} />}
+        </Diagramm>
+      </Abschnitt>
 
-      <h2 style={h2}>Je Artikel</h2>
-      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginBottom: '.5rem' }}>
-        <select style={inp} value={kat} onChange={(e) => setKat(e.target.value)}><option value="alle">Alle Kategorien</option><option value="propan">Propan</option><option value="technisch">Technisch und sonstige</option></select>
-        <select style={inp} value={gasart} onChange={(e) => setGasart(e.target.value)}><option value="">Alle Gasarten</option>{d.gasarten.map((a) => <option key={a.gasart}>{a.gasart}</option>)}</select>
-        <input style={inp} placeholder="Suche" value={suche} onChange={(e) => setSuche(e.target.value)} />
-      </div>
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr>{kopf('Artikel', 'bezeichnung')}{kopf('Gasart', 'gasart')}{kopf('Voll', 'voll')}{kopf('Leer', 'leer')}{kopf('kg', 'kg')}{kopf('Tour-Anteil', 'anteil_tour')}{kopf('Ø Woche', 'woche_avg')}{kopf('90 %-Woche', 'woche_p90')}{kopf('Max Woche', 'woche_max')}{kopf('Ø Monat', 'monat_avg')}</tr></thead>
-          <tbody>
-            {zeilen.map((a) => (
-              <tr key={a.artikel} style={{ borderTop: '1px solid var(--border)' }}>
-                <td style={td}>{a.bezeichnung} <span style={{ color: 'var(--text3)' }}>{a.artikel}</span></td><td style={td}>{a.gasart}</td>
-                <td style={{ ...td, ...num }}>{zahl(a.voll)}</td><td style={{ ...td, ...num }}>{zahl(a.leer)}</td><td style={{ ...td, ...num }}>{zahl(a.kg)}</td>
-                <td style={{ ...td, ...num }}>{pct(a.anteil_tour, 0)}</td><td style={{ ...td, ...num }}>{zahl(a.woche_avg, 1)}</td><td style={{ ...td, ...num }}>{zahl(a.woche_p90, 1)}</td>
-                <td style={{ ...td, ...num }}>{zahl(a.woche_max)}</td><td style={{ ...td, ...num }}>{zahl(a.monat_avg, 1)}</td>
-              </tr>
-            ))}
-            <tr style={{ borderTop: '2px solid var(--border)', fontWeight: 700 }}>
-              <td style={td}>Summe ({zeilen.length})</td><td style={td} /><td style={{ ...td, ...num }}>{zahl(sum('voll'))}</td><td style={{ ...td, ...num }}>{zahl(sum('leer'))}</td>
-              <td style={{ ...td, ...num }}>{zahl(sum('kg'))}</td><td style={td} /><td style={{ ...td, ...num }}>{zahl(sum('woche_avg'), 1)}</td><td style={td} /><td style={td} /><td style={{ ...td, ...num }}>{zahl(sum('monat_avg'), 1)}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <Abschnitt titel="Je Artikel">
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <select className="form-select" style={{ width: 'auto' }} aria-label="Kategorie" value={kat} onChange={(e) => setKat(e.target.value)}><option value="alle">Alle Kategorien</option><option value="propan">Propan</option><option value="technisch">Technisch und sonstige</option></select>
+          <select className="form-select" style={{ width: 'auto' }} aria-label="Gasart" value={gasart} onChange={(e) => setGasart(e.target.value)}><option value="">Alle Gasarten</option>{d.gasarten.map((a) => <option key={a.gasart}>{a.gasart}</option>)}</select>
+          <input type="search" className="form-input" style={{ width: 220 }} placeholder="Suche" aria-label="Suche" value={suche} onChange={(e) => setSuche(e.target.value)} />
+        </div>
+        <Panel>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="ui-table">
+              <thead><tr>{kopf('Artikel', 'bezeichnung')}{kopf('Gasart', 'gasart')}{kopf('Voll', 'voll')}{kopf('Leer', 'leer')}{kopf('kg', 'kg')}{kopf('Tour-Anteil', 'anteil_tour')}{kopf('Ø Woche', 'woche_avg')}{kopf('90 %-Woche', 'woche_p90')}{kopf('Max. Woche', 'woche_max')}{kopf('Ø Monat', 'monat_avg')}</tr></thead>
+              <tbody>
+                {zeilen.map((a) => (
+                  <tr key={a.artikel}>
+                    <td><GasName gasart={a.gasart}>{a.bezeichnung} <span className="ui-table-sub">{a.artikel}</span></GasName></td><td>{a.gasart}</td>
+                    <td className="r">{zahl(a.voll)}</td><td className="r">{zahl(a.leer)}</td><td className="r">{zahl(a.kg)}</td>
+                    <td className="r">{pct(a.anteil_tour, 0)}</td><td className="r">{zahl(a.woche_avg, 1)}</td><td className="r">{zahl(a.woche_p90, 1)}</td>
+                    <td className="r">{zahl(a.woche_max)}</td><td className="r">{zahl(a.monat_avg, 1)}</td>
+                  </tr>
+                ))}
+                <tr style={{ fontWeight: 700 }}>
+                  <td>Summe ({zeilen.length})</td><td /><td className="r">{zahl(sum('voll'))}</td><td className="r">{zahl(sum('leer'))}</td>
+                  <td className="r">{zahl(sum('kg'))}</td><td /><td className="r">{zahl(sum('woche_avg'), 1)}</td><td /><td /><td className="r">{zahl(sum('monat_avg'), 1)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      </Abschnitt>
     </>
   );
 }
 
 // ── Preismodell ─────────────────────────────────────────────────────────
+const KLASSEN_KOPF = ['bis 11 kg', 'bis 33 kg', 'bis 66 kg', 'bis 99 kg', 'ab 100 kg'];
+
 function Preismodell() {
   const [senkung, setSenkung] = useState(4);
   const [staffel, setStaffel] = useState('S');
@@ -211,55 +234,56 @@ function Preismodell() {
     }, 250);
     return () => clearTimeout(t);
   }, [senkung, staffel, betraege, vergleich]);
-  if (fehler) return <div style={{ color: ROT }}>{fehler}</div>;
-  if (!d) return <div style={{ color: 'var(--text2)' }}>Lade …</div>;
+  if (fehler) return <Meldung fehler={fehler} />;
+  if (!d) return <Laedt />;
   const s = d.simulator;
+  const labelStil = { fontFamily: 'var(--font-head)', fontWeight: 600, fontSize: 16, color: 'var(--text2)', display: 'block', marginBottom: 4 };
   return (
     <>
-      <p style={{ color: 'var(--text2)', fontSize: '.8rem' }}>
-        Rechnet mit den Einkaufspreisen, die am {d.stichtag.split('-').reverse().join('.')} gelten (<Link to="/gashandel/einkaufspreise" style={{ color: ROT }}>Einkaufspreise pflegen</Link>).
-        Verkaufspreise Stand Oktober 2026, Basis 01.01.–03.11.2026.
+      <p className="ui-table-sub" style={{ margin: 0 }}>
+        Rechnet mit den Einkaufspreisen, die am {d.stichtag.split('-').reverse().join('.')} gelten (<Link to="/gashandel/einkaufspreise" style={{ color: 'var(--link)' }}>Einkaufspreise pflegen</Link>)
+        und den aktuellen Listenpreisen aus dem Artikelstamm. Basis: alle importierten Belege.
       </p>
-      <h2 style={{ ...h2, marginTop: '.5rem' }}>Pauschale je Stopp (Staffeln)</h2>
-      <p style={{ color: 'var(--text2)', fontSize: '.8rem', margin: '0 0 .5rem' }}>
-        Die Pauschale wird je Stopp einmal berechnet, nach den Propan-kg, die an diesem Stopp geliefert werden. Netto. Abholer im Lager zahlen keine.
-      </p>
-      <Tabelle kopf={['Staffel', ...KLASSEN_KOPF]} rechts={[1, 2, 3, 4, 5]}
-        zeilen={[['ohne Pauschale', ...d.staffeln.ohne.map((b) => eur(b, 2))], ['Staffel S', ...d.staffeln.S.map((b) => eur(b, 2))], ['Staffel S+', ...d.staffeln['S+'].map((b) => eur(b, 2))],
-          ['Simulator (aktuell eingestellt)', ...d.simulator_staffel.map((b) => eur(b, 2))]]} />
+      <Abschnitt titel="Pauschale je Stopp (Staffeln)" hinweis="Die Pauschale wird je Stopp einmal berechnet, nach den Propan-kg, die an diesem Stopp geliefert werden. Netto. Abholer im Lager zahlen keine.">
+        <Tabelle kopf={['Staffel', ...KLASSEN_KOPF]} rechts={[1, 2, 3, 4, 5]}
+          zeilen={[['ohne Pauschale', ...d.staffeln.ohne.map((b) => eur(b, 2))], ['Staffel S', ...d.staffeln.S.map((b) => eur(b, 2))], ['Staffel S+', ...d.staffeln['S+'].map((b) => eur(b, 2))],
+            ['Simulator (aktuell eingestellt)', ...d.simulator_staffel.map((b) => eur(b, 2))]]} />
+      </Abschnitt>
 
-      <h2 style={h2}>Varianten</h2>
-      <Tabelle kopf={['Variante', 'Gaspreis', 'Pauschale (bis 11 / 33 / 66 / 99 / ab 100 kg)', 'Rohertrag', 'Δ zum Vergleichsstand', 'Pauschalen gesamt', 'Kunden günstiger', 'Kunden teurer', 'über +10 %']} rechts={[1, 3, 4, 5, 6, 7, 8]}
-        zeilen={d.varianten.map((v) => [v.name, v.senkung ? `−${zahl(v.senkung * 100, 0)} %` : '±0', v.staffel.every((b) => b === 0) ? 'keine' : v.staffel.map((b) => zahl(b, 2)).join(' / ') + ' €', eur(v.rohertrag_neu), eur(v.rohertrag_neu - v.rohertrag_vergleich), eur(v.pauschalen), zahl(v.kunden_guenstiger), zahl(v.kunden_teurer), zahl(v.kunden_ueber_10)])} />
+      <Abschnitt titel="Varianten">
+        <Tabelle kopf={['Variante', 'Gaspreis', 'Pauschale (bis 11 / 33 / 66 / 99 / ab 100 kg)', 'Rohertrag', 'Δ zum Vergleichsstand', 'Pauschalen gesamt', 'Kunden günstiger', 'Kunden teurer', 'über +10 %']} rechts={[1, 3, 4, 5, 6, 7, 8]}
+          zeilen={d.varianten.map((v) => [v.name, v.senkung ? `−${zahl(v.senkung * 100, 0)} %` : '±0', v.staffel.every((b) => b === 0) ? 'keine' : v.staffel.map((b) => zahl(b, 2)).join(' / ') + ' €', eur(v.rohertrag_neu), eur(v.rohertrag_neu - v.rohertrag_vergleich), eur(v.pauschalen), zahl(v.kunden_guenstiger), zahl(v.kunden_teurer), zahl(v.kunden_ueber_10)])} />
+      </Abschnitt>
 
-      <h2 style={h2}>Simulator</h2>
-      <div style={{ ...card, display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '1rem' }}>
-        <div>
-          <label style={{ fontSize: '.68rem', color: 'var(--text3)', textTransform: 'uppercase' }}>Gaspreisänderung: {senkung > 0 ? `−${senkung}` : senkung < 0 ? `+${-senkung}` : '0'} %</label>
-          <input type="range" min={-10} max={10} step={0.5} value={senkung} onChange={(e) => setSenkung(Number(e.target.value))} style={{ width: '100%' }} />
-          <div style={{ fontSize: '.7rem', color: 'var(--text3)' }}>rechts = Senkung, links = Erhöhung</div>
-        </div>
-        <div>
-          <label style={{ fontSize: '.68rem', color: 'var(--text3)', textTransform: 'uppercase' }}>Pauschale je Stufe</label>
-          <select style={{ ...inp, width: '100%' }} value={staffel} onChange={(e) => { const v = e.target.value; if (v === 'eigene' && d) setBetraege(d.simulator_staffel.map((b) => zahl(b, 2))); setStaffel(v); }}><option value="ohne">ohne</option><option value="S">Staffel S</option><option value="S+">Staffel S+</option><option value="eigene">eigene Beträge</option></select>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '.3rem', marginTop: '.4rem' }}>
-            {KLASSEN_KOPF.map((l, i) => (
-              <div key={l}>
-                <div style={{ fontSize: '.6rem', color: 'var(--text3)' }}>{l}</div>
-                {staffel === 'eigene'
-                  ? <input style={{ ...inp, width: '100%', minWidth: 0 }} value={betraege[i]} onChange={(e) => setBetraege((b) => b.map((x, j) => (j === i ? e.target.value : x)))} />
-                  : <div style={{ ...inp, ...tab, opacity: 0.8 }}>{zahl(d.simulator_staffel[i], 2)}</div>}
+      <Abschnitt titel="Simulator">
+        <Panel>
+          <div className="ui-panel-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 20 }}>
+            <div>
+              <label style={labelStil} htmlFor="sim-senkung">Gaspreisänderung: {senkung > 0 ? `−${senkung}` : senkung < 0 ? `+${-senkung}` : '0'} %</label>
+              <input id="sim-senkung" type="range" min={-10} max={10} step={0.5} value={senkung} onChange={(e) => setSenkung(Number(e.target.value))} style={{ width: '100%', accentColor: 'var(--r)' }} />
+              <div className="ui-table-sub">rechts = Senkung, links = Erhöhung</div>
+            </div>
+            <div>
+              <label style={labelStil} htmlFor="sim-staffel">Pauschale je Stufe</label>
+              <select id="sim-staffel" className="form-select" value={staffel} onChange={(e) => { const v = e.target.value; if (v === 'eigene' && d) setBetraege(d.simulator_staffel.map((b) => zahl(b, 2))); setStaffel(v); }}><option value="ohne">ohne</option><option value="S">Staffel S</option><option value="S+">Staffel S+</option><option value="eigene">eigene Beträge</option></select>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 6, marginTop: 8 }}>
+                {KLASSEN_KOPF.map((l, i) => (
+                  <div key={l}>
+                    <div className="ui-table-sub">{l}</div>
+                    {staffel === 'eigene'
+                      ? <input className="form-input" style={{ minWidth: 0, padding: '5px 6px' }} aria-label={`Pauschale ${l}`} value={betraege[i]} onChange={(e) => setBetraege((b) => b.map((x, j) => (j === i ? e.target.value : x)))} />
+                      : <div className="form-input" style={{ opacity: 0.8, fontVariantNumeric: 'tabular-nums', padding: '5px 6px' }}>{zahl(d.simulator_staffel[i], 2)}</div>}
+                  </div>
+                ))}
               </div>
-            ))}
+              {staffel !== 'eigene' && <div className="ui-table-sub" style={{ marginTop: 4 }}>Für eigene Beträge „eigene Beträge“ wählen.</div>}
+            </div>
+            <div>
+              <label style={labelStil} htmlFor="sim-vergleich">Vergleichsstand Einkauf</label>
+              <input id="sim-vergleich" type="date" className="form-input" value={vergleich} onChange={(e) => setVergleich(e.target.value)} />
+            </div>
           </div>
-          {staffel !== 'eigene' && <div style={{ fontSize: '.7rem', color: 'var(--text3)', marginTop: '.3rem' }}>Für eigene Beträge „eigene Beträge“ wählen.</div>}
-        </div>
-        <div>
-          <label style={{ fontSize: '.68rem', color: 'var(--text3)', textTransform: 'uppercase' }}>Vergleichsstand Einkauf</label>
-          <input type="date" style={{ ...inp, width: '100%' }} value={vergleich} onChange={(e) => setVergleich(e.target.value)} />
-        </div>
-      </div>
-      <div style={{ marginTop: '.75rem' }}>
+        </Panel>
         <Kacheln>
           <Kachel titel="Rohertrag" wert={eur(s.rohertrag_neu)} sub={`Heute ${eur(s.rohertrag_ist)}`} />
           <Kachel titel="Δ zum Vergleichsstand" wert={eur(s.rohertrag_neu - s.rohertrag_vergleich)} sub={`Vergleich ${eur(s.rohertrag_vergleich)}`} />
@@ -267,37 +291,41 @@ function Preismodell() {
           <Kachel titel="Nötige Gaspreisänderung" wert={pct(s.noetige_aenderung, 2)} sub="gleicht EK-Anstieg nach Pauschalen aus" />
           <Kachel titel="Kunden über +10 %" wert={zahl(s.kunden_ueber_10)} sub={`${zahl(s.kunden_teurer)} teurer, ${zahl(s.kunden_guenstiger)} günstiger`} />
         </Kacheln>
-      </div>
-      <h2 style={h2}>Preistabelle</h2>
-      <Tabelle kopf={['Produkt', 'Artikelnr.', 'Preis heute', 'Preis neu']} rechts={[2, 3]}
-        zeilen={Object.entries(s.preise).map(([a, p]) => [d.artikel[a], a, eur(VK[a], 2), eur(p, 2)])} />
-      <h2 style={h2}>Wirkung je kg-Klasse</h2>
-      <Tabelle kopf={['Klasse', 'Stopps', 'Pauschale je Stopp', 'Lieferkosten je Stopp']} rechts={[1, 2, 3]}
-        zeilen={Object.entries(s.klassen).map(([n, v]) => [n, zahl(v.stopps), eur(v.pauschale / Math.max(v.stopps, 1), 2), eur(v.lieferkosten / Math.max(v.stopps, 1), 2)])} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: '1rem' }}>
-        <div><h2 style={h2}>Größte Gewinner</h2><Tabelle kopf={['Kunde', 'Nr.', 'Δ', 'Δ %']} rechts={[2, 3]} zeilen={s.gewinner.map((k) => [k.name || 'Name nicht gefunden', `${k.nummer}${k.nummer_quelle === 'SER' ? ' (SER)' : ''}`, eur(k.delta), `${zahl(k.delta_pct, 1)} %`])} /></div>
-        <div><h2 style={h2}>Größte Verlierer</h2><Tabelle kopf={['Kunde', 'Nr.', 'Δ', 'Δ %']} rechts={[2, 3]} zeilen={s.verlierer.map((k) => [k.name || 'Name nicht gefunden', `${k.nummer}${k.nummer_quelle === 'SER' ? ' (SER)' : ''}`, eur(k.delta), `${zahl(k.delta_pct, 1)} %`])} /></div>
+      </Abschnitt>
+
+      <Abschnitt titel="Preistabelle" hinweis="Preis heute = aktueller Listenpreis netto aus dem Artikelstamm.">
+        <Tabelle kopf={['Produkt', 'Artikelnr.', 'Preis heute', 'Preis neu']} rechts={[2, 3]}
+          zeilen={Object.entries(s.preise).map(([a, p]) => [d.artikel[a], a, eur(s.preise_heute?.[a], 2), eur(p, 2)])} />
+      </Abschnitt>
+      <Abschnitt titel="Wirkung je kg-Klasse">
+        <Tabelle kopf={['Klasse', 'Stopps', 'Pauschale je Stopp', 'Lieferkosten je Stopp']} rechts={[1, 2, 3]}
+          zeilen={Object.entries(s.klassen).map(([n, v]) => [n, zahl(v.stopps), eur(v.pauschale / Math.max(v.stopps, 1), 2), eur(v.lieferkosten / Math.max(v.stopps, 1), 2)])} />
+      </Abschnitt>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 16 }}>
+        <Abschnitt titel="Größte Gewinner"><Tabelle kopf={['Kunde', 'Nr.', 'Δ', 'Δ %']} rechts={[2, 3]} zeilen={s.gewinner.map((k) => [k.name || 'Name nicht gefunden', `${k.nummer}${k.nummer_quelle === 'SER' ? ' (SER)' : ''}`, eur(k.delta), `${zahl(k.delta_pct, 1)} %`])} /></Abschnitt>
+        <Abschnitt titel="Größte Verlierer"><Tabelle kopf={['Kunde', 'Nr.', 'Δ', 'Δ %']} rechts={[2, 3]} zeilen={s.verlierer.map((k) => [k.name || 'Name nicht gefunden', `${k.nummer}${k.nummer_quelle === 'SER' ? ' (SER)' : ''}`, eur(k.delta), `${zahl(k.delta_pct, 1)} %`])} /></Abschnitt>
       </div>
     </>
   );
 }
-const KLASSEN_KOPF = ['bis 11 kg', 'bis 33 kg', 'bis 66 kg', 'bis 99 kg', 'ab 100 kg'];
-const VK = { 7801000: 14.97, 7801800: 14.97, 7801050: 18.48, 7801100: 30.80, 7801200: 30.80, 7801250: 30.80, 7801300: 98.30, 7802000: 35.13, 7802010: 37.22 };
 
 // ── Methodik ────────────────────────────────────────────────────────────
 function Methodik() {
-  const p = { color: 'var(--text2)', fontSize: '.85rem', lineHeight: 1.55, margin: '.3rem 0' };
+  const p = { color: 'var(--text2)', fontSize: 15, lineHeight: 1.55, margin: '4px 0' };
   return (
-    <div style={{ maxWidth: 760 }}>
-      <h2 style={{ ...h2, marginTop: 0 }}>Datenquellen</h2>
-      <p style={p}>Belege aus der Komplettstatistik des Versorger-Portals (PDF je Terminal 6441–6444) und die Tourliste. Einkaufspreise kommen aus der Pflegemaske, Verkaufspreise sind Listenpreise am Belegtag.</p>
-      <h2 style={h2}>Regeln</h2>
-      <p style={p}><b>Tour:</b> Terminal und Datum passen zu einer Tour. Ohne Belege am Tourtag wird ±3 Tage gesucht. <b>Lager:</b> Lager-Kunden oder Terminal 6444. Der Rest ist „Tablet ohne Tour“.</p>
-      <p style={p}><b>Stopp:</b> Terminal + Datum + Kunde auf einer Tour, nur mit Ware. <b>Flaschen:</b> volle Flaschen, ohne Paletten und Kappen. Wochen sind volle ISO-Kalenderwochen (05.01.–01.11.), die 90 %-Woche ist das Quantil 0,9.</p>
-      <p style={p}><b>Lieferkosten je Stopp</b> = km × €/km + (Fahrzeit + Standzeit + Minuten je Flasche × Flaschen) / 60 × €/h. Die Werte stehen in <code>gas_parameter</code>.</p>
-      <p style={p}><b>Preismodell:</b> Umsatz neu = Σ Preis × (1 − Senkung) + Σ Pauschale je Stopp. Rohertrag = Umsatz − Einkauf. Einkauf je Flasche = Preis mit dem größten „gültig ab“ vor dem Stichtag, bei Preisbasis kg mal Füllmenge.</p>
-      <h2 style={h2}>Grenzen</h2>
-      <p style={p}>Kosten je km sind eine Annahme (0,40 €). Die Verkaufspreise vor Oktober sind teils aus Barbelegen abgeleitet. Sonderpreise gibt es nur für bekannte Barkunden. Einkaufspreise für CO2, Biergas und technische Gase fehlen noch.</p>
+    <div style={{ maxWidth: 780, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <Abschnitt titel="Datenquellen">
+        <p style={p}>Belege aus der Komplettstatistik des Versorger-Portals (PDF je Terminal 6441–6444) und die Tourliste. Artikel, Gasart, kg und <b>Verkaufspreise</b> kommen aus dem Artikelstamm und dem Preisprotokoll des Preis-Tools (Listenpreis am Belegtag). <b>Einkaufspreise</b> pflegst du am Artikel (Reiter Einkauf).</p>
+      </Abschnitt>
+      <Abschnitt titel="Regeln">
+        <p style={p}><b>Tour:</b> Terminal und Datum passen zu einer Tour. Ohne Belege am Tourtag wird ±3 Tage gesucht. <b>Lager:</b> Lager-Kunden oder Terminal 6444. Der Rest ist „Tablet ohne Tour“.</p>
+        <p style={p}><b>Stopp:</b> Terminal + Datum + Kunde auf einer Tour, nur mit Ware. <b>Flaschen:</b> volle Flaschen, ohne Paletten und Kappen. Wochen sind volle ISO-Kalenderwochen (05.01.–01.11.), die 90 %-Woche ist das Quantil 0,9.</p>
+        <p style={p}><b>Lieferkosten je Stopp</b> = km × €/km + (Fahrzeit + Standzeit + Minuten je Flasche × Flaschen) / 60 × €/h. Die Werte stehen in <code>gas_parameter</code>.</p>
+        <p style={p}><b>Preismodell:</b> Umsatz neu = Σ Preis × (1 − Senkung) + Σ Pauschale je Stopp. Rohertrag = Umsatz − Einkauf. Einkauf je Flasche = Preis mit dem größten „gültig ab“ vor dem Stichtag, bei Preisbasis kg mal Füllmenge.</p>
+      </Abschnitt>
+      <Abschnitt titel="Grenzen">
+        <p style={p}>Kosten je km sind eine Annahme (0,40 €). Die Verkaufspreise vor Oktober sind teils aus Barbelegen abgeleitet. Sonderpreise gibt es nur für bekannte Barkunden. Einkaufspreise für CO2, Biergas und technische Gase fehlen noch.</p>
+      </Abschnitt>
     </div>
   );
 }
@@ -316,37 +344,41 @@ function Import() {
     } catch (e) { setMsg({ fehler: e.message }); } finally { setBusy(false); }
   };
   return (
-    <div style={{ maxWidth: 640, display: 'grid', gap: '1rem' }}>
-      <div style={card}>
-        <b style={{ color: 'var(--text1)' }}>Komplettstatistik (PDF je Terminal)</b>
-        <p style={{ color: 'var(--text2)', fontSize: '.8rem' }}>Mehrere Dateien möglich. Ein erneuter Import überschreibt dieselben Belege, doppelt wird nichts.</p>
-        <input type="file" accept="application/pdf" multiple disabled={busy} onChange={(e) => { senden('/api/finance/gas-auswertung/import/komplettstatistik', 'dateien', e.target.files, true); e.target.value = ''; }} />
-      </div>
-      <div style={card}>
-        <b style={{ color: 'var(--text1)' }}>Touren (CSV)</b>
-        <p style={{ color: 'var(--text2)', fontSize: '.8rem' }}>Spalten: datum;tourende;bezeichnung;terminal;plan_kg_brutto;plan_bestellungen</p>
-        <input type="file" accept=".csv,text/csv" disabled={busy} onChange={(e) => { senden('/api/finance/gas-auswertung/import/touren', 'datei', e.target.files, false); e.target.value = ''; }} />
-      </div>
-      {msg?.ok && <div style={{ color: GRUEN, fontSize: '.85rem' }}>{msg.ok}</div>}
-      {msg?.fehler && <div style={{ color: ROT, fontSize: '.85rem' }}>{msg.fehler}</div>}
+    <div style={{ maxWidth: 680, display: 'grid', gap: 16 }}>
+      <Panel title="Komplettstatistik (PDF je Terminal)">
+        <div className="ui-panel-body">
+          <p className="ui-table-sub" style={{ margin: '0 0 8px' }}>Mehrere Dateien möglich. Ein erneuter Import überschreibt dieselben Belege, doppelt wird nichts.</p>
+          <input type="file" accept="application/pdf" multiple disabled={busy} aria-label="Komplettstatistik wählen" onChange={(e) => { senden('/api/finance/gas-auswertung/import/komplettstatistik', 'dateien', e.target.files, true); e.target.value = ''; }} />
+        </div>
+      </Panel>
+      <Panel title="Touren (CSV)">
+        <div className="ui-panel-body">
+          <p className="ui-table-sub" style={{ margin: '0 0 8px' }}>Spalten: datum;tourende;bezeichnung;terminal;plan_kg_brutto;plan_bestellungen</p>
+          <input type="file" accept=".csv,text/csv" disabled={busy} aria-label="Touren-CSV wählen" onChange={(e) => { senden('/api/finance/gas-auswertung/import/touren', 'datei', e.target.files, false); e.target.value = ''; }} />
+        </div>
+      </Panel>
+      {msg?.ok && <div className="alert alert-success" role="status">{msg.ok}</div>}
+      {msg?.fehler && <Meldung fehler={msg.fehler} />}
     </div>
   );
 }
 
 const TABS = [['ueberblick', 'Überblick', Ueberblick], ['flaschen', 'Flaschen', Flaschen], ['preismodell', 'Preismodell', Preismodell], ['methodik', 'Methodik', Methodik], ['import', 'Daten-Import', Import]];
+const TAB_ITEMS = TABS.map(([id, label]) => ({ id, label }));
 
 export default function GasAuswertung() {
   const [aktiv, setAktiv] = useState('ueberblick');
   const Seite = TABS.find((t) => t[0] === aktiv)[2];
   return (
-    <div style={{ padding: '1.5rem', maxWidth: 1100 }}>
-      <h1 style={{ fontSize: '1.2rem', color: 'var(--text1)', marginBottom: '.75rem' }}>Gas-Auswertung</h1>
-      <div style={{ display: 'flex', gap: '.25rem', flexWrap: 'wrap', borderBottom: '1px solid var(--border)', marginBottom: '1rem' }}>
-        {TABS.map(([k, l]) => (
-          <button key={k} onClick={() => setAktiv(k)} style={{ background: 'none', border: 'none', borderBottom: aktiv === k ? `2px solid ${ROT}` : '2px solid transparent', color: aktiv === k ? 'var(--text1)' : 'var(--text2)', padding: '.5rem .9rem', cursor: 'pointer', fontWeight: aktiv === k ? 600 : 400 }}>{l}</button>
-        ))}
-        <Link to="/gashandel/einkaufspreise" style={{ marginLeft: 'auto', alignSelf: 'center', color: ROT, fontSize: '.85rem' }}>Einkaufspreise →</Link>
+    <div style={{ maxWidth: 1400, display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12 }}>
+        <div style={{ marginRight: 'auto' }}>
+          <h1 className="page-title">Auswertung</h1>
+          <p className="page-subtitle" style={{ fontSize: 15, color: 'var(--text2)' }}>Gasverkäufe, Flaschen, Rohertrag und Preismodell. Nur mit Auswertungs-Recht.</p>
+        </div>
+        <Link to="/gashandel/einkaufspreise" style={{ color: 'var(--link)', fontSize: 15 }}>Einkaufspreise pflegen</Link>
       </div>
+      <Tabs items={TAB_ITEMS} value={aktiv} onChange={setAktiv} label="Auswertung" />
       <Seite />
     </div>
   );
