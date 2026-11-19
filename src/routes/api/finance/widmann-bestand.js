@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { getPool } = require('../../../db');
+const { ergebnis, zaehlwert } = require('../../../utils/widmannNachliefern');
 
 // F52 (09.09.2026): Widmann-Bestandszaehlung. Fest auf den Kunden Widmann
 // zugeschnitten (bewusste Entscheidung, kein generisches Feature). Eigene
@@ -11,18 +12,29 @@ const { getPool } = require('../../../db');
 // der Artikelliste alte Zaehlungen nicht verfaelschen. Bewusst KEIN
 // automatischer Bestellmengen-Vorschlag (Nutzer-Entscheidung 09.09.2026) --
 // nur die reinen Zahlen (Mindestbestand, Gezaehlt).
+// #603 (19.11.2026): hebt diese Entscheidung auf. Je Zeile "reserviert" und
+// das berechnete "nachliefern" = max(0, Mindestbestand - (gezaehlt - reserviert)),
+// siehe utils/widmannNachliefern.js. Nachliefern wird nicht gespeichert.
 
 function buildMarkdown(check, entries) {
   const dateStr = new Date(check.created_at).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
   let md = `# Widmann Bestandszaehlung – ${dateStr}\n\n`;
   md += `Gezaehlt von: ${check.checked_by_name || 'Unbekannt'}\n\n`;
-  md += `| Gas | Mindestbestand | Gezaehlt |\n`;
-  md += `|---|---|---|\n`;
-  for (const e of entries) {
-    md += `| ${e.item_name} | ${e.mindestbestand} | ${e.gezaehlt} |\n`;
+  const erg = ergebnis(entries);
+  md += `Nachliefern gesamt: ${erg.summe} Flaschen in ${erg.positionen} Positionen\n\n`;
+  md += `| Gas | Mindestbestand | Gezaehlt | Reserviert | Nachliefern |\n`;
+  md += `|---|---|---|---|---|\n`;
+  for (const e of erg.zeilen) {
+    md += `| ${e.item_name} | ${e.mindestbestand} | ${e.gezaehlt} | ${e.reserviert || 0} | ${e.nachliefern} |\n`;
   }
   if (check.note) md += `\nNotiz: ${check.note}\n`;
   return md;
+}
+
+// entries (mit nachliefern je Zeile) und der Ergebnisblock oben auf der Seite
+function ergebnisFuerAntwort(entries) {
+  const erg = ergebnis(entries);
+  return { entries: erg.zeilen, ergebnis: { summe: erg.summe, positionen: erg.positionen } };
 }
 
 // ── Artikel-Liste ─────────────────────────────────────────────────────────
@@ -121,7 +133,8 @@ router.get('/checks', async (req, res) => {
     const db = getPool();
     const [rows] = await db.execute(
       `SELECT c.id, c.created_at, c.checked_by_name, c.note,
-              COUNT(e.id) AS entry_count
+              COUNT(e.id) AS entry_count,
+              COALESCE(SUM(GREATEST(0, e.mindestbestand - (e.gezaehlt - e.reserviert))), 0) AS nachliefern_summe
        FROM widmann_stock_checks c
        LEFT JOIN widmann_stock_check_entries e ON e.check_id = c.id
        GROUP BY c.id
@@ -144,7 +157,7 @@ router.get('/checks/:id', async (req, res) => {
       'SELECT * FROM widmann_stock_check_entries WHERE check_id = ? ORDER BY sort_order, item_name',
       [req.params.id]
     );
-    res.json({ check: checkRows[0], entries });
+    res.json({ check: checkRows[0], ...ergebnisFuerAntwort(entries) });
   } catch (err) {
     console.error('[Widmann] GET check detail error:', err);
     res.status(500).json({ error: 'Fehler beim Laden' });
@@ -191,13 +204,18 @@ router.post('/checks', async (req, res) => {
     for (const e of entries) {
       await conn.execute(
         `INSERT INTO widmann_stock_check_entries
-           (check_id, item_id, item_name, mindestbestand, gezaehlt, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [checkId, e.itemId || null, e.name, parseInt(e.mindestbestand, 10) || 0, parseInt(e.gezaehlt, 10) || 0, sortOrder++]
+           (check_id, item_id, item_name, mindestbestand, gezaehlt, reserviert, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [checkId, e.itemId || null, e.name, parseInt(e.mindestbestand, 10) || 0, zaehlwert(e.gezaehlt), zaehlwert(e.reserviert), sortOrder++]
       );
     }
     await conn.commit();
-    res.status(201).json({ id: checkId });
+    res.status(201).json({
+      id: checkId,
+      ...ergebnisFuerAntwort(entries.map((e) => ({
+        item_name: e.name, mindestbestand: parseInt(e.mindestbestand, 10) || 0, gezaehlt: e.gezaehlt, reserviert: e.reserviert,
+      }))),
+    });
   } catch (err) {
     await conn.rollback();
     console.error('[Widmann] POST checks error:', err);
