@@ -44,6 +44,106 @@ const SCHNELLWAHL = [
   { label: 'Alle',       von: () => '',      bis: () => '' },
 ];
 
+const tag10 = (iso) => (iso ? String(iso).slice(0, 10) : '');
+const MONATE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August',
+  'September', 'Oktober', 'November', 'Dezember'];
+const WOCHENTAGE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+
+// Sortierbare Spalten. Mietbeginn = 1. Tag des Mietzeitraums (ohne Aufbau).
+const SORT_SPALTEN = [
+  { key: 'miete', label: 'Mietbeginn', wert: (p) => tag10(p.von) || tag10(p.planVon) },
+  { key: 'plan',  label: 'Aufbau ab',  wert: (p) => tag10(p.planVon) || tag10(p.von) },
+  { key: 'name',  label: 'Name',       wert: (p) => (p.projektName || p.name || '').toLowerCase() },
+  { key: 'typ',   label: 'Typ',        wert: (p) => (p.typ || '').toLowerCase() },
+  { key: 'status', label: 'Status',    wert: (p) => (p.status || '').toLowerCase() },
+  { key: 'pos',   label: 'Positionen', wert: (p) => p.materialAnzahl || 0 },
+];
+
+function sortiere(liste, { key, richtung }) {
+  const spalte = SORT_SPALTEN.find((c) => c.key === key) || SORT_SPALTEN[0];
+  const f = richtung === 'ab' ? -1 : 1;
+  return [...liste].sort((a, b) => {
+    const wa = spalte.wert(a), wb = spalte.wert(b);
+    // Eintraege ohne Wert immer ans Ende, egal in welche Richtung
+    if (wa === '' && wb !== '') return 1;
+    if (wb === '' && wa !== '') return -1;
+    if (wa < wb) return -1 * f;
+    if (wa > wb) return 1 * f;
+    return tag10(a.von).localeCompare(tag10(b.von)) || (a.id - b.id);
+  });
+}
+
+// Monatskalender: zeigt pro Tag, wie viele der geladenen Projekte laufen
+// (Aufbau bis Abbau). Klick auf einen Tag filtert die Liste auf diesen Tag.
+function Kalender({ projekte, monat, setMonat, tag, setTag, von, bis }) {
+  const [jahr, m] = monat;
+  const erster = new Date(jahr, m, 1);
+  const versatz = (erster.getDay() + 6) % 7;            // Montag = 0
+  const tageImMonat = new Date(jahr, m + 1, 0).getDate();
+  const iso = (d) => `${jahr}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const hSchritt = (n) => { const d = new Date(jahr, m + n, 1); setMonat([d.getFullYear(), d.getMonth()]); };
+  const jetzt = heute();
+
+  const proTag = (tagIso) => projekte.filter((p) => {
+    const a = tag10(p.planVon) || tag10(p.von);
+    const e = tag10(p.planBis) || tag10(p.bis) || a;
+    return a && a <= tagIso && tagIso <= e;
+  });
+
+  const zellen = [];
+  for (let i = 0; i < versatz; i++) zellen.push(null);
+  for (let d = 1; d <= tageImMonat; d++) zellen.push(d);
+
+  return (
+    <div style={{ width: '252px', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+        <button type="button" style={knopf(false)} onClick={() => hSchritt(-1)} aria-label="Vormonat">‹</button>
+        <button type="button" onClick={() => setMonat([new Date().getFullYear(), new Date().getMonth()])}
+          style={{ background: 'none', border: 'none', color: 'var(--text1)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+          title="Zum aktuellen Monat">{MONATE[m]} {jahr}</button>
+        <button type="button" style={knopf(false)} onClick={() => hSchritt(1)} aria-label="Folgemonat">›</button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px', textAlign: 'center' }}>
+        {WOCHENTAGE.map((w) => (
+          <div key={w} style={{ fontSize: '10px', color: 'var(--text3)', padding: '2px 0' }}>{w}</div>
+        ))}
+        {zellen.map((d, i) => {
+          if (!d) return <div key={'l' + i} />;
+          const t = iso(d);
+          const liste = proTag(t);
+          const gewaehlt = tag === t;
+          const imZeitraum = (!von || t >= von) && (!bis || t <= bis);
+          return (
+            <button key={t} type="button" onClick={() => setTag(gewaehlt ? null : t)}
+              title={liste.length ? liste.map((p) => p.projektName || p.name).join('\n') : undefined}
+              style={{
+                position: 'relative', height: '32px', fontSize: '12px', cursor: 'pointer',
+                borderRadius: '5px', padding: 0, fontVariantNumeric: 'tabular-nums',
+                background: gewaehlt ? 'var(--r)' : liste.length ? 'var(--bg3, var(--bg2))' : 'transparent',
+                color: gewaehlt ? '#fff' : imZeitraum ? 'var(--text1)' : 'var(--text3)',
+                opacity: imZeitraum ? 1 : 0.55,
+                border: '1px solid ' + (t === jetzt ? 'var(--r)' : 'transparent'),
+              }}>
+              {d}
+              {liste.length > 0 && (
+                <span style={{
+                  position: 'absolute', right: '2px', bottom: '1px', fontSize: '9px', fontWeight: 700,
+                  color: gewaehlt ? '#fff' : 'var(--amber)',
+                }}>{liste.length}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ fontSize: '10.5px', color: 'var(--text3)', marginTop: '6px' }}>
+        Zahl = laufende Projekte inkl. Auf-/Abbau. Tag anklicken zum Filtern.
+        {tag && <> <button type="button" onClick={() => setTag(null)}
+          style={{ background: 'none', border: 'none', color: 'var(--blue)', cursor: 'pointer', fontSize: '10.5px', padding: 0 }}>Tagesfilter aufheben</button></>}
+      </div>
+    </div>
+  );
+}
+
 function Materialliste({ projektId }) {
   const [daten, setDaten] = useState(null);
   const [fehler, setFehler] = useState(null);
@@ -106,6 +206,12 @@ export default function Zeltprojekte() {
   const [daten, setDaten] = useState(null);
   const [fehler, setFehler] = useState(null);
   const [offen, setOffen] = useState(() => new Set());
+  const [sort, setSort] = useState({ key: 'miete', richtung: 'auf' });
+  const [tag, setTag] = useState(null);                  // Tagesfilter aus dem Kalender
+  const [monat, setMonat] = useState(() => {
+    const d = new Date(heute() + 'T12:00:00');
+    return [d.getFullYear(), d.getMonth()];
+  });
 
   useEffect(() => {
     fetch('/api/zeltverleih/projekte/typen')
@@ -145,7 +251,17 @@ export default function Zeltprojekte() {
     return neu.length ? neu : liste;   // mindestens ein Typ bleibt gewaehlt
   });
 
-  const projekte = (daten?.projekte || []).filter((p) => vorlaeufige || p.belegung !== 'vorlaeufig');
+  const sortWechsel = (key) => setSort((s0) => ({
+    key, richtung: s0.key === key && s0.richtung === 'auf' ? 'ab' : 'auf',
+  }));
+
+  const sichtbar = (daten?.projekte || []).filter((p) => vorlaeufige || p.belegung !== 'vorlaeufig');
+  const imTag = (p) => {
+    const a = tag10(p.planVon) || tag10(p.von);
+    const e = tag10(p.planBis) || tag10(p.bis) || a;
+    return a && a <= tag && tag <= e;
+  };
+  const projekte = sortiere(tag ? sichtbar.filter(imTag) : sichtbar, sort);
   const anzahlFest = projekte.filter((p) => p.belegung === 'fest').length;
 
   return (
@@ -157,7 +273,8 @@ export default function Zeltprojekte() {
         </div>
       </div>
 
-      <div style={{ ...karte, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div style={{ ...karte, display: 'flex', flexWrap: 'wrap', gap: '20px', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: '1 1 380px', minWidth: 0 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'flex-end' }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: 'var(--text3)' }}>
             Von
@@ -197,10 +314,25 @@ export default function Zeltprojekte() {
           </label>
         </div>
       </div>
+      <Kalender projekte={sichtbar} monat={monat} setMonat={setMonat} tag={tag} setTag={setTag} von={von} bis={bis} />
+      </div>
 
       <div style={karte}>
         <div style={{ ...ueberschrift, marginBottom: '10px' }}>
           {daten ? `${projekte.length} Projekte · ${anzahlFest} fest` : 'Projekte'}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', marginBottom: '8px' }}>
+          <span style={{ fontSize: '12px', color: 'var(--text3)', marginRight: '4px' }}>Sortieren</span>
+          {SORT_SPALTEN.map((c) => {
+            const aktiv = sort.key === c.key;
+            return (
+              <button key={c.key} type="button" style={knopf(aktiv)} onClick={() => sortWechsel(c.key)}
+                aria-sort={aktiv ? (sort.richtung === 'auf' ? 'ascending' : 'descending') : 'none'}>
+                {c.label}{aktiv ? (sort.richtung === 'auf' ? ' ▲' : ' ▼') : ''}
+              </button>
+            );
+          })}
+          {tag && <span style={{ fontSize: '12px', color: 'var(--amber)', marginLeft: '6px' }}>Nur Tag {dat(tag)}</span>}
         </div>
         {fehler && <div style={{ fontSize: '13px', color: 'var(--red2)' }}>{fehler}</div>}
         {!daten && !fehler && <div style={{ fontSize: '13px', color: 'var(--text3)' }}>lädt…</div>}
