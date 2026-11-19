@@ -13,7 +13,8 @@ import { FELD } from './artikel/artikelFelder';
 
 const TYPEN = { F: 'Füllung', P: 'Pfand / Leergut', S: 'Kaufflasche (Steuer/Nutzung)', V: 'Provision' };
 
-const FELDER_STAMM = [FELD.bezeichnung, FELD.gasart, FELD.mwst_satz, FELD.shop_sichtbar, FELD.aktiv];
+// Gasart gibt es nur bei Füllungen (eine Kappe hat keine)
+const felderStamm = (typ) => [FELD.bezeichnung, FELD.typ, ...(typ === 'F' ? [FELD.gasart] : []), FELD.mwst_satz, FELD.shop_sichtbar, FELD.aktiv];
 const FELDER_FLASCHEN = [FELD.pfand_artikel_nr, FELD.kaufflasche_artikel_nr];
 const FELDER_ADR = [FELD.un_nr, FELD.gefahrklasse, FELD.bezadr, FELD.ggvs_faktor, FELD.fuellgewicht_kg, FELD.fuellmenge, FELD.fuellmenge_einheit];
 
@@ -108,13 +109,15 @@ export default function ArtikelDetail() {
               <>
                 <div className="ui-feld"><span>Artikelnummer</span><b style={{ fontSize: 17 }}>{artikel.artikel_nr}</b><span className="ui-table-sub">Schlüssel, entspricht SER, ohne Präfix</span></div>
                 <div className="ui-feld"><span>Lexware-Kennzeichen</span><span>{artikel.lexware ? <><Tag tone={artikel.lexware.shop === 'sichtbar' ? 'ok' : 'mute'}>{artikel.lexware.nummer.startsWith('NRG-') ? 'NRG-' : 'RG-'}</Tag>{artikel.shop_abweichend && <> <Tag tone="warn">weicht vom Portal ab</Tag></>}</> : '–'}</span><span className="ui-table-sub">Der Shop folgt heute noch diesem Präfix, nicht dem Schalter unten.</span></div>
-                {imStamm ? formular(FELDER_STAMM, 'stamm') : <div className="ui-feld"><span>Bezeichnung</span><span>{artikel.bezeichnung}</span><span className="ui-table-sub">aus Lexware</span></div>}
+                {imStamm ? formular(felderStamm(artikel.typ), 'stamm-' + artikel.typ) : <div className="ui-feld"><span>Bezeichnung</span><span>{artikel.bezeichnung}</span><span className="ui-table-sub">aus Lexware</span></div>}
               </>
             )}
             {tab === 'flaschen' && (
               <>
-                <p className="ui-table-sub" style={{ margin: '14px 0' }}>Aus dem Bezug weiß die Fahrer-App, welches Leergut zurückkommt, und der Shop blendet Pfand aus.</p>
-                {imStamm ? formular(FELDER_FLASCHEN, 'flaschen') : <p>Nur für Artikel im Stamm.</p>}
+                <p className="ui-table-sub" style={{ margin: '14px 0' }}>Eine Füllung hat <b>entweder</b> eine Pfandflasche (das Leergut kommt zurück) <b>oder</b> eine Kaufflasche (die Flasche wird mitverkauft), nie beides. Aus dem Bezug weiß die Fahrer-App, welches Leergut zurückkommt, und der Shop blendet Pfand aus.</p>
+                {!imStamm ? <p>Nur für Artikel im Stamm.</p>
+                  : artikel.typ !== 'F' ? <p style={{ margin: '14px 0' }}>Pfand- und Kaufflaschen gibt es nur bei Füllungen. Dieser Artikel ist keine Füllung (Typ ändern im Reiter Stammdaten).</p>
+                  : formular(FELDER_FLASCHEN, 'flaschen')}
               </>
             )}
             {tab === 'adr' && (imStamm ? formular(FELDER_ADR, 'adr') : <p style={{ margin: '14px 0' }}>Nur für Artikel im Stamm.</p>)}

@@ -20,7 +20,8 @@ function luecken(a) {
   if (leer(a.gefahrklasse)) fehlt.push('Gefahrzettel');
   if (leer(a.befoerderungskategorie) && leer(a.ggvs_faktor)) fehlt.push('Beförderungskategorie');
   if (leer(a.fuellgewicht_kg)) fehlt.push('Gewicht');
-  if (leer(a.pfand_artikel_nr)) fehlt.push('Pfandflasche');
+  // Pfandflasche (Leergut kommt zurück) oder Kaufflasche (wird mitverkauft): eine Füllung hat das eine oder das andere
+  if (leer(a.pfand_artikel_nr) && leer(a.kaufflasche_artikel_nr)) fehlt.push('Pfand- oder Kaufflasche');
   return fehlt;
 }
 

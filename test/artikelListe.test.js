@@ -55,7 +55,7 @@ test('Artikel nur im Stamm oder nur in Lexware', () => {
 
 test('Lücken für die Fahrer-App: nur Füllungen, benannt', () => {
   assert.deepEqual(luecken(stammFuellung()), []);
-  assert.deepEqual(luecken(stammFuellung({ un_nr: null, fuellgewicht_kg: null, pfand_artikel_nr: null })), ['UN-Nr.', 'Gewicht', 'Pfandflasche']);
+  assert.deepEqual(luecken(stammFuellung({ un_nr: null, fuellgewicht_kg: null, pfand_artikel_nr: null })), ['UN-Nr.', 'Gewicht', 'Pfand- oder Kaufflasche']);
   assert.deepEqual(luecken(stammFuellung({ befoerderungskategorie: null, ggvs_faktor: 50 })), []);
   assert.deepEqual(luecken({ typ: 'P', un_nr: null }), []);
 });
@@ -100,4 +100,12 @@ test('Detailseite: Artikel nur in Lexware wird von der Tourplanung abgelehnt', (
   const tour = laeuftSchon(nurLex).find((p) => p.stelle === 'Tourplanung');
   assert.equal(tour.ok, 'warn');
   assert.ok(!laeuftSchon(nurLex).some((p) => p.stelle === 'Fahrer-App'));
+});
+
+test('Lücken: Pfandflasche ODER Kaufflasche genügt, beide fehlen = Lücke', () => {
+  const voll = { typ: 'F', un_nr: '1965', gefahrklasse: '2.1', befoerderungskategorie: 2, fuellgewicht_kg: 11 };
+  assert.deepEqual(luecken({ ...voll, pfand_artikel_nr: '7801200' }), []);
+  assert.deepEqual(luecken({ ...voll, kaufflasche_artikel_nr: '7801300' }), []);
+  assert.deepEqual(luecken({ ...voll }), ['Pfand- oder Kaufflasche']);
+  assert.deepEqual(luecken({ ...voll, pfand_artikel_nr: '', kaufflasche_artikel_nr: null }), ['Pfand- oder Kaufflasche']);
 });

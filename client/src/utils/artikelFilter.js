@@ -8,7 +8,7 @@ export const istAbweichend = (a) => a.lexware_status === 'abweichend' || a.ser_s
  * suche:    Wörter, alle müssen in Nummer, Name oder UN-Nummer vorkommen
  * typ:      '' | F | P | S | V
  * einheit:  '' | kg | L | fehlt   (Inhalt aus Lexware)
- * fehlt:     '' | Bezeichnung einer Lücke (z. B. 'UN-Nr.', 'Pfandflasche') = Prüffilter "Füllung ohne …"
+ * fehlt:     '' | Bezeichnung einer Lücke (z. B. 'UN-Nr.', 'Pfand- oder Kaufflasche') = Prüffilter "Füllung ohne …"
  * tags:     leer = alle, sonst muss der Lexware-Artikel mindestens einen haben
  * nurAktiv: blendet im Stamm inaktive Artikel aus (Artikel nur in Lexware bleiben sichtbar)
  */
@@ -34,4 +34,4 @@ export function filtereArtikel(artikel, { kurz = 'alle', suche = '', typ = '', e
 }
 
 /** Lücken, nach denen sich filtern lässt (Namen wie in src/utils/artikelListe.js luecken()). */
-export const LUECKEN = ['UN-Nr.', 'Gefahrzettel', 'Beförderungskategorie', 'Gewicht', 'Pfandflasche'];
+export const LUECKEN = ['UN-Nr.', 'Gefahrzettel', 'Beförderungskategorie', 'Gewicht', 'Pfand- oder Kaufflasche'];

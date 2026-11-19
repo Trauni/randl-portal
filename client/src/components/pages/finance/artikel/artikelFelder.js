@@ -7,6 +7,7 @@ export const EK_GRUPPEN = { propan: 'Propan, je kg', motogas: 'Motogas / Bluetec
 
 export const FELD = {
   bezeichnung: ['bezeichnung', 'Bezeichnung', 'text', 'Name wie in SER'],
+  typ: ['typ', 'Typ', 'select:F,P,S,V', 'Alles, was keine Füllung ist (Kappe, Palette, Pfand ...), hat keine Gasart und keine Pfand-/Kaufflasche; beim Wechsel werden diese Felder geleert'],
   gasart: ['gasart', 'Gasart', 'gasart', 'für Auswertung und Flaschenfarbe'],
   mwst_satz: ['mwst_satz', 'MwSt. %', 'select:19,7', 'wie in Lexware'],
   aktiv: ['aktiv', 'Status', 'select:1,0', '1 = aktiv, 0 = inaktiv (nur aktive gehen an die Fahrer-App)'],
@@ -19,17 +20,20 @@ export const FELD = {
   fuellmenge: ['fuellmenge', 'Füllmenge', 'text', 'Zahl, Einheit im nächsten Feld'],
   fuellmenge_einheit: ['fuellmenge_einheit', 'Einheit', 'select:kg,l', 'kg bei Brenngas/CO², Liter bei Technikgasen'],
   preis_netto_cent: ['preis_netto_cent', 'Netto-Preis (Cent)', 'text', 'z. B. 2926 für 29,26 €'],
-  pfand_artikel_nr: ['pfand_artikel_nr', 'Pfandflasche', 'pfand', 'nötig für die Leergut-Rücknahme'],
-  kaufflasche_artikel_nr: ['kaufflasche_artikel_nr', 'Kaufflasche', 'kauf', 'nur wenn die Flasche mitverkauft wird'],
+  pfand_artikel_nr: ['pfand_artikel_nr', 'Pfandflasche', 'pfand', 'Leergut kommt zurück. Entweder Pfandflasche oder Kaufflasche, nie beides'],
+  kaufflasche_artikel_nr: ['kaufflasche_artikel_nr', 'Kaufflasche', 'kauf', 'Flasche wird mitverkauft, kein Leergut. Entweder Kaufflasche oder Pfandflasche, nie beides'],
   ek_gruppe: ['ek_gruppe', 'Preisgruppe Einkauf', 'ekgruppe', 'für den Rohertrag'],
 };
 
 // Felder der Mehrfachbearbeitung (wie auf der Artikelstamm-Seite, dazu Gasart und Preisgruppe)
 export const EDIT_FELDER = [
-  FELD.un_nr, FELD.gefahrklasse, FELD.ggvs_faktor, FELD.preis_netto_cent, FELD.mwst_satz, FELD.fuellgewicht_kg,
+  FELD.typ, FELD.un_nr, FELD.gefahrklasse, FELD.ggvs_faktor, FELD.preis_netto_cent, FELD.mwst_satz, FELD.fuellgewicht_kg,
   FELD.fuellmenge, FELD.fuellmenge_einheit, FELD.bezadr, FELD.pfand_artikel_nr, FELD.kaufflasche_artikel_nr,
   FELD.gasart, FELD.ek_gruppe, FELD.shop_sichtbar, FELD.aktiv,
 ];
 
 // Beschriftung der Auswahlwerte 1/0 je Feld
-export const JA_NEIN = { aktiv: { 1: 'aktiv', 0: 'inaktiv' }, shop_sichtbar: { 1: 'ja', 0: 'nein' } };
+export const JA_NEIN = {
+  aktiv: { 1: 'aktiv', 0: 'inaktiv' }, shop_sichtbar: { 1: 'ja', 0: 'nein' },
+  typ: { F: 'Füllung', P: 'Pfand / Leergut', S: 'Steuer/Nutzung (Kaufflasche)', V: 'Provision' },
+};

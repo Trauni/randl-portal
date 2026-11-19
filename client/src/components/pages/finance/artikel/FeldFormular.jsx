@@ -4,6 +4,7 @@ import { GASARTEN, EK_GRUPPEN, JA_NEIN } from './artikelFelder';
 // Startwert eines Feldes als Text für das Formular
 const startwert = (artikel, feld) => {
   if (feld === 'aktiv') return artikel.aktiv ? '1' : '0';
+  if (feld === 'typ') return artikel.typ || '';
   if (feld === 'shop_sichtbar') return artikel.shop_sichtbar == null ? '' : String(artikel.shop_sichtbar);
   if (feld === 'ggvs_faktor') return artikel.ggvs_faktor != null ? String(artikel.ggvs_faktor) : '';
   const v = artikel[feld];
@@ -41,13 +42,16 @@ export default function FeldFormular({ artikel, felder, alle, canEdit, onGespeic
   const feld = ([f, label, typ, hinweis]) => {
     const wert = eingabe[f];
     const set = (v) => setEingabe((e) => ({ ...e, [f]: v }));
-    const fehltWert = wert === '' && ['un_nr', 'gefahrklasse', 'ggvs_faktor', 'fuellgewicht_kg', 'pfand_artikel_nr'].includes(f);
+    const fehltWert = wert === '' && ['un_nr', 'gefahrklasse', 'ggvs_faktor', 'fuellgewicht_kg'].includes(f);
+    // Eine Füllung hat Pfandflasche ODER Kaufflasche: ist die eine gewählt, ist die andere gesperrt
+    const gegen = f === 'pfand_artikel_nr' ? 'kaufflasche_artikel_nr' : f === 'kaufflasche_artikel_nr' ? 'pfand_artikel_nr' : null;
+    const gesperrt = !!gegen && eingabe[gegen] != null && eingabe[gegen] !== '';
     const cls = `form-select${fehltWert ? ' ui-miss' : ''}`;
     let eingabeFeld;
     if (!canEdit) eingabeFeld = <b>{wert === '' ? (f === 'shop_sichtbar' ? 'nicht gesetzt' : '–') : (JA_NEIN[f] ? JA_NEIN[f][wert] : wert)}</b>;
     else if (typ === 'pfand' || typ === 'kauf') {
       eingabeFeld = (
-        <select id={`f-${f}`} className={cls} value={wert} onChange={(e) => set(e.target.value)}>
+        <select id={`f-${f}`} className={cls} value={wert} disabled={gesperrt} title={gesperrt ? 'Erst die andere Flasche entfernen: Pfandflasche oder Kaufflasche, nie beides' : undefined} onChange={(e) => set(e.target.value)}>
           <option value="">– keiner –</option>
           {(typ === 'kauf' ? kaufListe : pfandListe).map((p) => <option key={p.artikel_nr} value={p.artikel_nr}>{p.artikel_nr} {p.bezeichnung}</option>)}
         </select>
