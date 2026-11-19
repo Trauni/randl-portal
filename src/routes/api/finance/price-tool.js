@@ -7,6 +7,7 @@ const { loadGasArticles } = require('../../../services/gasArticles');
 const { applyRule, describeRule } = require('../../../utils/priceRule');
 const { importSerExport, getSerImportStatus } = require('../../../services/serProductMaster');
 const { planSerPush, pushPricesToSer } = require('../../../services/serPricePush');
+const { uebernehmePreis } = require('../../../services/gasArtikelPreis');
 
 // #253/#254 (06.10.2026): Preisregel für ausgewählte Gas-Artikel – Vorschau und Übernahme.
 // Gerechnet wird immer auf frisch geladenen Daten, nicht auf Werten aus dem Browser.
@@ -94,6 +95,22 @@ router.post('/apply', async (req, res) => {
   }
 });
 
+// #604: neuen Preis in gas_artikel übernehmen (Nummer ohne RG-), Fehler hier stoppen die Preisübernahme nicht
+async function stammNachziehen(jobId, lexwareId) {
+  try {
+    const [rows] = await getPool().query(
+      'SELECT article_number, new_net, changed_by, changed_by_name FROM price_change_log WHERE job_id = ? AND lexware_article_id = ? LIMIT 1',
+      [jobId, lexwareId]);
+    if (!rows[0]) return;
+    const res = await uebernehmePreis(getPool(), {
+      artikelNummer: rows[0].article_number, neuNetto: rows[0].new_net, user: { id: rows[0].changed_by, name: rows[0].changed_by_name },
+    });
+    if (res.status === 'kein_stammartikel') console.warn('[PriceTool] kein Stammartikel für', rows[0].article_number);
+  } catch (err) {
+    console.error('[PriceTool] Artikelstamm nachziehen fehlgeschlagen:', err.message);
+  }
+}
+
 // GET /api/finance/price-tool/apply/:jobId – Fortschritt; Ergebnis wird ins Protokoll übernommen
 router.get('/apply/:jobId', async (req, res) => {
   const { jobId } = req.params;
@@ -104,11 +121,13 @@ router.get('/apply/:jobId', async (req, res) => {
     if (!upstream.ok || job.error) return res.status(upstream.status === 404 ? 404 : 502).json({ error: job.error || 'Shop-API ' + upstream.status });
 
     for (const r of job.results || []) {
-      await getPool().execute(
+      const [upd] = await getPool().execute(
         `UPDATE price_change_log SET status = ?, reason = ?
           WHERE job_id = ? AND lexware_article_id = ? AND status = 'pending'`,
         [r.status, r.reason || r.warning || null, jobId, r.id]
       );
+      // #604: nur beim ersten Übergang pending -> ok auch den Artikelstamm nachziehen
+      if (r.status === 'ok' && upd.affectedRows > 0) await stammNachziehen(jobId, r.id);
     }
     res.json(job);
   } catch (err) {

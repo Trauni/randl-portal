@@ -2,7 +2,6 @@
  * Rohertrag und Preismodell Propan (Port von preismodell.py / historie.py). Reine Funktionen. Gas-Auswertung (#460)
  * EK kommt aus gas_ek_preis-Zeilen ({ek_gruppe, preisbasis, gueltig_ab:'YYYY-MM-DD', preis_netto}), nie aus dem Code.
  */
-const { ARTIKEL } = require('./gasStammdaten');
 const { preisAm } = require('./gasEkPreise');
 const { LAGER_KUNDEN } = require('./gasRechnung');
 
@@ -12,7 +11,6 @@ const runde2 = (x) => Math.round(x * 100 + 1e-9) / 100;
 const PM_ARTIKEL = ['7801000', '7801800', '7801050', '7801100', '7801200', '7801250', '7801300', '7802000', '7802010'];
 const KG = { 7801000: 5, 7801800: 5, 7801050: 8, 7801100: 11, 7801200: 11, 7801250: 11, 7801300: 33, 7802000: 11, 7802010: 11 };
 const ekGruppeVon = (nr) => (nr.startsWith('7802') ? 'motogas' : 'propan');
-const VK_OKT = { 7801000: 14.97, 7801800: 14.97, 7801050: 18.48, 7801100: 30.80, 7801200: 30.80, 7801250: 30.80, 7801300: 98.30, 7802000: 35.13, 7802010: 37.22 };
 
 /** EK netto je Flasche am Stichtag (Preis mit größtem gueltig_ab <= Stichtag; kg-Basis × Füllmenge, auf Cent gerundet). */
 function ekJeFlasche(ekZeilen, artikel, tag) {
@@ -35,34 +33,35 @@ const KLASSEN = [[11, 'bis 11 kg'], [33, '12–33 kg'], [66, '34–66 kg'], [99,
 const klasseVon = (kg) => KLASSEN.find(([bis]) => kg <= bis)[1];
 
 /** Propan-Positionen auf Tour/Lager aufbereiten: Stopps (Terminal+Datum+Kunde, nur Tour, mit Ware). */
-function propanStopps(klass, ekFn) {
+function propanStopps(klass, ekFn, stamm) {
   const m = new Map();
   for (const x of klass) {
     if (x.art !== 'Tour' || !(x.artikel_nr in KG)) continue;
     const k = `${x.terminal}|${x.datum}|${x.kunde_nr}`;
     const s = m.get(k) || { kunde_nr: x.kunde_nr, fl: 0, kg: 0, re: 0 };
-    s.fl += x.voll; s.kg += x.voll * KG[x.artikel_nr]; if (ekFn) s.re += (VK_OKT[x.artikel_nr] - ekFn(x.artikel_nr)) * x.voll; m.set(k, s);
+    s.fl += x.voll; s.kg += x.voll * KG[x.artikel_nr]; if (ekFn) s.re += (stamm.aktuellerPreis(x.artikel_nr) - ekFn(x.artikel_nr)) * x.voll; m.set(k, s);
   }
   return [...m.values()].filter((s) => s.fl > 0);
 }
 
 /**
  * Eine Variante. Alle Beträge netto. klass = klassifizierte Positionen; ekZeilen = gas_ek_preis.
- * opts: { senkung (0.04 = −4 %), staffel, stichtag (aktueller EK), vergleichStichtag (z. B. '2026-10-15'), lieferkostenParam }
+ * opts: { stamm (Artikel und Listenpreise, gasStamm.js; "Ist" = aktueller Listenpreis), senkung (0.04 = −4 %), staffel, stichtag (aktueller EK), vergleichStichtag (z. B. '2026-10-15'), lieferkostenParam }
  */
 function rechneVariante(klass, ekZeilen, opts) {
-  const { senkung = 0, staffel = OHNE, stichtag, vergleichStichtag } = opts;
+  const { senkung = 0, staffel = OHNE, stichtag, vergleichStichtag, stamm } = opts;
+  const vkAktuell = (a) => stamm.aktuellerPreis(a);
   const par = { ...LIEFERKOSTEN_DEFAULT, ...(opts.lieferkostenParam || {}) };
   const pos = klass.filter((x) => x.artikel_nr in KG);
-  const stopps = propanStopps(klass, (a) => ekJeFlasche(ekZeilen, a, stichtag)).map((s) => ({ ...s, fee: pauschale(staffel, s.kg), kosten: lieferkosten(s.fl, par), klasse: klasseVon(s.kg) }));
-  const preisNeu = Object.fromEntries(PM_ARTIKEL.map((a) => [a, rund10ct(VK_OKT[a] * (1 - senkung))]));
+  const stopps = propanStopps(klass, (a) => ekJeFlasche(ekZeilen, a, stichtag), stamm).map((s) => ({ ...s, fee: pauschale(staffel, s.kg), kosten: lieferkosten(s.fl, par), klasse: klasseVon(s.kg) }));
+  const preisNeu = Object.fromEntries(PM_ARTIKEL.map((a) => [a, rund10ct(vkAktuell(a) * (1 - senkung))]));
 
   let uIst = 0; let uNeuOhneFee = 0; let ek = 0; let ekVergleich = 0;
   const kunden = new Map();
   for (const x of pos) {
     const e = ekJeFlasche(ekZeilen, x.artikel_nr, stichtag);
     const eV = vergleichStichtag ? ekJeFlasche(ekZeilen, x.artikel_nr, vergleichStichtag) : e;
-    const ist = VK_OKT[x.artikel_nr] * x.voll; const neu = preisNeu[x.artikel_nr] * x.voll;
+    const ist = vkAktuell(x.artikel_nr) * x.voll; const neu = preisNeu[x.artikel_nr] * x.voll;
     uIst += ist; uNeuOhneFee += neu; ek += e * x.voll; ekVergleich += eV * x.voll;
     const k = kunden.get(x.kunde_nr) || { ist: 0, neu: 0, fee: 0, stopps: 0, fl: 0 };
     k.ist += ist; k.neu += neu; k.fl += x.voll; kunden.set(x.kunde_nr, k);
@@ -96,24 +95,25 @@ const VARIANTEN = [
   { name: 'V3 Abholpreis −10 % + Staffel S+', senkung: 0.10, staffel: STAFFEL_SPLUS },
 ];
 
-module.exports = { LIEFERKOSTEN_DEFAULT_PUBLIC: LIEFERKOSTEN_DEFAULT, ekJeFlasche, rechneVariante, propanStopps, pauschale, lieferkosten, VARIANTEN, STAFFEL_S, STAFFEL_SPLUS, OHNE, PM_ARTIKEL, VK_OKT, KG, ARTIKEL };
+module.exports = { LIEFERKOSTEN_DEFAULT_PUBLIC: LIEFERKOSTEN_DEFAULT, ekJeFlasche, rechneVariante, propanStopps, pauschale, lieferkosten, VARIANTEN, STAFFEL_S, STAFFEL_SPLUS, OHNE, PM_ARTIKEL, KG };
 
 // ── Rohertrag Propan rückwirkend (historie.py) ─────────────────────────────
-// Verkaufspreis am Belegtag: bis 14.04. aus Barbelegen abgeleitet, danach Listenpreis vor/nach der Erhöhung im Oktober.
+// Verkaufspreis am Belegtag: bis 12.10. eine feste Rekonstruktion aus Barbelegen (historie.py, kein Preisprotokoll),
+// ab 13.10. der Listenpreis aus dem Artikelstamm (#604).
 const VK_A = { 7801000: 13.32, 7801800: 13.32, 7801100: 25.63, 7801200: 25.63, 7801250: 25.63, 7801300: 80.63 };
 const VK_VOR_OKT = { 7801000: 14.27, 7801800: 14.27, 7801050: 17.36, 7801100: 29.26, 7801200: 29.26, 7801250: 29.26, 7801300: 93.68, 7802000: 33.59, 7802010: 35.68 };
-const vkAm = (nr, iso) => {
-  if (iso < '2026-04-15') return VK_A[nr] ?? runde2(VK_OKT[nr] * 0.83);
-  return iso < '2026-10-13' ? VK_VOR_OKT[nr] : VK_OKT[nr];
+const vkAm = (nr, iso, stamm) => {
+  if (iso < '2026-04-15') return VK_A[nr] ?? runde2(stamm.aktuellerPreis(nr) * 0.83);
+  return iso < '2026-10-13' ? VK_VOR_OKT[nr] : stamm.listenpreis(nr, iso);
 };
 const periodeVon = (iso) => (iso < '2026-04-15' ? 'A' : iso < '2026-05-15' ? 'B' : iso < '2026-10-13' ? 'C' : 'D');
 
 /** sonder: { kunde_nr: { A, B, C, D } } Faktor auf Liste (aus gas_sonderpreis). */
-function rohertragRueckwirkend(klass, ekZeilen, sonder = {}) {
+function rohertragRueckwirkend(klass, ekZeilen, sonder = {}, stamm) {
   const monate = {};
   for (const x of klass) {
     if (!(x.artikel_nr in KG)) continue;
-    const liste = vkAm(x.artikel_nr, x.datum);
+    const liste = vkAm(x.artikel_nr, x.datum, stamm);
     const f = (sonder[x.kunde_nr] || {})[periodeVon(x.datum)] ?? 1;
     const vk = runde2(liste * f);
     const m = monate[x.datum.slice(0, 7)] || (monate[x.datum.slice(0, 7)] = { flaschen: 0, umsatz: 0, ek: 0 });

@@ -1,5 +1,4 @@
 /** Aggregate für die Seiten Überblick und Flaschen (Port von flaschen.py / preise.py / dashboard_dateien.py). Gas-Auswertung (#460) */
-const { ARTIKEL, GASART_REIHENFOLGE, listenpreis } = require('./gasStammdaten');
 const G = require('./gasRechnung');
 const P = require('./gasPreismodell');
 
@@ -29,10 +28,10 @@ function lieferkostenStopps(klass, lkParam, nurPropan) {
   return [...m.values()].filter((s) => s.voll > 0).map((s) => ({ datum: s.datum, kosten: P.lieferkosten(s.voll, par) }));
 }
 
-function monatsUebersicht(klass, lkParam) {
+function monatsUebersicht(klass, lkParam, stamm) {
   return G.MONATE.map((monat) => {
     const p = klass.filter((x) => x.datum.startsWith(monat));
-    const umsatz = (f) => p.filter(f).reduce((s, x) => s + (listenpreis(x.artikel_nr, x.datum) ?? 0) * x.voll, 0);
+    const umsatz = (f) => p.filter(f).reduce((s, x) => s + (stamm.listenpreis(x.artikel_nr, x.datum) ?? 0) * x.voll, 0);
     const ts = G.tourStopps(p);
     const stopps = ts.stopps.filter((s) => s.voll > 0);
     const par = { ...P.LIEFERKOSTEN_DEFAULT_PUBLIC, ...lkParam };
@@ -46,18 +45,19 @@ function monatsUebersicht(klass, lkParam) {
   });
 }
 
-function produktgruppen(klass) {
+function produktgruppen(klass, stamm) {
   const g = {};
   for (const x of klass) {
     const k = gruppeVon(x.artikel_nr);
     const e = g[k] || (g[k] = { gruppe: k, flaschen: 0, umsatz: 0 });
-    e.flaschen += x.voll; e.umsatz += (listenpreis(x.artikel_nr, x.datum) ?? 0) * x.voll;
+    e.flaschen += x.voll; e.umsatz += (stamm.listenpreis(x.artikel_nr, x.datum) ?? 0) * x.voll;
   }
   return Object.values(g).sort((a, b) => b.umsatz - a.umsatz);
 }
 
 /** Flaschenstatistik je Artikel, Gasart, Monat und Woche (volle Wochen/Monate 2026). */
-function flaschenStatistik(klass) {
+function flaschenStatistik(klass, stamm) {
+  const { ARTIKEL, GASART_REIHENFOLGE } = stamm;
   const p = klass.filter((x) => ARTIKEL[x.artikel_nr]);
   const jeArtikel = {};
   for (const x of p) {
@@ -98,7 +98,7 @@ function flaschenStatistik(klass) {
       monate: Object.entries(monat).map(([m, voll]) => ({ monat: m, voll })),
     };
   }).filter(Boolean);
-  return { artikel, gasarten: jeGasart, kennzahlen: G.flaschenKennzahlen(p) };
+  return { artikel, gasarten: jeGasart, kennzahlen: G.flaschenKennzahlen(p, stamm) };
 }
 
 module.exports = { monatsUebersicht, produktgruppen, flaschenStatistik, gruppeVon, lieferkostenStopps };
