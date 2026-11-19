@@ -15,6 +15,10 @@ Mitarbeiterportal der Firma Dominik Randl (randlweb.de): Rechte, Zeiterfassung, 
 - PM2-Prozess: `randlweb-portal`, Port 3336 (interner SER-Push-Listener auf 3338)
 - Neustart: `pm2 restart randlweb-portal`, Log: `pm2 logs randlweb-portal`
 
+## Einspielen
+
+Auf dem Server als root: `scripts/deploy.sh` (Probelauf: `scripts/deploy.sh --dry-run`). Das Skript bricht ab, wenn `git status` nicht sauber ist, sichert die DB nach `/root/portal-backups/` (14 Tage), macht `git pull --ff-only`, spielt neue `migration_*.sql` ein (Protokoll in `schema_migrations`), baut die Frontends, startet PM2 neu und prüft `/api/health`. Beim ersten Lauf werden alle vorhandenen Migrationen nur als eingespielt eingetragen, nicht ausgeführt.
+
 ## Konfiguration
 
 Alle Zugangsdaten stehen in der `.env` (nie committen, Vorlage: `.env.example`). Die Werte liegen im Passwortmanager (KeePass, Gruppe `Randl/Portal`). Gruppen der Variablen: App und Session, OIDC/Authentik, MariaDB, Gas-Shop-DB (`GAS_DB_PASS`, Postgres auf 127.0.0.1:5433), Cloudflare, HestiaCP, Shop-Admin, Rentman, Shopware-DB, SER-SFTP und -Push, BookStack, Authentik-API.
