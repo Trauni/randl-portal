@@ -78,11 +78,21 @@ function CheckDetailModal({ checkId, onClose }) {
         Gezählt von: {data.check.checked_by_name || '—'}
         {data.check.note && <div style={{ marginTop:'.3rem' }}>📋 {data.check.note}</div>}
       </div>
+      <div style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:8, padding:'.6rem .8rem', marginBottom:'.75rem' }}>
+        <div style={{ fontSize:'.9rem', fontWeight:600, color:'var(--text1)' }}>
+          Nachliefern: {data.ergebnis.summe} {data.ergebnis.summe === 1 ? 'Flasche' : 'Flaschen'}
+        </div>
+        {data.ergebnis.positionen === 0
+          ? <div style={{ fontSize:'.78rem', color:'var(--text3)' }}>Nichts nachzuliefern.</div>
+          : <ul style={{ margin:'.3rem 0 0 1rem', fontSize:'.8rem', color:'var(--text2)' }}>
+              {data.entries.filter(e => e.nachliefern > 0).map(e => <li key={e.id}>{e.item_name}: {e.nachliefern}</li>)}
+            </ul>}
+      </div>
       <div style={{ background:'var(--bg2)', borderRadius:8, overflow:'hidden' }}>
         <table style={{ width:'100%', borderCollapse:'collapse' }}>
           <thead>
             <tr style={{ borderBottom:'1px solid var(--border)' }}>
-              {['Gas','Mindestbestand','Gezählt'].map(h => (
+              {['Gas','Mindestbestand','Gezählt','Reserviert','Nachliefern'].map(h => (
                 <th key={h} style={{ textAlign:'left', padding:'.4rem .6rem', fontSize:'.68rem', textTransform:'uppercase', color:'var(--text3)' }}>{h}</th>
               ))}
             </tr>
@@ -93,6 +103,8 @@ function CheckDetailModal({ checkId, onClose }) {
                 <td style={{ padding:'.4rem .6rem', fontSize:'.82rem', color:'var(--text1)' }}>{e.item_name}</td>
                 <td style={{ padding:'.4rem .6rem', fontSize:'.82rem', color:'var(--text2)', fontFamily:'DM Mono, monospace' }}>{e.mindestbestand}</td>
                 <td style={{ padding:'.4rem .6rem', fontSize:'.82rem', color:'var(--text1)', fontFamily:'DM Mono, monospace' }}>{e.gezaehlt}</td>
+                <td style={{ padding:'.4rem .6rem', fontSize:'.82rem', color:'var(--text2)', fontFamily:'DM Mono, monospace' }}>{e.reserviert || 0}</td>
+                <td style={{ padding:'.4rem .6rem', fontSize:'.82rem', fontWeight: e.nachliefern > 0 ? 600 : 400, color: e.nachliefern > 0 ? 'var(--text1)' : 'var(--text3)', fontFamily:'DM Mono, monospace' }}>{e.nachliefern}</td>
               </tr>
             ))}
           </tbody>
@@ -148,7 +160,7 @@ export default function WidmannBestand() {
 
       <div style={{ marginBottom:'1.2rem' }}>
         <h1 style={{ fontSize:'1.15rem', fontWeight:600, color:'var(--text1)' }}>Widmann-Bestand</h1>
-        <p style={{ color:'var(--text2)', fontSize:'.8rem', marginTop:'.2rem' }}>Artikelliste und Zählhistorie für die mittwöchentliche Bestandszählung</p>
+        <p style={{ color:'var(--text2)', fontSize:'.8rem', marginTop:'.2rem' }}>Artikelliste und Zählhistorie für die mittwöchentliche Bestandszählung, mit reserviert und nachliefern</p>
       </div>
 
       <div style={{ display:'flex', gap:'.5rem', marginBottom:'1rem' }}>
@@ -193,7 +205,7 @@ export default function WidmannBestand() {
           <table style={{ width:'100%', borderCollapse:'collapse' }}>
             <thead>
               <tr style={{ background:'var(--bg2)', borderBottom:'1px solid var(--border)' }}>
-                {['Datum','Gezählt von','Positionen','Notiz',''].map(h => (
+                {['Datum','Gezählt von','Positionen','Nachliefern','Notiz',''].map(h => (
                   <th key={h} style={{ textAlign:'left', padding:'.5rem .65rem', fontSize:'.65rem', textTransform:'uppercase', color:'var(--text3)' }}>{h}</th>
                 ))}
               </tr>
@@ -204,6 +216,7 @@ export default function WidmannBestand() {
                   <td style={{ padding:'.5rem .65rem', fontSize:'.82rem', color:'var(--text2)' }}>{new Date(c.created_at).toLocaleString('de-DE')}</td>
                   <td style={{ padding:'.5rem .65rem', fontSize:'.85rem', color:'var(--text1)' }}>{c.checked_by_name || '—'}</td>
                   <td style={{ padding:'.5rem .65rem', fontSize:'.82rem', color:'var(--text2)' }}>{c.entry_count}</td>
+                  <td style={{ padding:'.5rem .65rem', fontSize:'.82rem', color:'var(--text1)', fontFamily:'DM Mono, monospace' }}>{c.nachliefern_summe}</td>
                   <td style={{ padding:'.5rem .65rem', fontSize:'.78rem', color:'var(--text3)' }}>{c.note || '—'}</td>
                   <td style={{ padding:'.5rem .65rem', display:'flex', gap:'.35rem' }}>
                     <button onClick={() => setDetailCheckId(c.id)} style={{ padding:'.2rem .5rem', borderRadius:5, fontSize:'.75rem', background:'transparent', border:'1px solid var(--border)', color:'var(--text2)', cursor:'pointer' }}>Detail</button>
@@ -212,7 +225,7 @@ export default function WidmannBestand() {
                   </td>
                 </tr>
               ))}
-              {checks.length === 0 && <tr><td colSpan={5} style={{ padding:'2rem', textAlign:'center', color:'var(--text3)' }}>Noch keine Zählung erfasst.</td></tr>}
+              {checks.length === 0 && <tr><td colSpan={6} style={{ padding:'2rem', textAlign:'center', color:'var(--text3)' }}>Noch keine Zählung erfasst.</td></tr>}
             </tbody>
           </table>
         </div>

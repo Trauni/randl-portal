@@ -3,7 +3,7 @@ const G = require('./gasRechnung');
 const P = require('./gasPreismodell');
 const A = require('./gasAuswertung');
 const { parseTourenCsv } = require('./gasTouren');
-const { ARTIKEL } = require('./gasStammdaten');
+const { ladeStamm } = require('./gasStamm');
 const { kundenInfo } = require('./gasKunden');
 
 const iso = "DATE_FORMAT(datum,'%Y-%m-%d')";
@@ -12,6 +12,7 @@ async function ladeBasis(db) {
   const [pos] = await db.query(`SELECT terminal, kunde_nr, typ, beleg_nr, ${iso} AS datum, artikel_nr, voll, leer, kg FROM gas_beleg_position`);
   const [tou] = await db.query(`SELECT ${iso} AS datum, terminal, bezeichnung, fahrer, plan_kg, plan_bestellungen, storniert FROM gas_tour`);
   const [ek] = await db.query(`SELECT ek_gruppe, preisbasis, DATE_FORMAT(gueltig_ab,'%Y-%m-%d') AS gueltig_ab, preis_netto FROM gas_ek_preis`);
+  const stamm = await ladeStamm(db);
   const [par] = await db.query('SELECT schluessel, wert FROM gas_parameter');
   const [son] = await db.query('SELECT kunde_nr, periode, faktor FROM gas_sonderpreis');
   const sonder = {};
@@ -20,7 +21,7 @@ async function ladeBasis(db) {
   const touren = tou.map((t) => ({ ...t, storniert: !!t.storniert }));
   return {
     klass: G.klassifiziere(positionen, touren).positionen, positionen, touren, ek,
-    lkParam: Object.fromEntries(par.map((r) => [r.schluessel, Number(r.wert)])), sonder,
+    lkParam: Object.fromEntries(par.map((r) => [r.schluessel, Number(r.wert)])), sonder, stamm,
   };
 }
 
@@ -29,24 +30,24 @@ const heute = () => new Date().toISOString().slice(0, 10);
 async function uebersicht(db) {
   const b = await ladeBasis(db);
   const stichtag = heute();
-  const v0 = P.rechneVariante(b.klass, b.ek, { stichtag, vergleichStichtag: '2026-10-15', lieferkostenParam: b.lkParam });
-  const monate = A.monatsUebersicht(b.klass, b.lkParam);
+  const v0 = P.rechneVariante(b.klass, b.ek, { stichtag, vergleichStichtag: '2026-10-15', lieferkostenParam: b.lkParam, stamm: b.stamm });
+  const monate = A.monatsUebersicht(b.klass, b.lkParam, b.stamm);
   const ts = G.tourStopps(b.klass);
   return {
     stand: { von: b.positionen.reduce((m, p) => (!m || p.datum < m ? p.datum : m), null), bis: b.positionen.reduce((m, p) => (!m || p.datum > m ? p.datum : m), null), stichtag_ek: stichtag },
     kacheln: {
-      umsatz: G.umsatzListe(b.positionen).umsatz, touren: ts.touren, stopps: ts.stopps.filter((s) => s.voll > 0).length,
-      lieferkosten: ts.stopps.filter((x) => x.voll > 0).reduce((a, x) => a + P.lieferkosten(x.voll, { ...P.LIEFERKOSTEN_DEFAULT_PUBLIC, ...b.lkParam }), 0), flaschen: G.flaschenKennzahlen(b.positionen).voll,
+      umsatz: G.umsatzListe(b.positionen, b.stamm).umsatz, touren: ts.touren, stopps: ts.stopps.filter((s) => s.voll > 0).length,
+      lieferkosten: ts.stopps.filter((x) => x.voll > 0).reduce((a, x) => a + P.lieferkosten(x.voll, { ...P.LIEFERKOSTEN_DEFAULT_PUBLIC, ...b.lkParam }), 0), flaschen: G.flaschenKennzahlen(b.positionen, b.stamm).voll,
       rohertrag_propan: v0.rohertrag_ist, lieferkosten_propan: v0.lieferkosten, stopps_propan: v0.stopps,
     },
-    monate, produktgruppen: A.produktgruppen(b.klass), kg_klassen: v0.klassen,
-    rohertrag_monat: P.rohertragRueckwirkend(b.klass, b.ek, b.sonder),
+    monate, produktgruppen: A.produktgruppen(b.klass, b.stamm), kg_klassen: v0.klassen,
+    rohertrag_monat: P.rohertragRueckwirkend(b.klass, b.ek, b.sonder, b.stamm),
   };
 }
 
 async function flaschen(db) {
   const b = await ladeBasis(db);
-  return A.flaschenStatistik(b.klass);
+  return A.flaschenStatistik(b.klass, b.stamm);
 }
 
 const STAFFELN = { S: P.STAFFEL_S, 'S+': P.STAFFEL_SPLUS, ohne: P.OHNE };
@@ -62,13 +63,13 @@ async function preismodell(db, eingabe = {}) {
   if (Array.isArray(eingabe.staffel) && eingabe.staffel.length === 5 && eingabe.staffel.every((n) => Number.isFinite(Number(n)) && Number(n) >= 0 && Number(n) < 1000)) {
     staffel = GRENZEN.map((g, i) => [g, Number(eingabe.staffel[i])]);
   }
-  const basis = { stichtag, vergleichStichtag: vergleich, lieferkostenParam: b.lkParam };
+  const basis = { stichtag, vergleichStichtag: vergleich, lieferkostenParam: b.lkParam, stamm: b.stamm };
   const betraege = (st) => st.map(([, b]) => b);
   const sim = P.rechneVariante(b.klass, b.ek, { ...basis, senkung, staffel });
   const kunden = await kundenInfo([...sim.gewinner, ...sim.verlierer].map((k) => k.kunde_nr));
   const mitName = (k) => ({ ...k, name: kunden[k.kunde_nr]?.name || null, nummer: kunden[k.kunde_nr]?.nummer || k.kunde_nr, nummer_quelle: kunden[k.kunde_nr]?.quelle || 'SER' });
   return {
-    artikel: Object.fromEntries(P.PM_ARTIKEL.map((nr) => [nr, ARTIKEL[nr].bezeichnung])),
+    artikel: Object.fromEntries(P.PM_ARTIKEL.map((nr) => [nr, b.stamm.ARTIKEL[nr]?.bezeichnung || nr])),
     stichtag, vergleichStichtag: vergleich,
     staffeln: { ohne: betraege(P.OHNE), S: betraege(P.STAFFEL_S), 'S+': betraege(P.STAFFEL_SPLUS) },
     simulator_staffel: betraege(staffel),

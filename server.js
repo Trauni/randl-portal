@@ -33,6 +33,7 @@ const financeArticleContentRouter = require('./src/routes/api/finance/article-co
 const financePriceToolRouter = require('./src/routes/api/finance/price-tool');
 const financeArtikelstammRouter = require('./src/routes/api/finance/artikelstamm');
 const gasAuswertungRouter = require('./src/routes/api/finance/gas-auswertung');
+const financeArtikellisteRouter = require('./src/routes/api/finance/artikelliste');
 const contentCmsRouter    = require('./src/routes/api/content/cms');
 const contentBilderRouter  = require('./src/routes/api/content/bilder');
 const contentGalerieRouter = require('./src/routes/api/content/galerie');
@@ -145,6 +146,7 @@ app.use('/api/finance/widmann-bestand', requireArea('gashandel'), financeWidmann
 app.use('/api/finance/article-content', requireArea('gashandel'), financeArticleContentRouter);
 app.use('/api/finance/price-tool', requireArea('gashandel.preise'), financePriceToolRouter);
 app.use('/api/finance/artikelstamm', requireArea('gashandel.preise'), financeArtikelstammRouter);
+app.use('/api/finance/artikelliste', requireArea('gashandel'), financeArtikellisteRouter);
 app.use('/api/finance/gas-auswertung', requireArea('gashandel.auswertung'), gasAuswertungRouter);
 app.use('/api/content/cms',    requireArea('content'), contentCmsRouter);
 app.use('/api/content/bilder', requireArea('content'), contentBilderRouter);

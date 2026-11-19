@@ -2,29 +2,47 @@
 /* DM Sans + DM Mono werden in index.html geladen */
 
 /* ── Design Tokens ────────────────────────────────────────────────────────── */
+/* #605 (19.11.2026): Look aus dem Gashandel-Mockup, portalweit. Die Namen der Tokens bleiben
+   (bg0..bg3, text1..text3, r, ...), damit alle Seiten automatisch mitziehen.
+   Standard dunkel, hell über #root.light (Schalter in der Topbar). */
 :root {
   /* Dark Mode (default) */
-  --r:       #b8311f;
-  --r2:      #d94020;
-  --r3:      #8a2415;
-  --bg0:     #111214;
-  --bg1:     #1a1c1f;
-  --bg2:     #212428;
-  --bg3:     #2a2d33;
-  --border:  #2f3238;
+  --r:       #cc0000;
+  --r2:      #ff4d4d;
+  --r3:      #8a1010;
+  --bg0:     #0d0e12;
+  --bg1:     #15181f;
+  --bg2:     #1c2029;
+  --bg3:     #262b36;
+  --border:  #2c313c;
   --text1:   #eceef2;
-  --text2:   #8b909e;
-  --text3:   #52576a;
+  --text2:   #a1a6b4;
+  --text3:   #7d8294;
   --green:   #2ebd7a;
   --amber:   #e8a020;
   --blue:    #4a7fd4;
   --red2:    #e05050;
 
+  /* Zustände (Tag, Hinweis): Hintergrund + Schrift */
+  --ok-bg:   rgba(46,189,122,.16);   --ok-fg:   #5fd49a;
+  --warn-bg: rgba(232,160,32,.16);   --warn-fg: #f0b84a;
+  --err-bg:  rgba(224,80,80,.18);    --err-fg:  #ff8a8a;
+  --mute-bg: var(--bg3);             --mute-fg: var(--text2);
+  --nav-active-bg: rgba(204,0,0,.22);
+  --nav-active-fg: #ff9a9a;
+  --link:    #ff8a8a;
+  --focus:   #ff6b6b;
+
+  /* Schriften */
+  --font-body:    'DM Sans', system-ui, sans-serif;
+  --font-display: 'Bebas Neue', 'Barlow Condensed', sans-serif;   /* Seitentitel, große Zahlen */
+  --font-head:    'Barlow Condensed', 'DM Sans', sans-serif;      /* Gruppen, Tabellenköpfe, Reiter */
+
   /* Layout */
-  --sidebar-w: 218px;
+  --sidebar-w: 240px;
   --topbar-h:  46px;
-  --radius-card: 9px;
-  --radius-btn:  7px;
+  --radius-card: 10px;
+  --radius-btn:  8px;
 
   /* Transitions */
   --t-fast: 120ms ease;
@@ -32,14 +50,30 @@
 }
 
 #root.light, body.light {
-  --bg0:    #f0ede8;
+  --r:      #cc0000;
+  --r2:     #a30000;
+  --r3:     #a30000;
+  --bg0:    #efece6;
   --bg1:    #ffffff;
-  --bg2:    #f7f4f0;
-  --bg3:    #ece9e3;
-  --border: #ddd9d2;
-  --text1:  #1c1a18;
-  --text2:  #5a5650;
-  --text3:  #9a9590;
+  --bg2:    #f7f4ef;
+  --bg3:    #ebe7e0;
+  --border: #dcd7cf;
+  --text1:  #1f1d1b;
+  --text2:  #5c5853;
+  --text3:  #6b6660;
+  --green:  #1d6b3a;
+  --amber:  #7a4800;
+  --blue:   #2b4a7a;
+  --red2:   #a30000;
+
+  --ok-bg:   #e3f1e6;  --ok-fg:   #1d6b3a;
+  --warn-bg: #fff1db;  --warn-fg: #7a4800;
+  --err-bg:  #f7e1df;  --err-fg:  #a30000;
+  --mute-bg: #ebe7e0;  --mute-fg: #5c5853;
+  --nav-active-bg: #f7e1df;
+  --nav-active-fg: #a30000;
+  --link:    #a30000;
+  --focus:   #a30000;
 }
 
 /* ── Reset & Base ─────────────────────────────────────────────────────────── */
@@ -49,7 +83,7 @@ html { height: 100%; }
 
 body {
   height: 100%;
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: var(--font-body);
   font-size: 13.5px;
   line-height: 1.5;
   background: var(--bg0);
@@ -268,11 +302,10 @@ body {
 }
 
 .card-title {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text3);
+  font-family: var(--font-head);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text1);
   margin-bottom: 12px;
 }
 
@@ -292,18 +325,18 @@ body {
 }
 
 .stat-label {
-  font-size: 11px;
-  color: var(--text3);
+  font-family: var(--font-head);
+  font-size: 14px;
+  color: var(--text2);
   font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
   margin-bottom: 6px;
 }
 
 .stat-value {
-  font-size: 26px;
-  font-weight: 600;
-  font-family: 'DM Mono', monospace;
+  font-size: 34px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  font-family: var(--font-display);
   color: var(--text1);
   line-height: 1;
 }
@@ -407,14 +440,14 @@ table {
 th {
   text-align: left;
   padding: 8px 12px;
-  font-size: 11px;
+  font-family: var(--font-head);
+  font-size: 14.5px;
   font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text3);
+  color: var(--text2);
   border-bottom: 1px solid var(--border);
 }
 td {
+  font-variant-numeric: tabular-nums;
   padding: 9px 12px;
   border-bottom: 1px solid var(--border);
   color: var(--text2);
@@ -432,10 +465,12 @@ td.mono { font-family: 'DM Mono', monospace; font-size: 12.5px; }
   gap: 12px;
 }
 .page-title {
-  font-size: 18px;
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: 36px;
+  font-weight: 400;
+  line-height: 1;
   color: var(--text1);
-  letter-spacing: -0.02em;
+  letter-spacing: 0.02em;
 }
 .page-subtitle { font-size: 12.5px; color: var(--text3); margin-top: 3px; }
 
@@ -498,3 +533,88 @@ td.mono { font-family: 'DM Mono', monospace; font-size: 12.5px; }
 .alert-success { background: color-mix(in srgb, var(--green) 12%, transparent); color: var(--green); border: 1px solid color-mix(in srgb, var(--green) 25%, transparent); }
 .alert-error   { background: color-mix(in srgb, var(--red2)  12%, transparent); color: var(--red2);  border: 1px solid color-mix(in srgb, var(--red2)  25%, transparent); }
 .alert-info    { background: color-mix(in srgb, var(--blue)  12%, transparent); color: var(--blue);  border: 1px solid color-mix(in srgb, var(--blue)  25%, transparent); }
+
+
+/* ── Fokus (Tastatur) ─────────────────────────────────────────────────────── */
+:where(button, a, input, select, textarea, [role="tab"]):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ── Bausteine (#605) ─────────────────────────────────────────────────────────
+   Panel, Tabelle, Tag, Reiter, Auswahlleiste, Flaschensymbol, ADR-Tafel.
+   React-Teile: client/src/components/ui. Klassen mit Präfix ui-. */
+
+/* Panel: weiße Fläche mit Rand, enthält Tabellen, Listen, Formulare */
+.ui-panel {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  min-width: 0;
+}
+.ui-panel-head {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px;
+  padding: 12px 14px; border-bottom: 1px solid var(--border);
+}
+.ui-panel-title { font-family: var(--font-head); font-size: 20px; font-weight: 700; line-height: 1.1; margin: 0; color: var(--text1); }
+.ui-panel-body { padding: 14px; }
+
+/* Tabelle: Zahlen rechts mit gleich breiten Ziffern, Zeilen mit feiner Linie */
+.ui-table { border-collapse: collapse; width: 100%; font-size: 15px; font-variant-numeric: tabular-nums; }
+.ui-table th { font-family: var(--font-head); font-size: 16px; font-weight: 600; color: var(--text2); text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.ui-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; color: var(--text1); }
+.ui-table tr:last-child td { border-bottom: 0; }
+.ui-table tbody tr:hover td { background: var(--bg2); }
+.ui-table .r { text-align: right; }
+.ui-table tr.is-selected td { background: var(--err-bg); }
+.ui-table-sub { font-size: 13px; color: var(--text2); }
+
+/* Tag: kleine Zustandsmarke */
+.ui-tag {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 13px; font-weight: 700; white-space: nowrap;
+  background: var(--mute-bg); color: var(--mute-fg);
+}
+.ui-tag--ok   { background: var(--ok-bg);   color: var(--ok-fg); }
+.ui-tag--warn { background: var(--warn-bg); color: var(--warn-fg); }
+.ui-tag--err  { background: var(--err-bg);  color: var(--err-fg); }
+
+/* Reiter */
+.ui-tabs { display: flex; overflow-x: auto; border-bottom: 1px solid var(--border); padding: 0 8px; }
+.ui-tab {
+  border: 0; background: transparent; cursor: pointer; white-space: nowrap; min-height: 46px;
+  padding: 14px 14px 11px; font-family: var(--font-head); font-weight: 700; font-size: 18px;
+  color: var(--text2); border-bottom: 3px solid transparent;
+}
+.ui-tab:hover { color: var(--text1); }
+.ui-tab[aria-selected="true"] { color: var(--text1); border-bottom-color: var(--r); }
+
+/* Auswahlleiste: erscheint über der Tabelle, sobald etwas angehakt ist */
+.ui-selbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  padding: 10px 14px; background: #1f1d1b; color: #fff;
+}
+.ui-selbar-count { margin-right: 6px; font-weight: 700; }
+.ui-selbar .btn { background: #fff; color: #1f1d1b; border-color: #cfc9c0; min-height: 36px; padding: 6px 12px; font-size: 14px; font-weight: 600; }
+.ui-selbar .btn:hover { background: #efece6; }
+.ui-selbar-clear { margin-left: auto; border: 0; background: transparent; color: #fff; font: inherit; text-decoration: underline; cursor: pointer; padding: 6px; }
+.ui-selbar :where(button):focus-visible { outline-color: #fff; }
+
+/* Flaschensymbol: Schulterfarbe nach DIN EN 1089-3 (Farbe als --cyl am Element) */
+.ui-cyl {
+  display: inline-block; width: 10px; height: 20px; flex: none; vertical-align: -5px;
+  border-radius: 5px 5px 2px 2px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.3);
+  background: linear-gradient(var(--cyl, #efece6) 0 42%, #d9d4cc 42%);
+}
+.ui-cyl--leer { background: #efece6; box-shadow: inset 0 0 0 1px #8a857d; }
+.ui-cyl--gross { width: 18px; height: 40px; border-radius: 9px 9px 3px 3px; }
+
+/* ADR-Tafel: orange Tafel mit Punkten nach ADR 1.1.3.6 (bleibt in beiden Themes gleich) */
+.ui-adr {
+  background: #f08a00; border: 5px solid #1f1d1b; border-radius: 4px; padding: 12px 16px;
+  display: flex; flex-direction: column; color: #1f1d1b;
+}
+.ui-adr-zahl { display: flex; align-items: baseline; gap: 10px; border-bottom: 3px solid #1f1d1b; padding-bottom: 6px; }
+.ui-adr-punkte { font-family: var(--font-display); font-size: 64px; line-height: .85; letter-spacing: .02em; }
+.ui-adr-von { font-weight: 700; font-size: 15px; }
+.ui-adr-text { font-weight: 700; font-size: 15px; padding-top: 6px; }

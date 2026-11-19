@@ -1,8 +1,8 @@
 /**
- * Artikelstamm und Verkaufspreise für die Gas-Auswertung (#460).
+ * Referenzdaten der Gas-Auswertung (#460), bis #604 fest im Code (src/services/gasStammdaten.js).
+ * Seit #604 liest die Auswertung gas_artikel und price_change_log. Diese Datei bleibt als Testreferenz
+ * (Abnahmewerte HANDOFF-460) und als Vorlage für migration_gas_vk_stamm_604.sql erhalten.
  * Quelle: docs/gas-auswertung/referenz/python (flaschen.py, preise.py, historie.py).
- * Verkaufspreise kommen später aus ser_product_master / price_change_log; bis dahin gelten
- * diese Werte (Stand Oktober 2026 plus Preisänderungen im Oktober).
  */
 
 // artikel_nr -> [Bezeichnung, kg bzw. Liter je Flasche]
@@ -69,4 +69,25 @@ function listenpreis(artikel, iso) {
   return VK_AKTUELL[artikel] ?? null;
 }
 
-module.exports = { ARTIKEL, GASART_REIHENFOLGE, KG_ARTEN, listenpreis, VK_AKTUELL };
+/** Referenz in der Form der Tabellen: gas_artikel-Zeilen und price_change_log-Änderungen (für gasStamm.baueStamm). */
+function stammZeilen() {
+  const nummern = [...new Set([...Object.keys(ARTIKEL), ...Object.keys(VK_AKTUELL)])];
+  const artikel = nummern.map((nr) => {
+    const a = ARTIKEL[nr];
+    return {
+      artikel_nr: nr, bezeichnung: a ? a.bezeichnung : `Artikel ${nr} (Bezeichnung fehlt)`, gasart: a ? a.gasart : null,
+      kg_fuellung: a ? a.kg_fuellung : null, typ: 'F', zaehlt_als_flasche: a ? 1 : 0,
+      preis_netto_cent: VK_AKTUELL[nr] == null ? null : Math.round(VK_AKTUELL[nr] * 100),
+    };
+  });
+  const aenderungen = [];
+  for (const [nr, liste] of Object.entries(VK_AENDERUNGEN)) {
+    liste.forEach(([ab, davor], i) => {
+      const danach = i + 1 < liste.length ? liste[i + 1][1] : VK_AKTUELL[nr];
+      aenderungen.push({ article_number: `RG-${nr}`, datum: ab, old_net: davor, new_net: danach });
+    });
+  }
+  return { artikel, aenderungen };
+}
+
+module.exports = { ARTIKEL, GASART_REIHENFOLGE, KG_ARTEN, listenpreis, VK_AKTUELL, VK_AENDERUNGEN, NAME, stammZeilen };

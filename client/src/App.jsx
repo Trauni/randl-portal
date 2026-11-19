@@ -21,6 +21,7 @@ import WidmannBestand from './components/pages/finance/WidmannBestand';
 import GasAuswertung from './components/pages/finance/GasAuswertung';
 import Artikelstamm from './components/pages/finance/Artikelstamm';
 import GasEkPreise from './components/pages/finance/GasEkPreise';
+import ArtikelListe from './components/pages/finance/ArtikelListe';
 import Ladebasen from './components/pages/finance/Ladebasen';
 import Tourplanung from './components/pages/finance/Tourplanung';
 import { CmsPage, CmsEditorPage } from './components/pages/content/CmsEditor'
@@ -98,6 +99,7 @@ function AppRoutes() {
         <Route path="finance/widmann-bestand" element={<WidmannBestand />} />
         <Route path="gashandel/auswertung" element={<GasAuswertung />} />
         <Route path="gashandel/artikel" element={<Artikelstamm />} />
+        <Route path="gashandel/artikel/liste" element={<ArtikelListe />} />
         <Route path="gashandel/einkaufspreise" element={<GasEkPreise />} />
         <Route path="gashandel/ladebasen" element={<Ladebasen />} />
         <Route path="gashandel/tourplanung" element={<Tourplanung />} />
