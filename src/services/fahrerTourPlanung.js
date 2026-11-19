@@ -68,6 +68,24 @@ async function unbekannteArtikel(nummern) {
   return nummern.filter((n) => !da.has(n));
 }
 
+/**
+ * Artikel für die Ladeliste (#607): ADR-Angaben, Füllmenge und Pfandbezug, dazu die Pfandartikel selbst (für die Bezeichnung).
+ * Liefert { [artikel_nr]: Zeile }.
+ */
+async function artikelFuerLadeliste(nummern) {
+  const nr = [...new Set(nummern.filter(Boolean))];
+  if (!nr.length) return {};
+  const SPALTEN = 'artikel_nr, bezeichnung, gasart, ggvs_faktor, befoerderungskategorie, fuellmenge, fuellmenge_einheit, pfand_artikel_nr, kaufflasche_artikel_nr';
+  const [rows] = await getPool().query(`SELECT ${SPALTEN} FROM gas_artikel WHERE artikel_nr IN (?)`, [nr]);
+  const karte = Object.fromEntries(rows.map((r) => [r.artikel_nr, r]));
+  const pfand = [...new Set(rows.map((r) => r.pfand_artikel_nr).filter((n) => n && !karte[n]))];
+  if (pfand.length) {
+    const [pf] = await getPool().query(`SELECT ${SPALTEN} FROM gas_artikel WHERE artikel_nr IN (?)`, [pfand]);
+    for (const r of pf) karte[r.artikel_nr] = r;
+  }
+  return karte;
+}
+
 /** Eine Transaktion mit gesperrter Tourzeile; fn bekommt die Verbindung. */
 async function imEntwurf(tourId, fn) {
   const conn = await getPool().getConnection();
@@ -226,6 +244,6 @@ async function loesche(tourId) {
 
 module.exports = {
   vorlagen, vorlageNachId, speichereVorlage, loescheVorlage,
-  fahrer, touren, tourNachId, stopps, legeAn, aendereKopf, belegteBestellungen, unbekannteArtikel,
+  fahrer, touren, tourNachId, stopps, legeAn, aendereKopf, belegteBestellungen, unbekannteArtikel, artikelFuerLadeliste,
   fuegeStoppHinzu, entferneStopp, aendereStopp, sortiere, setzeStatus, loesche,
 };

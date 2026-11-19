@@ -624,3 +624,8 @@ td.mono { font-family: 'DM Mono', monospace; font-size: 12.5px; }
 .ui-feld > label, .ui-feld > span:first-child { font-family: var(--font-head); font-weight: 600; font-size: 17px; color: var(--text2); }
 .ui-feld .ui-miss { border-color: #d68c00; background: var(--warn-bg); }
 @media (max-width: 800px) { .ui-feld { grid-template-columns: 1fr; gap: 4px; } }
+
+/* Disposition: Tourenliste | Tour | Ladeliste (Mockup Artboard 5) */
+.ui-dispo { display: grid; grid-template-columns: 240px minmax(0, 1fr) minmax(0, 360px); gap: 16px; align-items: start; }
+@media (max-width: 1200px) { .ui-dispo { grid-template-columns: 220px minmax(0, 1fr); } .ui-dispo > aside { grid-column: 1 / -1; } }
+@media (max-width: 800px) { .ui-dispo { grid-template-columns: 1fr; } }

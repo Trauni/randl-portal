@@ -74,6 +74,8 @@ const ramStore = {
   async aendereKopf(id, k) { const t = touren.find((x) => x.id === id); if (t.status !== 'entwurf') return false; Object.assign(t, { datum: k.datum, bezeichnung: k.bezeichnung, employee_id: k.employeeId, fahrzeug: k.fahrzeug, ladebasis_id: k.ladebasisId, version: t.version + 1 }); return true; },
   async belegteBestellungen() { return aktive(); },
   async unbekannteArtikel(nr) { return nr.filter((n) => n === 'XXX'); },
+  // #607: ADR-Angaben nur für 7801200 (Propan 11 kg), 7801100 hat keine
+  async artikelFuerLadeliste() { return { 7801200: { artikel_nr: '7801200', bezeichnung: 'Propan 11 kg', ggvs_faktor: 3, fuellmenge: 11, fuellmenge_einheit: 'kg', pfand_artikel_nr: 'P1' }, P1: { artikel_nr: 'P1', bezeichnung: 'Pfand 11 kg' }, 7801100: { artikel_nr: '7801100', bezeichnung: 'ohne ADR' } }; },
   async fuegeStoppHinzu(tourId, s) {
     if (aktive().has(s.bestellId)) throw new FahrerFehler(409, 'bestellung_belegt', 'belegt');
     const id = naechsteId++;
@@ -300,4 +302,18 @@ test('Adresse aus dem Kundenstamm: Liste, Zuordnung zur Tour und Tour aus Vorlag
   const v = (await rufe('POST', '/vorlagen', { name: 'A', employeeId: 7, kunden: [{ kundeNr: '20002', kundeName: 'Zweiter' }] })).daten;
   const r = await rufe('POST', '/aus-vorlage', { vorlageId: v.id, datum: '2026-11-24' });
   assert.equal(r.daten.uebernommen, 1);
+});
+
+test('Ladeliste (#607): Punkte, Leergut und Hinweis an offenen Bestellungen ohne ADR-Daten', async () => {
+  const t = await neueTour();
+  await rufe('POST', `/${t.id}/bestellungen`, { bestellIds: [B1] });
+  const l = (await rufe('GET', `/${t.id}/ladeliste`)).daten;
+  // B1: 2 × 7801200 (11 kg, Faktor 3) = 66 Punkte, 7801100 ohne ADR-Daten
+  assert.equal(l.punkte, 66);
+  assert.equal(l.ueber, false);
+  assert.deepEqual(l.unvollstaendig, ['7801100']);
+  assert.equal(l.leergutGesamt, 2);
+  assert.equal((await rufe('GET', '/99999/ladeliste')).status, 404);
+  const offen = (await rufe('GET', '/offene-bestellungen')).daten;
+  assert.deepEqual(offen[0].adrFehlt, ['7801100']);
 });
