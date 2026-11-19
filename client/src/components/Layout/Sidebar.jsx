@@ -205,6 +205,7 @@ export default function Sidebar({ user }) {
             <NavItem to="/finance/rhythmus"     icon="calendar"  label="Lieferrhythmus"    collapsed={collapsed}/>
             <NavItem to="/finance/mitteilungen" icon="bell"      label="Mitteilungen"      collapsed={collapsed}/>
             <NavItem to="/finance/info-mail"    icon="documents" label="Info-Mail Rollout" collapsed={collapsed}/>
+            <NavItem to="/gashandel/artikel/liste" icon="products" label="Artikel (neu)" collapsed={collapsed}/>
             <NavItem to="/finance/produkte"     icon="products"  label="Produkte"          collapsed={collapsed}/>
             <NavItem to="/finance/widmann-bestand" icon="products" label="Widmann-Bestand" collapsed={collapsed}/>
             {showArtikelstamm && <NavItem to="/gashandel/artikel" icon="products" label="Artikelstamm" collapsed={collapsed}/>}

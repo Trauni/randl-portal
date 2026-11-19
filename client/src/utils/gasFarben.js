@@ -20,3 +20,6 @@ const FARBEN = {
 export const gasFarbe = (gasart) => FARBEN[gasart] ?? null;
 
 export const GAS_FARBEN = FARBEN;
+
+/** Pfand- und Leergutflaschen: neutrales Grau, weil sie keine eigene Gasart haben. */
+export const PFAND_FARBE = '#8a8d8f';
