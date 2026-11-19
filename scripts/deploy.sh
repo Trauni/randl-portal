@@ -92,12 +92,18 @@ else
 fi
 [ "$VORHER" = "$NACHHER" ] && echo "    keine Änderungen" || echo "    $(git rev-parse --short "$VORHER") -> $(git rev-parse --short "$NACHHER")"
 
-geaendert() { ! git diff --quiet "$VORHER" "$NACHHER" -- "$@"; }
+# Frontend nur bauen, wenn sich sein Ordner gegenüber dem letzten Build geändert hat. Der Stand (Hash des Ordners im Commit)
+# steht nach dem Build im dist-Ordner. Wer vorher von Hand "git pull" macht, ist damit nicht von der Erkennung im selben Lauf abhängig.
+ordner_stand() { git rev-parse "$NACHHER:$1"; }
+braucht_build() { [ ! -f "$2/.gebaut-aus" ] || [ "$(cat "$2/.gebaut-aus")" != "$(ordner_stand "$1")" ]; }
+merke_build() { [ "$DRY_RUN" = 1 ] || ordner_stand "$1" > "$2/.gebaut-aus"; }
 
 # --- 4. Neue Migrationen ---
 log "Neue Migrationen"
 OFFEN=()
-if [ "$DRY_RUN" = 1 ]; then
+# Maßgeblich ist die Tabelle schema_migrations (auch im Probelauf, nur lesend), nicht der Unterschied vor/nach dem Pull:
+# wer vorher von Hand "git pull" macht, hätte sonst nie neue Migrationen gesehen. Nur beim allerersten Lauf (Tabelle fehlt) gilt der Pull-Unterschied.
+if [ "$DRY_RUN" = 1 ] && [ "$TABELLE_DA" = 0 ]; then
   if [ "$VORHER" != "$NACHHER" ]; then
     while IFS= read -r datei; do OFFEN+=("$datei"); done < <(git diff --name-only --diff-filter=A "$VORHER" "$NACHHER" -- 'migration_*.sql' | LC_ALL=C sort)
   fi
@@ -126,9 +132,10 @@ run npm ci --no-audit --no-fund
 log "Desktop-Frontend bauen"
 run bash -c 'cd client && npm ci --include=dev --no-audit --no-fund && npm run build'
 
-if [ ! -d dist-mobile ] || geaendert client-mobile; then
+if braucht_build client-mobile dist-mobile; then
   log "Mobil-Frontend bauen"
   run bash -c 'cd client-mobile && npm ci --include=dev --no-audit --no-fund && npm run build'
+  [ "$DRY_RUN" = 1 ] || merke_build client-mobile dist-mobile
 else
   log "Mobil-Frontend unverändert, übersprungen"
 fi
