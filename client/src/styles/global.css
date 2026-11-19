@@ -618,3 +618,9 @@ td.mono { font-family: 'DM Mono', monospace; font-size: 12.5px; }
 .ui-adr-punkte { font-family: var(--font-display); font-size: 64px; line-height: .85; letter-spacing: .02em; }
 .ui-adr-von { font-weight: 700; font-size: 15px; }
 .ui-adr-text { font-weight: 700; font-size: 15px; padding-top: 6px; }
+
+/* Feldzeile der Detailseite: Beschriftung, Eingabe, Hinweis */
+.ui-feld { display: grid; grid-template-columns: 200px minmax(0, 1fr) 260px; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.ui-feld > label, .ui-feld > span:first-child { font-family: var(--font-head); font-weight: 600; font-size: 17px; color: var(--text2); }
+.ui-feld .ui-miss { border-color: #d68c00; background: var(--warn-bg); }
+@media (max-width: 800px) { .ui-feld { grid-template-columns: 1fr; gap: 4px; } }

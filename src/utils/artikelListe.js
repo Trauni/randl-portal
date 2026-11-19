@@ -24,6 +24,38 @@ function luecken(a) {
   return fehlt;
 }
 
+/**
+ * "Wo läuft der Artikel schon": je Stelle ein Eintrag { stelle, ok: 'ok' | 'warn', text } für die Detailseite.
+ * Stellen ohne Aussage (z. B. SER bei NRG-Artikeln) fehlen.
+ */
+function laeuftSchon(z) {
+  const punkte = [];
+  if (z.lexware) {
+    const abw = z.lexware_status === 'abweichend';
+    punkte.push({ stelle: 'Lexware', ok: abw ? 'warn' : 'ok',
+      text: `${z.lexware.nummer}, im Shop ${z.lexware.shop}${abw ? ', Preis weicht vom Stamm ab' : ''}` });
+  } else if (z.lexware_status === 'fehlt') {
+    punkte.push({ stelle: 'Lexware', ok: 'warn', text: 'kein RG-/NRG-Artikel gefunden' });
+  }
+  if (z.ser_status === 'ok') punkte.push({ stelle: 'SER', ok: 'ok', text: 'angelegt, Preis und Name passen' });
+  else if (z.ser_status === 'abweichend') punkte.push({ stelle: 'SER', ok: 'warn', text: 'Preis weicht ab, Push SER nötig' });
+  else if (z.ser_status === 'Name anders') punkte.push({ stelle: 'SER', ok: 'warn', text: 'Name weicht ab' });
+  else if (z.ser_status === 'fehlt') punkte.push({ stelle: 'SER', ok: 'warn', text: 'nicht im SER-Export' });
+  punkte.push(z.im_stamm
+    ? { stelle: 'Tourplanung', ok: 'ok', text: 'nimmt den Artikel an' }
+    : { stelle: 'Tourplanung', ok: 'warn', text: 'nicht im Stamm, Bestellungen mit diesem Artikel werden abgelehnt' });
+  if (z.im_stamm) {
+    punkte.push(z.fahrer_app === 'aktiv'
+      ? { stelle: 'Fahrer-App', ok: 'ok', text: 'aktiv' }
+      : { stelle: 'Fahrer-App', ok: 'warn', text: 'inaktiv' });
+    const fehlt = [z.gasart ? null : 'Gasart', z.preis_netto_cent != null ? null : 'Preis'].filter(Boolean);
+    punkte.push(fehlt.length
+      ? { stelle: 'Auswertung', ok: 'warn', text: `ohne ${fehlt.join(' und ')}, Umsatz fehlt` }
+      : { stelle: 'Auswertung', ok: 'ok', text: 'Gasart und Preis vorhanden' });
+  }
+  return punkte;
+}
+
 function lexwareInfo(l) {
   return {
     id: l.id, nummer: l.articleNumber, name: l.name, tags: l.tags || [],
@@ -93,8 +125,9 @@ function verbinde({ stamm, lexware = [], ser = [], lexwareVerfuegbar = true }) {
       ser_status: serStatus,
       fahrer_app: a ? (a.aktiv ? 'aktiv' : 'inaktiv') : null,
       luecken: fehlt,
+      ek_gruppe: a?.ek_gruppe ?? null,
     };
-  });
+  }).map((z) => ({ ...z, laeuft: laeuftSchon(z) }));
 }
 
 /** Zähler für den Hinweisbalken "Zu erledigen" und die Filter. */
@@ -108,4 +141,4 @@ function zusammenfassung(zeilen) {
   };
 }
 
-module.exports = { verbinde, zusammenfassung, luecken, stammNr };
+module.exports = { verbinde, zusammenfassung, luecken, laeuftSchon, stammNr };

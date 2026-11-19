@@ -22,7 +22,7 @@ router.get('/', async (req, res) => {
     if (darfStamm) {
       [stamm] = (await getPool().query(
         `SELECT artikel_nr, bezeichnung, typ, aktiv, gasart, un_nr, gefahrklasse, ggvs_faktor, befoerderungskategorie, bezadr,
-                fuellgewicht_kg, fuellmenge, fuellmenge_einheit, preis_netto_cent, mwst_satz, pfand_artikel_nr, kaufflasche_artikel_nr
+                fuellgewicht_kg, fuellmenge, fuellmenge_einheit, preis_netto_cent, mwst_satz, pfand_artikel_nr, kaufflasche_artikel_nr, ek_gruppe
            FROM gas_artikel ORDER BY artikel_nr`));
       [ser] = await getPool().query('SELECT prodnr, name, preis_cent FROM ser_product_master');
     }

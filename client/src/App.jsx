@@ -12,16 +12,15 @@ import VacationCalendar from './components/pages/VacationCalendar'
 import Profile from './components/pages/Profile'
 import ITBereich from './components/pages/it/ITBereich'
 import Orders   from './components/pages/finance/Orders';
-import Products from './components/pages/finance/Products';
 import Customers       from './components/pages/finance/Customers';
 import DeliveryRhythm from './components/pages/finance/DeliveryRhythm';
 import ShopNews from './components/pages/finance/ShopNews';
 import InfoMail from './components/pages/finance/InfoMail';
 import WidmannBestand from './components/pages/finance/WidmannBestand';
 import GasAuswertung from './components/pages/finance/GasAuswertung';
-import Artikelstamm from './components/pages/finance/Artikelstamm';
-import GasEkPreise from './components/pages/finance/GasEkPreise';
+import EinkaufspreiseWeiter from './components/pages/finance/EinkaufspreiseWeiter';
 import ArtikelListe from './components/pages/finance/ArtikelListe';
+import ArtikelDetail from './components/pages/finance/ArtikelDetail';
 import Ladebasen from './components/pages/finance/Ladebasen';
 import Tourplanung from './components/pages/finance/Tourplanung';
 import { CmsPage, CmsEditorPage } from './components/pages/content/CmsEditor'
@@ -98,13 +97,15 @@ function AppRoutes() {
         <Route path="finance/info-mail" element={<InfoMail />} />
         <Route path="finance/widmann-bestand" element={<WidmannBestand />} />
         <Route path="gashandel/auswertung" element={<GasAuswertung />} />
-        <Route path="gashandel/artikel" element={<Artikelstamm />} />
+        {/* Alte Seiten Artikelstamm, Produkte und Einkaufspreise sind in „Artikel“ aufgegangen (#606) */}
+        <Route path="gashandel/artikel" element={<Navigate to="/gashandel/artikel/liste" replace />} />
         <Route path="gashandel/artikel/liste" element={<ArtikelListe />} />
-        <Route path="gashandel/einkaufspreise" element={<GasEkPreise />} />
+        <Route path="gashandel/artikel/:nr" element={<ArtikelDetail />} />
+        <Route path="gashandel/einkaufspreise" element={<EinkaufspreiseWeiter />} />
         <Route path="gashandel/ladebasen" element={<Ladebasen />} />
         <Route path="gashandel/tourplanung" element={<Tourplanung />} />
         <Route path="finance/bestellungen" element={<Orders />} />
-        <Route path="finance/produkte"     element={<Products />} />
+        <Route path="finance/produkte"     element={<Navigate to="/gashandel/artikel/liste" replace />} />
         <Route path="content/cms" element={<CmsPage />} />
         <Route path="content/cms/edit/:id" element={<CmsEditorPage />} />
         <Route path="content/bilder" element={<Bilderverwaltung />} />

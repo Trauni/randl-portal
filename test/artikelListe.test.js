@@ -80,3 +80,24 @@ test('ohne Stamm-Recht: nur Lexware, nichts wird als "SER fehlt" gemeldet; Lexwa
   const [y] = verbinde({ stamm: [stammFuellung()], lexware: [], ser: [], lexwareVerfuegbar: false });
   assert.equal(y.lexware_status, 'nicht verglichen');
 });
+
+const { laeuftSchon } = require('../src/utils/artikelListe');
+
+test('Detailseite "Wo läuft der Artikel schon": Stelle, Zustand und Text', () => {
+  const ok = verbinde({ stamm: [stammFuellung({ ek_gruppe: 'propan' })], lexware: [lex()], ser: [ser()] })[0];
+  assert.deepEqual(ok.laeuft.map((p) => [p.stelle, p.ok]), [['Lexware', 'ok'], ['SER', 'ok'], ['Tourplanung', 'ok'], ['Fahrer-App', 'ok'], ['Auswertung', 'ok']]);
+  assert.equal(ok.ek_gruppe, 'propan');
+
+  const t039 = verbinde({ stamm: [stammFuellung({ artikel_nr: 'T039', preis_netto_cent: null, gasart: null, aktiv: 0 })], lexware: [], ser: [] })[0];
+  const nach = Object.fromEntries(t039.laeuft.map((p) => [p.stelle, p]));
+  assert.equal(nach['Fahrer-App'].ok, 'warn');
+  assert.match(nach.Auswertung.text, /ohne Gasart und Preis/);
+  assert.equal(nach.Lexware.ok, 'warn');
+});
+
+test('Detailseite: Artikel nur in Lexware wird von der Tourplanung abgelehnt', () => {
+  const nurLex = verbinde({ stamm: [], lexware: [lex({ articleNumber: 'RG-1234567' })], ser: [] })[0];
+  const tour = laeuftSchon(nurLex).find((p) => p.stelle === 'Tourplanung');
+  assert.equal(tour.ok, 'warn');
+  assert.ok(!laeuftSchon(nurLex).some((p) => p.stelle === 'Fahrer-App'));
+});

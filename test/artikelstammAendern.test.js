@@ -59,3 +59,16 @@ test('Füllmenge mit Einheit und ADR-Benennung sind änderbar', () => {
   assert.match(pruefeAenderung({ fuellmenge_einheit: 'm3' }).fehler[0], /kg oder l/);
   assert.deepEqual(pruefeAenderung({ fuellmenge_einheit: '' }).werte, { fuellmenge_einheit: null });
 });
+
+test('Preisgruppe (Einkauf) am Artikel: nur bekannte Gruppen, leer entfernt sie', () => {
+  assert.equal(pruefeAenderung({ ek_gruppe: 'propan' }).werte.ek_gruppe, 'propan');
+  assert.equal(pruefeAenderung({ ek_gruppe: 'motogas' }).werte.ek_gruppe, 'motogas');
+  assert.equal(pruefeAenderung({ ek_gruppe: '' }).werte.ek_gruppe, null);
+  assert.match(pruefeAenderung({ ek_gruppe: 'diesel' }).fehler[0], /Preisgruppe/);
+});
+
+test('Gasart am Artikel: nur bekannte Gasarten (für Auswertung und Flaschenfarbe)', () => {
+  assert.equal(pruefeAenderung({ gasart: 'Propan' }).werte.gasart, 'Propan');
+  assert.equal(pruefeAenderung({ gasart: '' }).werte.gasart, null);
+  assert.match(pruefeAenderung({ gasart: 'Nebel' }).fehler[0], /Gasart/);
+});
