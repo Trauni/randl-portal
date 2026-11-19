@@ -32,6 +32,10 @@
   --nav-active-fg: #ff9a9a;
   --link:    #ff8a8a;
   --focus:   #ff6b6b;
+  /* Diagramme */
+  --chart-1: #ff5a5a;
+  --chart-2: #8fa6c9;
+  --chart-3: #4fd18f;
 
   /* Schriften */
   --font-body:    'DM Sans', system-ui, sans-serif;
@@ -74,6 +78,9 @@
   --nav-active-fg: #a30000;
   --link:    #a30000;
   --focus:   #a30000;
+  --chart-1: #cc0000;
+  --chart-2: #3d4a5c;
+  --chart-3: #1d7a4c;
 }
 
 /* ── Reset & Base ─────────────────────────────────────────────────────────── */
@@ -629,3 +636,10 @@ td.mono { font-family: 'DM Mono', monospace; font-size: 12.5px; }
 .ui-dispo { display: grid; grid-template-columns: 240px minmax(0, 1fr) minmax(0, 360px); gap: 16px; align-items: start; }
 @media (max-width: 1200px) { .ui-dispo { grid-template-columns: 220px minmax(0, 1fr); } .ui-dispo > aside { grid-column: 1 / -1; } }
 @media (max-width: 800px) { .ui-dispo { grid-template-columns: 1fr; } }
+
+/* Kennzahlenleiste (Auswertung): Kacheln nebeneinander in einem Panel */
+.ui-kz-leiste { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.ui-kz { display: flex; flex-direction: column; gap: 2px; padding: 14px 18px; border-left: 1px solid var(--border); }
+.ui-kz:first-child { border-left: 0; }
+.ui-kz b { font-size: 26px; font-variant-numeric: tabular-nums; line-height: 1.15; color: var(--text1); }
+.ui-kz span { font-size: 14px; color: var(--text2); }
