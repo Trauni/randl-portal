@@ -3,6 +3,9 @@
  * Ein Feld, das in `eingabe` fehlt, bleibt unberührt; `null` oder '' leert es.
  */
 
+const { GRUPPEN: EK_GRUPPEN } = require('../services/gasEkPreise');
+const { GASART_REIHENFOLGE } = require('../services/gasStamm');
+
 const KATEGORIE_ZU_FAKTOR = { 50: 1, 3: 2, 1: 3 };
 const leer = v => v === null || v === undefined || (typeof v === 'string' && v.trim() === '');
 const txt = (max) => v => {
@@ -30,6 +33,8 @@ const FELDER = {
   fuellmenge_einheit: { parse: v => { const t = String(v).trim().toLowerCase(); if (t !== 'kg' && t !== 'l') throw new Error('kg oder l erwartet'); return t; }, nullable: true },
   preis_netto_cent: { parse: zahl(0, 100000000, true), nullable: true },
   mwst_satz: { parse: zahl(0, 30), nullable: true },
+  gasart: { parse: v => { const t = String(v).trim(); if (!GASART_REIHENFOLGE.includes(t)) throw new Error('Gasart unbekannt'); return t; }, nullable: true },
+  ek_gruppe: { parse: v => { const t = String(v).trim(); if (!EK_GRUPPEN[t]) throw new Error(`Preisgruppe: ${Object.keys(EK_GRUPPEN).join(' oder ')}`); return t; }, nullable: true },
   pfand_artikel_nr: { parse: txt(16), nullable: true },
   kaufflasche_artikel_nr: { parse: txt(16), nullable: true },
 };

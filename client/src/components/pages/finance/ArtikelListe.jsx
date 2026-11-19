@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { Panel, Tag, SelectionBar, GasCylinder } from '../../ui';
 import { filtereArtikel, LUECKEN } from '../../../utils/artikelFilter';
@@ -259,7 +260,7 @@ export default function ArtikelListe() {
                       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                         <GasCylinder gasart={a.gasart} typ={a.typ} />
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ fontWeight: 600 }}>{a.bezeichnung}{a.aktiv === false && ' (inaktiv)'}</span>
+                          <Link to={`/gashandel/artikel/${encodeURIComponent(a.artikel_nr)}`} style={{ fontWeight: 600, color: 'var(--text1)', textDecoration: 'none' }}>{a.bezeichnung}{a.aktiv === false && ' (inaktiv)'}</Link>
                           <span className="ui-table-sub">
                             {a.luecken.length > 0 ? `Es fehlen: ${a.luecken.join(', ')}`
                               : a.pfand_artikel_nr ? `Pfand ${a.pfand_artikel_nr}` : (a.lexware?.tags || []).join(', ')}

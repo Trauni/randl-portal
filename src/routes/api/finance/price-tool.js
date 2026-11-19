@@ -136,14 +136,18 @@ router.get('/apply/:jobId', async (req, res) => {
   }
 });
 
-// GET /api/finance/price-tool/log?limit=50 – letzte Preisänderungen
+// GET /api/finance/price-tool/log?limit=50&artikel=7801100 – letzte Preisänderungen, optional nur eines Artikels
+// (Nummer ohne Präfix; trifft RG-, NRG- und die nackte Nummer)
 router.get('/log', async (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 500);
+  const artikel = String(req.query.artikel || '').trim();
+  if (artikel && !/^[A-Za-z0-9_-]{1,16}$/.test(artikel)) return res.status(400).json({ error: 'Ungültige Artikelnummer' });
   try {
     const [rows] = await getPool().query(
       `SELECT id, job_id, target, article_number, article_name, rule_text, old_net, new_net, status, reason,
               changed_by_name, created_at
-         FROM price_change_log ORDER BY id DESC LIMIT ${limit}`
+         FROM price_change_log ${artikel ? 'WHERE article_number IN (?, ?, ?)' : ''} ORDER BY id DESC LIMIT ${limit}`,
+      artikel ? [artikel, `RG-${artikel}`, `NRG-${artikel}`] : []
     );
     res.json({ entries: rows });
   } catch (err) {

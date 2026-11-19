@@ -22,6 +22,7 @@ import GasAuswertung from './components/pages/finance/GasAuswertung';
 import Artikelstamm from './components/pages/finance/Artikelstamm';
 import GasEkPreise from './components/pages/finance/GasEkPreise';
 import ArtikelListe from './components/pages/finance/ArtikelListe';
+import ArtikelDetail from './components/pages/finance/ArtikelDetail';
 import Ladebasen from './components/pages/finance/Ladebasen';
 import Tourplanung from './components/pages/finance/Tourplanung';
 import { CmsPage, CmsEditorPage } from './components/pages/content/CmsEditor'
@@ -100,6 +101,7 @@ function AppRoutes() {
         <Route path="gashandel/auswertung" element={<GasAuswertung />} />
         <Route path="gashandel/artikel" element={<Artikelstamm />} />
         <Route path="gashandel/artikel/liste" element={<ArtikelListe />} />
+        <Route path="gashandel/artikel/:nr" element={<ArtikelDetail />} />
         <Route path="gashandel/einkaufspreise" element={<GasEkPreise />} />
         <Route path="gashandel/ladebasen" element={<Ladebasen />} />
         <Route path="gashandel/tourplanung" element={<Tourplanung />} />

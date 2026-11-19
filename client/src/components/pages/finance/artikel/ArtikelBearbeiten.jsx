@@ -1,21 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Panel } from '../../../ui';
 
-// Felder der Bearbeitung: [Spalte, Beschriftung, Eingabe-Typ, Hinweis]
-const EDIT_FELDER = [
-  ['un_nr', 'UN-Nr.', 'text', '4 Ziffern, z. B. 1965'],
-  ['gefahrklasse', 'Gefahrklasse', 'text', 'z. B. 2.1'],
-  ['ggvs_faktor', 'ADR-Faktor', 'select:50,3,1', 'ADR 1.1.3.6 (50 = Kat. 1, 3 = Kat. 2, 1 = Kat. 3)'],
-  ['preis_netto_cent', 'Netto-Preis (Cent)', 'text', 'z. B. 2926 für 29,26 €'],
-  ['mwst_satz', 'MwSt. %', 'select:19,7', ''],
-  ['fuellgewicht_kg', 'Gewicht (kg)', 'text', ''],
-  ['fuellmenge', 'Füllmenge', 'text', 'Zahl, Einheit im nächsten Feld'],
-  ['fuellmenge_einheit', 'Einheit', 'select:kg,l', 'kg bei Brenngas/CO², Liter bei Technikgasen'],
-  ['bezadr', 'ADR-Benennung', 'text', 'z. B. ARGON, VERDICHTET, 2.2, ( E ), Bef.kat.3'],
-  ['pfand_artikel_nr', 'Pfandartikel', 'pfand', 'Leergut-Rücknahme, nur Typ Pfand'],
-  ['kaufflasche_artikel_nr', 'Kaufflasche', 'kauf', 'wird mit der Füllung verkauft (1:1 oder 1:0)'],
-  ['aktiv', 'Status', 'select:1,0', '1 = aktiv, 0 = inaktiv'],
-];
+import { EDIT_FELDER, GASARTEN, EK_GRUPPEN } from './artikelFelder';
+
 const aktivText = { 1: 'aktiv', 0: 'inaktiv' };
 
 async function api(url, opts) {
@@ -132,6 +119,11 @@ export default function ArtikelBearbeiten({ gewaehlt, alle, onFertig, onClose })
                 <select className="form-select" style={{ display: 'block', marginTop: 2 }} value={eingabe[feld] ?? ''} onChange={(e) => setze(feld, e.target.value)} aria-label={label}>
                   <option value="">– keiner –</option>
                   {(typ === 'kauf' ? kaufListe : pfandListe).map((p) => <option key={p.artikel_nr} value={p.artikel_nr}>{p.artikel_nr} {p.bezeichnung}</option>)}
+                </select>
+              ) : typ === 'gasart' || typ === 'ekgruppe' ? (
+                <select className="form-select" style={{ display: 'block', marginTop: 2 }} value={eingabe[feld] ?? ''} onChange={(e) => setze(feld, e.target.value)} aria-label={label}>
+                  <option value="">–</option>
+                  {typ === 'gasart' ? GASARTEN.map((g) => <option key={g} value={g}>{g}</option>) : Object.entries(EK_GRUPPEN).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               ) : typ.startsWith('select:') ? (
                 <select className="form-select" style={{ display: 'block', marginTop: 2 }} value={eingabe[feld] ?? ''} onChange={(e) => setze(feld, e.target.value)} aria-label={label}>
