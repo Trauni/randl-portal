@@ -29,6 +29,8 @@ router.post('/einblenden', (req, res) => send(res, () => galerie.restore(req.bod
 router.post('/endgueltig', (req, res) => send(res, () => galerie.purge(req.body?.files)));
 router.post('/verschieben', (req, res) => send(res, () => galerie.move(req.body?.files, req.body?.album)));
 router.put('/alben', (req, res) => send(res, () => galerie.saveAlben(req.body?.alben)));
+router.post('/verpixeln', async (req, res) => { try { res.json(await galerie.blur(req.body?.files)); } catch (e) { fehler(res, e); } });
+router.post('/entpixeln', (req, res) => send(res, () => galerie.unblur(req.body?.files)));
 
 router.post('/hochladen', (req, res) => {
   upload.array('bilder', 20)(req, res, async err => {

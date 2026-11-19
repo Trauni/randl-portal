@@ -5,8 +5,10 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 
 const BASE = 'https://randl.group/zelt/galerie/';
 const API  = '/api/content/galerie';
-const thumbUrl = b => (b.ausgeblendet ? `${API}/papierkorb/${b.file}` : `${BASE}img/thumb/${b.file}`);
-const fullUrl  = f => `${BASE}img/full/${f}`;
+const ver = b => (b.v ? `?v=${b.v}` : '');
+const thumbUrl = b => (b.ausgeblendet ? `${API}/papierkorb/${b.file}` : `${BASE}img/thumb/${b.file}${ver(b)}`);
+const fullUrl  = b => `${BASE}img/full/${b.file}${ver(b)}`;
+const faces = b => (b.boxen || []).length;
 
 const btn = (variant = 'neutral', extra = {}) => ({
   display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 13px', fontSize: 12, fontWeight: 500,
@@ -23,6 +25,9 @@ const label = { display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: 
 
 const IconTrash = ({ s = 14 }) => (
   <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+);
+const IconFace = ({ s = 12 }) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r=".6" fill="currentColor"/><circle cx="15" cy="10" r=".6" fill="currentColor"/><path d="M8.5 15c1 1 2.2 1.5 3.5 1.5s2.5-.5 3.5-1.5"/></svg>
 );
 const IconPlus = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>);
 
@@ -185,6 +190,8 @@ export default function GalerieVerwaltung() {
   const [msg, setMsg]         = useState(null);
   const [gross, setGross]     = useState(null);
   const [dialog, setDialog]   = useState(null);       // upload | kategorien
+  const [nurGesichter, setNurGesichter] = useState(false);
+  const [rahmen, setRahmen]   = useState(true);       // Gesichter in der Großansicht markieren
 
   const load = useCallback(async () => {
     try { setData(await call(`${API}/list`)); setError(null); }
@@ -194,10 +201,13 @@ export default function GalerieVerwaltung() {
 
   const titel  = useMemo(() => Object.fromEntries((data?.alben || []).map(a => [a.id, a.titel])), [data]);
   const quelle = ansicht === 'online' ? (data?.bilder || []) : (data?.ausgeblendet || []);
-  const liste  = album === 'alle' ? quelle : quelle.filter(b => b.album === album);
+  const imAlbum = album === 'alle' ? quelle : quelle.filter(b => b.album === album);
+  const liste  = nurGesichter ? imAlbum.filter(b => faces(b)) : imAlbum;
+  const mitGesichtern = imAlbum.filter(b => faces(b)).length;
+  const ungeprueft = (data?.bilder || []).filter(b => !b.boxen).length;
 
   const toggle  = f => setAuswahl(prev => { const n = new Set(prev); n.has(f) ? n.delete(f) : n.add(f); return n; });
-  const wechsel = v => { setAnsicht(v); setAuswahl(new Set()); setGross(null); setAlbum('alle'); };
+  const wechsel = v => { setAnsicht(v); setAuswahl(new Set()); setGross(null); setAlbum('alle'); setNurGesichter(false); };
   const flash   = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg(null), 6000); };
 
   const run = async (fn, text) => {
@@ -217,6 +227,10 @@ export default function GalerieVerwaltung() {
     if (!window.confirm(`${files.length} Bild(er) endgültig löschen?\n\nDas lässt sich nicht rückgängig machen. Fotos aus der Nextcloud bleiben dort erhalten, kommen aber nicht mehr in die Galerie.`)) return;
     run(() => postJson('endgueltig', { files }), d => `${d.geloescht} Bild(er) endgültig gelöscht.`);
   };
+  const verpixeln = files => run(() => postJson('verpixeln', { files }),
+    d => `${d.verpixelt} Bild(er) verpixelt${d.uebersprungen ? `, ${d.uebersprungen} ohne erkannte Gesichter übersprungen` : ''}. Das Original bleibt gesichert.`);
+  const entpixeln = files => run(() => postJson('entpixeln', { files }),
+    d => `${d.entpixelt} Bild(er) wieder im Original${d.fehlend ? `, bei ${d.fehlend} fehlt das Original` : ''}.`);
   const verschieben = (files, ziel) => run(() => postJson('verschieben', { files, album: ziel }),
     d => `${d.verschoben} Bild(er) nach „${titel[ziel]}“ verschoben.`);
 
@@ -289,6 +303,10 @@ export default function GalerieVerwaltung() {
           {alleGewaehlt ? 'Auswahl aufheben' : 'Alle wählen'}
         </button>
         <span style={{ fontSize: 12, color: 'var(--text2)' }}>{auswahl.size} ausgewählt</span>
+        <button onClick={() => { setNurGesichter(!nurGesichter); setAuswahl(new Set()); }} disabled={!mitGesichtern && !nurGesichter}
+          style={btn(nurGesichter ? 'primary' : 'ghost', { padding: '5px 10px', opacity: mitGesichtern || nurGesichter ? 1 : .45 })}>
+          <IconFace /> Mit Gesichtern ({mitGesichtern})
+        </button>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap', opacity: auswahl.size && !busy ? 1 : .45, pointerEvents: auswahl.size && !busy ? 'auto' : 'none' }}>
           {online ? (
             <>
@@ -296,6 +314,7 @@ export default function GalerieVerwaltung() {
                 <option value="">Kategorie ändern…</option>
                 {data.alben.map(a => <option key={a.id} value={a.id}>→ {a.titel}</option>)}
               </select>
+              <button style={btn()} onClick={() => verpixeln([...auswahl])}><IconFace /> Gesichter verpixeln</button>
               <button style={btn('danger')} onClick={() => loeschen([...auswahl])}><IconTrash /> Löschen ({auswahl.size})</button>
             </>
           ) : (
@@ -310,7 +329,7 @@ export default function GalerieVerwaltung() {
 
       <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--text3)' }}>
         {online
-          ? 'Klick aufs Bild = auswählen · Papierkorb-Symbol = sofort löschen · ⤢ = groß ansehen (← → blättern, Entf = löschen). Gelöschte Bilder bleiben auch nach dem nächsten Galerie-Lauf draußen.'
+          ? `Klick aufs Bild = auswählen · Papierkorb-Symbol = sofort löschen · ⤢ = groß ansehen (← → blättern, Entf = löschen). Gelöschte Bilder bleiben auch nach dem nächsten Galerie-Lauf draußen.${ungeprueft ? ` ${ungeprueft} Bild(er) noch nicht auf Gesichter geprüft – passiert beim nächsten Galerie-Lauf.` : ''}`
           : 'Gelöschte Bilder sind nicht mehr auf randl.group. Wiederherstellen bringt sie zurück, endgültig löschen entfernt die Dateien.'}
       </p>
 
@@ -330,6 +349,12 @@ export default function GalerieVerwaltung() {
                 <img src={thumbUrl(b)} alt={b.alt} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: sel ? .75 : 1 }} />
                 <span style={{ position: 'absolute', top: 6, left: 6, width: 20, height: 20, borderRadius: 5, display: 'flex', alignItems: 'center', justifyContent: 'center',
                   background: sel ? 'var(--r)' : 'rgba(255,255,255,.85)', border: '1px solid rgba(0,0,0,.15)', color: '#fff', fontSize: 13, fontWeight: 700 }}>{sel ? '✓' : ''}</span>
+                {(faces(b) > 0 || b.verpixelt) && (
+                  <span title={b.verpixelt ? 'Gesichter verpixelt' : `${faces(b)} Gesicht(er) erkannt`} style={{ position: 'absolute', bottom: 24, left: 6, display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600,
+                    background: b.verpixelt ? 'rgba(58,138,90,.92)' : 'rgba(0,0,0,.65)', color: '#fff', padding: '2px 6px', borderRadius: 4 }}>
+                    <IconFace s={11} />{b.verpixelt ? 'verpixelt' : faces(b)}
+                  </span>
+                )}
                 {b.hochgeladen && <span style={{ position: 'absolute', top: 7, left: 32, fontSize: 9, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', background: 'var(--green, #3a8a5a)', color: '#fff', padding: '2px 5px', borderRadius: 3 }}>Upload</span>}
                 {online && (
                   <div className="gv-tools" style={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 4 }}>
@@ -352,7 +377,13 @@ export default function GalerieVerwaltung() {
       {/* Großansicht */}
       {grossBild && (
         <div onClick={() => setGross(null)} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.9)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 20 }}>
-          <img src={fullUrl(grossBild.file)} alt={grossBild.alt} onClick={e => e.stopPropagation()} style={{ maxWidth: '92vw', maxHeight: '76vh', objectFit: 'contain', borderRadius: 6 }} />
+          <div onClick={e => e.stopPropagation()} style={{ position: 'relative', display: 'inline-block', lineHeight: 0 }}>
+            <img src={fullUrl(grossBild)} alt={grossBild.alt} style={{ display: 'block', maxWidth: '92vw', maxHeight: '76vh', borderRadius: 6 }} />
+            {rahmen && !grossBild.verpixelt && (grossBild.boxen || []).map(([x, y, w, h], i) => (
+              <span key={i} style={{ position: 'absolute', left: `${x * 100}%`, top: `${y * 100}%`, width: `${w * 100}%`, height: `${h * 100}%`,
+                border: '2px solid #ffd23f', borderRadius: 4, boxShadow: '0 0 0 1px rgba(0,0,0,.6)', pointerEvents: 'none' }} />
+            ))}
+          </div>
           <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
             <button style={btn()} disabled={grossIdx <= 0} onClick={() => setGross(liste[grossIdx - 1].file)}>‹ Zurück</button>
             <span style={{ color: '#ccc', fontSize: 12 }}>{grossBild.caption ? `${grossBild.caption} · ` : ''}{grossIdx + 1}/{liste.length}</span>
@@ -364,6 +395,12 @@ export default function GalerieVerwaltung() {
             }} style={{ ...input, width: 'auto', padding: '6px 8px', fontSize: 12 }} title="Kategorie">
               {data.alben.map(a => <option key={a.id} value={a.id}>{a.titel}</option>)}
             </select>
+            {grossBild.verpixelt
+              ? <button style={btn()} disabled={busy} onClick={() => entpixeln([grossBild.file])}><IconFace /> Verpixelung aufheben</button>
+              : faces(grossBild) > 0 && <>
+                  <button style={btn()} onClick={() => setRahmen(!rahmen)}>{rahmen ? 'Markierung aus' : `${faces(grossBild)} Gesicht(er) zeigen`}</button>
+                  <button style={btn('primary')} disabled={busy} onClick={() => verpixeln([grossBild.file])}><IconFace /> Gesichter verpixeln</button>
+                </>}
             <button style={btn('danger')} disabled={busy} onClick={() => {
               const next = liste[grossIdx + 1] || liste[grossIdx - 1];
               loeschen([grossBild.file], false).then(() => setGross(next ? next.file : null));

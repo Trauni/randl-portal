@@ -8,6 +8,9 @@
 //   ausgeblendet  gelöschte Bilder (Papierkorb); endgueltig=true → Dateien weg, bleibt trotzdem gesperrt
 //   hinzugefuegt  im Portal hochgeladene Bilder (gibt es nicht in der Nextcloud)
 //   zuordnung     { sha8: albumId } für umsortierte Nextcloud-Bilder
+//   verpixelt     { sha8: boxen } – Gesichter unkenntlich gemacht (Original im Papierkorb-Ordner /original)
+//   version       { sha8: n } – Cache-Buster (?v=n) nach Bildänderung
+// Gesichter (boxen = [[x,y,w,h] relativ]) erkennt build-galerie.py lokal mit OpenCV.
 // Dateien: galerie.json (sichtbare Bilder), index.html (statischer Block zwischen GALERIE-Markern),
 // img/full + img/thumb (WebP). Gelöschte WebPs liegen im Papierkorb (BACKUP), nicht im Webroot.
 // renderBlock(), slugify() und alt-Texte müssen zu build-galerie.py passen.
@@ -56,15 +59,17 @@ function moveFile(from, to) {
 }
 const imgPath = (size, file) => path.join(DIR(), 'img', size, file);
 const binPath = (size, file) => path.join(BACKUP(), size, file);
+const origPath = (size, sha) => path.join(BACKUP(), 'original', size, `${sha}.webp`);
 
 // ── Rendern (identisch zu build-galerie.py) ──────────────────────────
 function renderBlock(alben, bilder) {
   const sichtbar = alben.filter(a => a.anzahl > 0);
   const figs = bilder.map((m, i) => {
     const lazy = i > 7 ? 'loading="lazy" decoding="async"' : i === 0 ? 'fetchpriority="high"' : '';
+    const q = m.v ? `?v=${m.v}` : '';
     return `<figure class="g-item" data-album="${m.album}">`
-      + `<a href="img/full/${m.file}" data-w="${m.w}" data-h="${m.h}">`
-      + `<img src="img/thumb/${m.file}" width="${m.tw}" height="${m.th}" alt="${esc(m.alt)}" ${lazy}></a>`
+      + `<a href="img/full/${m.file}${q}" data-w="${m.w}" data-h="${m.h}">`
+      + `<img src="img/thumb/${m.file}${q}" width="${m.tw}" height="${m.th}" alt="${esc(m.alt)}" ${lazy}></a>`
       + (m.caption ? `<figcaption>${esc(m.caption)}</figcaption>` : '')
       + '</figure>';
   });
@@ -84,6 +89,8 @@ function load() {
   state.ausgeblendet = (state.ausgeblendet || []).concat(legacy ? legacy.bilder : []);
   state.hinzugefuegt = state.hinzugefuegt || [];
   state.zuordnung = state.zuordnung || {};
+  state.verpixelt = state.verpixelt || {};
+  state.version = state.version || {};
   if (!state.alben || !state.alben.length) state.alben = data.alben.map(({ id, titel }) => ({ id, titel, ordner: [] }));
   return { data, state, hadLegacy: !!legacy };
 }
@@ -179,7 +186,10 @@ function purge(files) {
     let n = 0;
     state.ausgeblendet.forEach(h => {
       if (!set.has(h.file) || h.endgueltig) return;
-      for (const size of ['full', 'thumb']) fs.rmSync(binPath(size, h.file), { force: true });
+      for (const size of ['full', 'thumb']) {
+        fs.rmSync(binPath(size, h.file), { force: true });
+        fs.rmSync(origPath(size, sha8(h.file)), { force: true });
+      }
       h.endgueltig = true;   // Eintrag bleibt, damit das Skript das Nextcloud-Bild nicht wieder aufnimmt
       n++;
     });
@@ -274,6 +284,71 @@ function saveAlben(liste) {
   });
 }
 
+// ── Gesichter verpixeln / wiederherstellen ───────────────────────────
+// Gleiche Werte wie pixelate() in build-galerie.py: Rand 25 %, 7 Blöcke über die längere Seite.
+async function pixelateFile(file, boxen) {
+  const sharp = require('sharp');
+  const src = imgPath('full', file);
+  const { width: W, height: H } = await sharp(src).metadata();
+  const comps = [];
+  for (const [x, y, w, h] of boxen) {
+    const l = Math.max(0, Math.round((x - w * 0.25) * W)), t = Math.max(0, Math.round((y - h * 0.25) * H));
+    const r = Math.min(W, Math.round((x + w * 1.25) * W)), b = Math.min(H, Math.round((y + h * 1.25) * H));
+    if (r - l < 2 || b - t < 2) continue;
+    const blk = Math.max(r - l, b - t) / 7;
+    const small = await sharp(src).extract({ left: l, top: t, width: r - l, height: b - t })
+      .resize(Math.max(1, Math.round((r - l) / blk)), Math.max(1, Math.round((b - t) / blk)), { kernel: 'cubic', fit: 'fill' })
+      .toBuffer();
+    comps.push({ input: await sharp(small).resize(r - l, b - t, { kernel: 'nearest', fit: 'fill' }).toBuffer(), left: l, top: t });
+  }
+  const full = await sharp(src).composite(comps).webp({ quality: 80 }).toBuffer();
+  const thumb = await sharp(full).resize({ width: THUMB_W }).webp({ quality: 72 }).toBuffer();
+  fs.writeFileSync(`${src}.tmp`, full); fs.renameSync(`${src}.tmp`, src);
+  const th = imgPath('thumb', file);
+  fs.writeFileSync(`${th}.tmp`, thumb); fs.renameSync(`${th}.tmp`, th);
+}
+
+async function blur(files) {
+  const set = checkFiles(files);
+  const { data, state } = load();
+  const ziele = data.bilder.filter(b => set.has(b.file) && !state.verpixelt[sha8(b.file)] && (b.boxen || []).length);
+  for (const b of ziele) {
+    for (const size of ['full', 'thumb']) {                // Original sichern (nur beim ersten Mal)
+      const o = origPath(size, sha8(b.file));
+      if (!fs.existsSync(o)) { fs.mkdirSync(path.dirname(o), { recursive: true }); fs.copyFileSync(imgPath(size, b.file), o); }
+    }
+    await pixelateFile(b.file, b.boxen);
+  }
+  const ohne = [...set].filter(f => !ziele.some(b => b.file === f)).length;
+  return mutate(({ data, state }) => {
+    for (const z of ziele) {
+      const s = sha8(z.file), b = data.bilder.find(x => x.file === z.file);
+      state.verpixelt[s] = z.boxen;
+      state.version[s] = (state.version[s] || 0) + 1;
+      if (b) { b.verpixelt = true; b.v = state.version[s]; }
+    }
+    return { verpixelt: ziele.length, uebersprungen: ohne };
+  });
+}
+
+function unblur(files) {
+  const set = checkFiles(files);
+  return mutate(({ data, state }) => {
+    let n = 0, fehlend = 0;
+    for (const b of data.bilder) {
+      const s = sha8(b.file);
+      if (!set.has(b.file) || !state.verpixelt[s]) continue;
+      if (!['full', 'thumb'].every(size => fs.existsSync(origPath(size, s)))) { fehlend++; continue; }
+      for (const size of ['full', 'thumb']) moveFile(origPath(size, s), imgPath(size, b.file));
+      delete state.verpixelt[s];
+      state.version[s] = (state.version[s] || 0) + 1;
+      delete b.verpixelt; b.v = state.version[s];
+      n++;
+    }
+    return { entpixelt: n, fehlend };
+  });
+}
+
 // Vorschaubild eines gelöschten Bildes aus dem Papierkorb (nur fürs Portal)
 function papierkorbThumb(file) {
   if (typeof file !== 'string' || !FILE_RE.test(file)) return null;
@@ -281,4 +356,4 @@ function papierkorbThumb(file) {
   return fs.existsSync(p) ? p : null;
 }
 
-module.exports = { list, hide, restore, purge, move, upload, saveAlben, papierkorbThumb, renderBlock, slugify };
+module.exports = { list, hide, restore, purge, move, upload, saveAlben, blur, unblur, papierkorbThumb, renderBlock, slugify };

@@ -121,3 +121,35 @@ test('alter Stand .ausgeblendet.json (v1.9.0) wird übernommen', () => {
   assert.ok(!fs.existsSync(path.join(DIR, '.ausgeblendet.json')));
   assert.strictEqual(st().ausgeblendet[0].file, 'galazelt-aaaaaaa2.webp');
 });
+
+test('Gesichter verpixeln und wiederherstellen (Original gesichert, Cache-Buster)', async () => {
+  setup();
+  const f = 'galazelt-aaaaaaa2.webp';
+  // echtes Bild: weiß mit schwarzem "Gesicht" in der Mitte
+  const full = await sharp({ create: { width: 400, height: 300, channels: 3, background: '#fff' } })
+    .composite([{ input: await sharp({ create: { width: 40, height: 40, channels: 3, background: '#000' } }).png().toBuffer(), left: 180, top: 130 }])
+    .webp().toBuffer();
+  fs.writeFileSync(path.join(DIR, 'img', 'full', f), full);
+  fs.writeFileSync(path.join(DIR, 'img', 'thumb', f), full);
+  const d = JSON.parse(fs.readFileSync(path.join(DIR, 'galerie.json'), 'utf8'));
+  d.bilder[1].boxen = [[0.45, 0.4333, 0.1, 0.1333]];
+  fs.writeFileSync(path.join(DIR, 'galerie.json'), JSON.stringify(d));
+
+  const r = await galerie.blur([f, 'galazelt-frasdorfer-huette-aaaaaaa1.webp']);
+  assert.strictEqual(r.verpixelt, 1); assert.strictEqual(r.uebersprungen, 1, 'Bild ohne Gesichter wird übersprungen');
+  const b = galerie.list().bilder.find(x => x.file === f);
+  assert.ok(b.verpixelt); assert.strictEqual(b.v, 1);
+  assert.ok(html().includes(`img/full/${f}?v=1`) && html().includes(`img/thumb/${f}?v=1`));
+  assert.deepStrictEqual(st().verpixelt.aaaaaaa2, [[0.45, 0.4333, 0.1, 0.1333]]);
+  assert.ok(fs.existsSync(path.join(process.env.GALERIE_BACKUP_DIR, 'original', 'full', 'aaaaaaa2.webp')));
+  assert.ok(!fs.readFileSync(path.join(DIR, 'img', 'full', f)).equals(full), 'Bild wurde verändert');
+  const meta = await sharp(path.join(DIR, 'img', 'thumb', f)).metadata();
+  assert.strictEqual(meta.width, 640, 'Vorschau neu aus dem verpixelten Bild');
+
+  const u = galerie.unblur([f]);
+  assert.strictEqual(u.entpixelt, 1);
+  assert.ok(fs.readFileSync(path.join(DIR, 'img', 'full', f)).equals(full), 'Original zurück');
+  const b2 = galerie.list().bilder.find(x => x.file === f);
+  assert.ok(!b2.verpixelt); assert.strictEqual(b2.v, 2);
+  assert.ok(!st().verpixelt.aaaaaaa2);
+});
