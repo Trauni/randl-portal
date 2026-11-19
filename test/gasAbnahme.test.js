@@ -7,6 +7,11 @@ const { parseKomplettstatistik } = require('../src/services/gasImport');
 const { parseTourenCsv } = require('../src/services/gasTouren');
 const G = require('../src/services/gasRechnung');
 const P = require('../src/services/gasPreismodell');
+const { baueStamm } = require('../src/services/gasStamm');
+const referenz = require('./fixtures/gasStammdatenReferenz');
+
+// Stamm in der Form der Tabellen gas_artikel / price_change_log (seit #604 keine festen Preise mehr im Code)
+const stamm = baueStamm(referenz.stammZeilen());
 
 const RAW = path.join(__dirname, '..', 'data-raw');
 const STAT = path.join(RAW, 'Komplettstatistiken pro Terminal Belege');
@@ -35,7 +40,7 @@ test('Touren, Stopps, Flaschen, Umsatz', { skip }, async () => {
   const ts = G.tourStopps(klass);
   assert.equal(ts.touren, 197);
   assert.equal(ts.stopps.filter((s) => s.voll > 0).length, 1338);
-  const f = G.flaschenKennzahlen(pos);
+  const f = G.flaschenKennzahlen(pos, stamm);
   assert.equal(f.voll, 7215);
   assert.ok(Math.abs(f.leer - 6981) <= 1, `leer ${f.leer}`);
   assert.equal(f.treibgas, 746);
@@ -43,12 +48,12 @@ test('Touren, Stopps, Flaschen, Umsatz', { skip }, async () => {
   assert.equal(Math.round(f.woche_avg * 10) / 10, 167.3);
   assert.equal(Math.round(f.woche_p90 * 10) / 10, 237.8);
   assert.equal(Math.round(f.monat_avg * 10) / 10, 721.4);
-  assert.equal(rund(G.umsatzListe(pos).umsatz), 295877);
+  assert.equal(rund(G.umsatzListe(pos, stamm).umsatz), 295877);
 });
 
 test('Preismodell: Rohertrag, Pauschalen, Varianten V0–V3', { skip }, async () => {
   const { klass } = await lade();
-  const basis = { stichtag: '2026-11-15', vergleichStichtag: '2026-10-15' };
+  const basis = { stichtag: '2026-11-15', vergleichStichtag: '2026-10-15', stamm };
   const v = P.VARIANTEN.map((x) => P.rechneVariante(klass, ek, { ...basis, ...x }));
   assert.equal(rund(v[0].umsatz_ist), 258267);
   assert.equal(v[0].stopps, 1029);
@@ -64,7 +69,7 @@ test('Preismodell: Rohertrag, Pauschalen, Varianten V0–V3', { skip }, async ()
 
 test('Rohertrag Propan Jan.–Okt. rückwirkend (±1 € Rundung)', { skip: skip || !fs.existsSync(SONDER) }, async () => {
   const { klass } = await lade();
-  const r = P.rohertragRueckwirkend(klass, ek, JSON.parse(fs.readFileSync(SONDER, 'utf8')));
+  const r = P.rohertragRueckwirkend(klass, ek, JSON.parse(fs.readFileSync(SONDER, 'utf8')), stamm);
   assert.ok(Math.abs(r.rohertrag - 106655) <= 1.5, `${r.rohertrag}`);
   assert.equal(Math.round(r.marge * 1000) / 10, 45.7);
 });

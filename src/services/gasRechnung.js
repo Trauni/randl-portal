@@ -2,7 +2,6 @@
  * Rechenlogik der Gas-Auswertung (Port von docs/gas-auswertung/referenz/python). Reine Funktionen, keine DB.
  * Positionen: { terminal, kunde_nr, typ, beleg_nr, datum:'YYYY-MM-DD', artikel_nr, voll, leer, kg }
  */
-const { ARTIKEL, listenpreis } = require('./gasStammdaten');
 
 const LAGER_KUNDEN = new Set(['125001', '125218', '125222']);
 const KEIN_FLASCHENARTIKEL = new Set(['2805400', '2805600', '5904000']); // Paletten, Kappen
@@ -50,7 +49,8 @@ const isoMontag = (iso) => { const d = new Date(`${iso}T12:00:00Z`); return addT
 const WOCHEN = Array.from({ length: 43 }, (_, i) => addTage('2026-01-05', i * 7));
 const MONATE = Array.from({ length: 10 }, (_, i) => `2026-${String(i + 1).padStart(2, '0')}`);
 
-function flaschenKennzahlen(positionen) {
+function flaschenKennzahlen(positionen, stamm) {
+  const { ARTIKEL } = stamm;
   const p = positionen.filter((x) => ARTIKEL[x.artikel_nr]);
   const summe = (f, k) => p.filter(f).reduce((s, x) => s + x[k], 0);
   const jeWoche = Object.fromEntries(WOCHEN.map((w) => [w, 0]));
@@ -72,10 +72,10 @@ function flaschenKennzahlen(positionen) {
 }
 
 /** Umsatz zum Listenpreis am Belegtag, Positionen ohne Preis zählen 0. */
-function umsatzListe(positionen) {
+function umsatzListe(positionen, stamm) {
   let u = 0; const ohnePreis = new Set();
   for (const x of positionen) {
-    const pr = listenpreis(x.artikel_nr, x.datum);
+    const pr = stamm.listenpreis(x.artikel_nr, x.datum);
     if (pr == null) { ohnePreis.add(x.artikel_nr); continue; }
     u += pr * x.voll;
   }
