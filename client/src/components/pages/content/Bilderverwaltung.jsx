@@ -2,6 +2,7 @@
 // Phase 5: Shop Kategorie-Kacheln + Produktbilder + Landingpage randl.group
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import GalerieVerwaltung from './GalerieVerwaltung';
 
 const API = '/api';
 
@@ -531,6 +532,7 @@ export default function Bilderverwaltung() {
     { id: 'produkte',   label: 'Produktbilder',              count: data?.products?.length ?? null },
     { id: 'landingpage',label: 'Landingpage randl.group',    count: null },
     { id: 'zelt',       label: '🟡 Zeltverleih /zelt/',      count: null },
+    { id: 'galerie',    label: '🖼️ Kundengalerie /zelt/galerie/', count: null },
     { id: 'gas',        label: '🔵 Gashandel /gas/',          count: null },
     { id: 'metall',     label: '⚙️ Metallarbeiten /metall/', count: null },
       { id: 'fotobox',   label: '📸 Fotobox /fotobox/',      count: null },
@@ -572,6 +574,8 @@ export default function Bilderverwaltung() {
         <SektionLandingpage />
       ) : activeTab === 'zelt' ? (
         <SektionUnterseite group="zelt"   title="Zeltverleih – Bilder"       subtitle="randl.group/zelt/ · WebP · max. 1920px" />
+      ) : activeTab === 'galerie' ? (
+        <GalerieVerwaltung />
       ) : activeTab === 'gas' ? (
         <SektionUnterseite group="gas"    title="Gashandel – Bilder"          subtitle="randl.group/gas/ · WebP · max. 1920px" />
       ) : activeTab === 'metall' ? (
