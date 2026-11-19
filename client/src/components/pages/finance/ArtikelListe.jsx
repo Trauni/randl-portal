@@ -112,6 +112,28 @@ export default function ArtikelListe() {
     finally { setFuelle(false); }
   };
 
+  // #610: Shop-Kennzeichen für mehrere Artikel setzen oder aus dem Lexware-Präfix übernehmen
+  const shopSetzen = async (wert) => {
+    setFehler(''); setHinweis('');
+    try {
+      const r = await fetch('/api/finance/artikelstamm/aendern', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nummern: [...auswahl], werte: { shop_sichtbar: wert } }) });
+      const d = await r.json();
+      if (!r.ok || d.error) throw new Error(d.error || 'Fehler ' + r.status);
+      setHinweis(`Shop-Kennzeichen: ${d.geaendert} Artikel geändert, ${d.unveraendert} unverändert.`);
+      await laden();
+    } catch (e) { setFehler(e.message); }
+  };
+  const shopAusLexware = async () => {
+    setFehler(''); setHinweis('');
+    try {
+      const r = await fetch('/api/finance/artikelliste/shop-aus-lexware', { method: 'POST' });
+      const d = await r.json();
+      if (!r.ok || d.error) throw new Error(d.error || 'Fehler ' + r.status);
+      setHinweis(`Shop-Kennzeichen aus Lexware übernommen: ${d.sichtbar} sichtbar, ${d.ausgeblendet} ausgeblendet. ${d.ohneLexware} Artikel ohne Lexware-Gegenstück bleiben ohne Wert.`);
+      await laden();
+    } catch (e) { setFehler(e.message); }
+  };
+
   const nachBearbeiten = async (bleibenGewaehlt) => {
     await laden();
     if (bleibenGewaehlt) setAuswahl(new Set(bleibenGewaehlt));
@@ -149,7 +171,7 @@ export default function ArtikelListe() {
       {canEdit && stammRecht && zeigeSer && <SerAbgleich onUebernommen={laden} />}
       {canEdit && stammRecht && zeigeNeu && <ArtikelNeu onClose={() => setZeigeNeu(false)} onAngelegt={(nr) => { setZeigeNeu(false); setHinweis(`Artikel ${nr} angelegt.`); setSuche(nr); laden(); }} />}
 
-      {zus && (zus.unvollstaendig.length > 0 || zus.abweichungen.length > 0) && (
+      {zus && (zus.unvollstaendig.length > 0 || zus.abweichungen.length > 0 || zus.shop_abweichungen?.length > 0 || (canEdit && zus.shop_ungesetzt?.length > 0)) && (
         <div role="status" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 18px', alignItems: 'center', fontSize: 15, padding: '12px 16px', background: 'var(--warn-bg)', color: 'var(--warn-fg)', borderRadius: 8 }}>
           <b>Zu erledigen</b>
           {zus.unvollstaendig.length > 0 && (
@@ -160,6 +182,16 @@ export default function ArtikelListe() {
           {zus.abweichungen.length > 0 && (
             <button type="button" onClick={() => setKurz('abw')} style={linkBtn}>
               {zus.abweichungen.length} {zus.abweichungen.length === 1 ? 'Artikel weicht' : 'Artikel weichen'} von Lexware oder SER ab
+            </button>
+          )}
+          {zus.shop_abweichungen?.length > 0 && (
+            <button type="button" onClick={() => setKurz('abw')} style={linkBtn}>
+              {zus.shop_abweichungen.length === 1 ? '1 Artikel hat ein anderes Shop-Kennzeichen' : `${zus.shop_abweichungen.length} Artikel haben ein anderes Shop-Kennzeichen`} als in Lexware (der Shop folgt noch dem Präfix)
+            </button>
+          )}
+          {canEdit && zus.shop_ungesetzt?.length > 0 && (
+            <button type="button" onClick={shopAusLexware} style={linkBtn} title="Setzt nur Artikel ohne Wert: RG- = sichtbar, NRG- = ausgeblendet. Schreibt nichts nach Lexware oder in den Shop.">
+              Shop-Kennzeichen für {zus.shop_ungesetzt.length} Füllungen aus Lexware übernehmen
             </button>
           )}
         </div>
@@ -214,6 +246,8 @@ export default function ArtikelListe() {
             <button className="btn" disabled={!lexwareIds.length} onClick={() => setDialog('preis')}>Preise anpassen</button>
             <button className="btn" disabled={!lexwareIds.length} onClick={() => setDialog((d) => (d === 'serpush' ? '' : 'serpush'))}
               title="Lexware-Preise der ausgewählten RG-Artikel per STMUPD an SER senden">Push SER</button>
+            {stammRecht && <button className="btn" disabled={ohneStamm > 0 || auswahl.size > 500} onClick={() => shopSetzen(1)} title="Setzt „im Shop sichtbar“ im Artikelstamm">Im Shop zeigen</button>}
+            {stammRecht && <button className="btn" disabled={ohneStamm > 0 || auswahl.size > 500} onClick={() => shopSetzen(0)} title="Setzt „im Shop sichtbar“ im Artikelstamm auf nein">Im Shop ausblenden</button>}
             {stammRecht && <button className="btn" disabled={ohneStamm > 0 || auswahl.size > 500} onClick={() => setDialog('bearbeiten')}
               title={ohneStamm > 0 ? 'Artikel nur in Lexware sind nicht im Stamm' : auswahl.size > 500 ? 'Höchstens 500 Artikel gleichzeitig' : undefined}>Felder bearbeiten</button>}
             {ohneLexware > 0 && <span style={{ fontSize: 13, color: '#e8e2d8' }}>{ohneLexware} ohne Lexware-Artikel (kein Preis/Push)</span>}
@@ -283,7 +317,14 @@ export default function ArtikelListe() {
                       <td>{a.pfand_artikel_nr || '–'}</td>
                       <td>{a.kaufflasche_artikel_nr || '–'}</td>
                     </>}
-                    <td>{a.lexware ? <Tag tone={a.lexware.shop === 'sichtbar' ? 'ok' : 'mute'}>{a.lexware.shop}</Tag> : '–'}</td>
+                    <td>
+                      {stammRecht && a.im_stamm
+                        ? <>
+                            <Tag tone={a.shop_status === 'sichtbar' ? 'ok' : a.shop_status === 'nicht gesetzt' ? 'warn' : 'mute'}>{a.shop_status}</Tag>
+                            {a.shop_abweichend && <div className="ui-table-sub" title="Der Shop folgt heute noch dem Lexware-Präfix, nicht dem Schalter im Portal">Lexware: {a.lexware.shop}</div>}
+                          </>
+                        : (a.lexware ? <Tag tone={a.lexware.shop === 'sichtbar' ? 'ok' : 'mute'}>{a.lexware.shop}</Tag> : '–')}
+                    </td>
                     <td><Status text={a.lexware_status} ton={lexTon} /></td>
                     {stammRecht && <>
                       <td>

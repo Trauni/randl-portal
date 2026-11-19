@@ -1,9 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Panel } from '../../../ui';
 
-import { EDIT_FELDER, GASARTEN, EK_GRUPPEN } from './artikelFelder';
-
-const aktivText = { 1: 'aktiv', 0: 'inaktiv' };
+import { EDIT_FELDER, GASARTEN, EK_GRUPPEN, JA_NEIN } from './artikelFelder';
 
 async function api(url, opts) {
   const r = await fetch(url, opts);
@@ -128,7 +126,7 @@ export default function ArtikelBearbeiten({ gewaehlt, alle, onFertig, onClose })
               ) : typ.startsWith('select:') ? (
                 <select className="form-select" style={{ display: 'block', marginTop: 2 }} value={eingabe[feld] ?? ''} onChange={(e) => setze(feld, e.target.value)} aria-label={label}>
                   <option value="">–</option>
-                  {typ.slice(7).split(',').map((v) => <option key={v} value={v}>{feld === 'aktiv' ? aktivText[v] : v}</option>)}
+                  {typ.slice(7).split(',').map((v) => <option key={v} value={v}>{JA_NEIN[feld] ? JA_NEIN[feld][v] : v}</option>)}
                 </select>
               ) : (
                 <input className="form-input" style={{ display: 'block', marginTop: 2 }} placeholder={hinweis} value={eingabe[feld] ?? ''} onChange={(e) => setze(feld, e.target.value)} aria-label={label} />

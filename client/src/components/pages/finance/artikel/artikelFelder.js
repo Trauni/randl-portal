@@ -10,6 +10,7 @@ export const FELD = {
   gasart: ['gasart', 'Gasart', 'gasart', 'für Auswertung und Flaschenfarbe'],
   mwst_satz: ['mwst_satz', 'MwSt. %', 'select:19,7', 'wie in Lexware'],
   aktiv: ['aktiv', 'Status', 'select:1,0', '1 = aktiv, 0 = inaktiv (nur aktive gehen an die Fahrer-App)'],
+  shop_sichtbar: ['shop_sichtbar', 'Im Shop sichtbar', 'select:1,0', 'ersetzt das RG-/NRG-Kennzeichen in Lexware; leer = noch nicht gesetzt (dann gilt das Präfix)'],
   un_nr: ['un_nr', 'UN-Nr.', 'text', '4 Ziffern, z. B. 1965'],
   gefahrklasse: ['gefahrklasse', 'Gefahrzettel', 'text', 'z. B. 2.1'],
   bezadr: ['bezadr', 'ADR-Benennung', 'text', 'für das Beförderungspapier, z. B. ARGON, VERDICHTET, 2.2, ( E ), Bef.kat.3'],
@@ -27,5 +28,8 @@ export const FELD = {
 export const EDIT_FELDER = [
   FELD.un_nr, FELD.gefahrklasse, FELD.ggvs_faktor, FELD.preis_netto_cent, FELD.mwst_satz, FELD.fuellgewicht_kg,
   FELD.fuellmenge, FELD.fuellmenge_einheit, FELD.bezadr, FELD.pfand_artikel_nr, FELD.kaufflasche_artikel_nr,
-  FELD.gasart, FELD.ek_gruppe, FELD.aktiv,
+  FELD.gasart, FELD.ek_gruppe, FELD.shop_sichtbar, FELD.aktiv,
 ];
+
+// Beschriftung der Auswahlwerte 1/0 je Feld
+export const JA_NEIN = { aktiv: { 1: 'aktiv', 0: 'inaktiv' }, shop_sichtbar: { 1: 'ja', 0: 'nein' } };

@@ -12,6 +12,9 @@ const parseJson = v => (typeof v === 'string' ? JSON.parse(v) : v) || {};
 // Paletten und Kappen zählen in der Gas-Auswertung (#460) nicht als Flasche
 const zaehltAlsFlasche = w => (w.typ === 'F' && !/palette|kappe/i.test(w.bezeichnung || '') ? 1 : 0);
 
+// #610: Pfand, Kaufflaschen und Provision sind im Shop standardmäßig ausgeblendet; Füllungen bleiben ohne Wert (dann gilt das Lexware-Präfix)
+const shopStandard = w => (w.typ && w.typ !== 'F' ? { shop_sichtbar: 0 } : {});
+
 async function ladeBestand(db = getPool()) {
   const [rows] = await db.query(`SELECT ${SPALTEN.join(', ')} FROM gas_artikel`);
   return rows.map(r => ({ ...r, feld_stand: parseJson(r.feld_stand) }));
@@ -70,8 +73,9 @@ async function anwenden(buffer, quelleDatei, user = {}) {
     const stand = new Map(bestand.map(b => [b.artikel_nr, b.feld_stand]));
 
     for (const n of plan.neu) {
-      const felder = ['artikel_nr', 'aktiv', 'zaehlt_als_flasche', 'feld_stand', ...Object.keys(n.werte)];
-      const werte = [n.artikel_nr, n.aktiv ? 1 : 0, zaehltAlsFlasche(n.werte), JSON.stringify(n.feld_stand), ...Object.values(n.werte)];
+      const mitShop = shopStandard(n.werte);
+      const felder = ['artikel_nr', 'aktiv', 'zaehlt_als_flasche', 'feld_stand', ...Object.keys(n.werte), ...Object.keys(mitShop)];
+      const werte = [n.artikel_nr, n.aktiv ? 1 : 0, zaehltAlsFlasche(n.werte), JSON.stringify(n.feld_stand), ...Object.values(n.werte), ...Object.values(mitShop)];
       await conn.query(`INSERT INTO gas_artikel (${felder.join(', ')}) VALUES (${felder.map(() => '?').join(', ')})`, werte);
     }
     for (const e of plan.ergaenzt) {
@@ -249,9 +253,10 @@ async function lege_an(eingabe, user = {}) {
     }
     const jetzt = new Date().toISOString();
     const stand = Object.fromEntries(Object.keys(werte).map(k => [k, { quelle: 'portal', am: jetzt }]));
-    const felder = ['artikel_nr', 'aktiv', 'zaehlt_als_flasche', 'feld_stand', ...Object.keys(werte)];
+    const mitShop = 'shop_sichtbar' in werte ? {} : shopStandard(werte);
+    const felder = ['artikel_nr', 'aktiv', 'zaehlt_als_flasche', 'feld_stand', ...Object.keys(werte), ...Object.keys(mitShop)];
     await conn.query(`INSERT INTO gas_artikel (${felder.join(', ')}) VALUES (${felder.map(() => '?').join(', ')})`,
-      [nr, 1, zaehltAlsFlasche(werte), JSON.stringify(stand), ...Object.values(werte)]);
+      [nr, 1, zaehltAlsFlasche(werte), JSON.stringify(stand), ...Object.values(werte), ...Object.values(mitShop)]);
     await conn.query('DELETE FROM gas_artikel_geloescht WHERE artikel_nr = ?', [nr]);
     await conn.query('INSERT INTO gas_artikel_aenderungen (artikel_nr, feld, alt, neu, von_id, von_name) VALUES (?, ?, NULL, ?, ?, ?)',
       [nr, '(Artikel)', 'angelegt', user.id || null, user.fullName || user.username || null]);
@@ -266,4 +271,4 @@ async function lege_an(eingabe, user = {}) {
   }
 }
 
-module.exports = { liste, vorschau, anwenden, aendere, loesche, lege_an, protokoll, zaehltAlsFlasche };
+module.exports = { liste, vorschau, anwenden, aendere, loesche, lege_an, protokoll, zaehltAlsFlasche, shopStandard };

@@ -33,6 +33,7 @@ const FELDER = {
   fuellmenge_einheit: { parse: v => { const t = String(v).trim().toLowerCase(); if (t !== 'kg' && t !== 'l') throw new Error('kg oder l erwartet'); return t; }, nullable: true },
   preis_netto_cent: { parse: zahl(0, 100000000, true), nullable: true },
   mwst_satz: { parse: zahl(0, 30), nullable: true },
+  shop_sichtbar: { parse: v => (v === true || v === 1 || v === '1' || v === 'true' ? 1 : v === false || v === 0 || v === '0' || v === 'false' ? 0 : (() => { throw new Error('Ja/Nein erwartet'); })()), nullable: true },
   gasart: { parse: v => { const t = String(v).trim(); if (!GASART_REIHENFOLGE.includes(t)) throw new Error('Gasart unbekannt'); return t; }, nullable: true },
   ek_gruppe: { parse: v => { const t = String(v).trim(); if (!EK_GRUPPEN[t]) throw new Error(`Preisgruppe: ${Object.keys(EK_GRUPPEN).join(' oder ')}`); return t; }, nullable: true },
   pfand_artikel_nr: { parse: txt(16), nullable: true },
