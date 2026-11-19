@@ -1,6 +1,6 @@
 {
   "name": "randlweb-portal",
-  "version": "1.12.0",
+  "version": "1.13.0",
   "description": "Randl Mitarbeiterportal",
   "main": "server.js",
   "type": "commonjs",
