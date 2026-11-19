@@ -27,34 +27,17 @@ run()  { if [ "$DRY_RUN" = 1 ]; then echo "    [dry-run] $*"; else "$@"; fi; }
 cd "$PORTAL_DIR" || fail "Ordner $PORTAL_DIR nicht gefunden"
 [ -f .env ] || fail ".env fehlt in $PORTAL_DIR"
 
-# --- Zugang aus .env, genauso gelesen wie vom Portal selbst (dotenv), ohne Werte auszugeben ---
-env_wert() {
-  node -e "const v=require('dotenv').parse(require('fs').readFileSync('.env'))[process.argv[1]]; process.stdout.write(v==null?'':v)" "$1"
-}
-DB_HOST_W=$(env_wert DB_HOST); DB_PORT_W=$(env_wert DB_PORT)
-DB_NAME_W=$(env_wert DB_NAME); DB_USER_W=$(env_wert DB_USER); DB_PASS_W=$(env_wert DB_PASS)
-[ -n "$DB_NAME_W" ] && [ -n "$DB_USER_W" ] || fail "DB_NAME/DB_USER fehlen in .env"
-
-# Passwort über eine temporäre Optionsdatei, damit es nicht in der Prozessliste steht.
-# In Optionsdateien ist # ein Kommentar und \ ein Fluchtzeichen, deshalb in Anführungszeichen und mit Fluchtzeichen.
-opt_wert() { local v=${1//\\/\\\\}; v=${v//\"/\\\"}; printf '"%s"' "$v"; }
-MYSQL_CNF=$(mktemp)
-trap 'rm -f "$MYSQL_CNF"' EXIT
-chmod 600 "$MYSQL_CNF"
-{
-  echo "[client]"
-  echo "host=$(opt_wert "${DB_HOST_W:-127.0.0.1}")"
-  echo "port=${DB_PORT_W:-3306}"
-  echo "user=$(opt_wert "$DB_USER_W")"
-  echo "password=$(opt_wert "$DB_PASS_W")"
-} > "$MYSQL_CNF"
+# --- Datenbank: wie überall bei uns als root über den Unix-Socket (BookStack Seite 30: mariadb -u root <db>) ---
+# Nur den Namen der Datenbank lesen wir aus .env (mit dotenv, wie das Portal). Kein Passwort nötig.
+DB_NAME_W=$(node -e "const v=require('dotenv').parse(require('fs').readFileSync('.env')).DB_NAME; process.stdout.write(v==null?'':v)")
+[ -n "$DB_NAME_W" ] || fail "DB_NAME fehlt in .env"
 
 # Neuere MariaDB-Installationen melden die alten Programmnamen als veraltet
 CLIENT=mysql; command -v mariadb >/dev/null 2>&1 && CLIENT=mariadb
 DUMP=mysqldump; command -v mariadb-dump >/dev/null 2>&1 && DUMP=mariadb-dump
 
-sql()      { "$CLIENT" --defaults-extra-file="$MYSQL_CNF" "$DB_NAME_W" -N -B -e "$1"; }
-sql_datei() { "$CLIENT" --defaults-extra-file="$MYSQL_CNF" "$DB_NAME_W" < "$1"; }
+sql()       { "$CLIENT" -u root "$DB_NAME_W" -N -B -e "$1"; }
+sql_datei() { "$CLIENT" -u root "$DB_NAME_W" < "$1"; }
 
 # --- 1. Arbeitsverzeichnis sauber? ---
 log "Prüfe git status"
@@ -75,7 +58,7 @@ if [ "$DRY_RUN" = 1 ]; then
 else
   mkdir -p "$BACKUP_DIR"; chmod 700 "$BACKUP_DIR"
   ( umask 077
-    "$DUMP" --defaults-extra-file="$MYSQL_CNF" --single-transaction --routines --triggers "$DB_NAME_W" | gzip > "$BACKUP_DATEI" )
+    "$DUMP" -u root --single-transaction --routines --triggers "$DB_NAME_W" | gzip > "$BACKUP_DATEI" )
   [ -s "$BACKUP_DATEI" ] || fail "Sicherung ist leer"
   find "$BACKUP_DIR" -maxdepth 1 -name 'portal-*.sql.gz' -mtime +"$BACKUP_TAGE" -delete
   echo "    ok ($(du -h "$BACKUP_DATEI" | cut -f1))"
