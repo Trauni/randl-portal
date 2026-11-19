@@ -7,6 +7,7 @@ const { loadGasArticles } = require('../../../services/gasArticles');
 const requireArea = require('../../../middleware/requireArea');
 const { verbinde, zusammenfassung } = require('../../../utils/artikelListe');
 const { uebernehmeShopAusLexware } = require('../../../services/shopSichtbar');
+const { planePreiseAusLexware, uebernehmePreiseAusLexware } = require('../../../services/preiseAusLexware');
 
 // #606: eine Artikelliste aus Stamm, Lexware und SER (siehe utils/artikelListe.js)
 router.get('/', async (req, res) => {
@@ -49,6 +50,34 @@ router.post('/shop-aus-lexware', requireArea('gashandel.preise'), async (req, re
     res.json(await uebernehmeShopAusLexware(getPool(), articles, { id: u.id, name: u.fullName || u.username }));
   } catch (err) {
     console.error('[Artikelliste] shop-aus-lexware:', err.message);
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+// Preise aus Lexware in den Artikelstamm übernehmen: Vorschau (schreibt nichts) und Übernahme mit Bestätigung.
+// Lexware ist nur Quelle; es wird nichts nach Lexware, SER oder in den Shop geschrieben.
+router.get('/preise-aus-lexware', requireArea('gashandel.preise'), async (req, res) => {
+  try {
+    const { articles, cachedAt } = await loadGasArticles();
+    const [stamm] = await getPool().query('SELECT artikel_nr, bezeichnung, preis_netto_cent FROM gas_artikel');
+    res.json({ ...planePreiseAusLexware(stamm, articles), cachedAt });
+  } catch (err) {
+    console.error('[Artikelliste] preise-aus-lexware Vorschau:', err.message);
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+router.post('/preise-aus-lexware', requireArea('gashandel.preise'), async (req, res) => {
+  const { confirm, expected } = req.body || {};
+  if (confirm !== true) return res.status(400).json({ error: 'Übernahme muss ausdrücklich bestätigt werden' });
+  try {
+    const { articles } = await loadGasArticles();
+    const u = req.session.user || {};
+    const r = await uebernehmePreiseAusLexware(getPool(), articles, { id: u.id, name: u.fullName || u.username }, expected);
+    console.log('[Artikelliste] Preise aus Lexware übernommen:', r.geaendert, 'Artikel, von', u.username);
+    res.json(r);
+  } catch (err) {
+    console.error('[Artikelliste] preise-aus-lexware:', err.message);
     res.status(err.status || 500).json({ error: err.message });
   }
 });

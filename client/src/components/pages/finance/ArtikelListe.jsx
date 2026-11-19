@@ -9,6 +9,7 @@ import InhaltZelle from './artikel/InhaltZelle';
 import ArtikelNeu from './artikel/ArtikelNeu';
 import ArtikelBearbeiten from './artikel/ArtikelBearbeiten';
 import SerAbgleich from './artikel/SerAbgleich';
+import PreiseAusLexware from './artikel/PreiseAusLexware';
 
 // #606 Artikel (Liste): ein Blick auf Stamm, Lexware, SER und Fahrer-App je Artikel.
 // Teil 2 von 4: alle Funktionen der Seiten Produkte und Artikelstamm. Die alten Seiten bleiben bis zur Umleitung (Teil 4).
@@ -51,6 +52,7 @@ export default function ArtikelListe() {
   const [dialog, setDialog] = useState('');           // '' | preis | serpush | bearbeiten
   const [zeigeNeu, setZeigeNeu] = useState(false);
   const [zeigeSer, setZeigeSer] = useState(false);
+  const [zeigeLexPreise, setZeigeLexPreise] = useState(false);
   const [fuelle, setFuelle] = useState(false);
 
   const laden = useCallback(async () => {
@@ -157,6 +159,7 @@ export default function ArtikelListe() {
           </button>
         )}
         <button className="btn btn-secondary" onClick={laden} disabled={laedt}>↻ Neu laden</button>
+        {canEdit && stammRecht && <button className="btn btn-secondary" onClick={() => setZeigeLexPreise((v) => !v)}>Preise aus Lexware</button>}
         {canEdit && stammRecht && <button className="btn btn-secondary" onClick={() => setZeigeSer((v) => !v)}>SER-Export</button>}
         {canEdit && stammRecht && <button className="btn btn-primary" onClick={() => setZeigeNeu((v) => !v)}>Neuer Artikel</button>}
       </div>
@@ -168,6 +171,7 @@ export default function ArtikelListe() {
         <div className="alert alert-error">Lexware ist gerade nicht erreichbar ({daten.lexwareFehler}). Die Spalten Lexware, Shop und Preise aus Lexware fehlen, bis die Verbindung wieder da ist.</div>
       )}
 
+      {canEdit && stammRecht && zeigeLexPreise && <PreiseAusLexware onUebernommen={laden} onClose={() => setZeigeLexPreise(false)} />}
       {canEdit && stammRecht && zeigeSer && <SerAbgleich onUebernommen={laden} />}
       {canEdit && stammRecht && zeigeNeu && <ArtikelNeu onClose={() => setZeigeNeu(false)} onAngelegt={(nr) => { setZeigeNeu(false); setHinweis(`Artikel ${nr} angelegt.`); setSuche(nr); laden(); }} />}
 
