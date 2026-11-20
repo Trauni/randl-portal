@@ -10,3 +10,8 @@ test('Gasart Druckluft ist wählbar und steht in der Reihenfolge der Auswertung'
   assert.equal(r.werte.gasart, 'Druckluft');
   assert.ok(GASART_REIHENFOLGE.includes('Druckluft'));
 });
+
+test('Typen Zubehör (Z) und Dienstleistung (D) sind gültig, ohne Gasart und Pfand', () => {
+  assert.deepEqual(pruefeAenderung({ typ: 'Z' }).fehler, []);
+  assert.equal(pruefeAenderung({ typ: 'D' }).werte.typ, 'D');
+});

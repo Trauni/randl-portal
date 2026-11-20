@@ -11,7 +11,7 @@ import { FELD } from './artikel/artikelFelder';
 // #606 Artikel (Detail): alle Angaben eines Artikels in Reitern. Teil 3 von 4.
 // Stammdaten, Flaschen, ADR und Gewicht, Preis (mit Preisprotokoll), Einkauf (nur gashandel.auswertung), Verlauf.
 
-const TYPEN = { F: 'Füllung', P: 'Pfand / Leergut', S: 'Kaufflasche (Steuer/Nutzung)', V: 'Provision' };
+const TYPEN = { F: 'Füllung', P: 'Pfand / Leergut', S: 'Kaufflasche (Steuer/Nutzung)', V: 'Provision', Z: 'Zubehör', D: 'Dienstleistung / Versand' };
 
 // Gasart gibt es nur bei Füllungen (eine Kappe hat keine)
 const felderStamm = (typ) => [FELD.bezeichnung, FELD.typ, ...(typ === 'F' ? [FELD.gasart] : []), FELD.mwst_satz, FELD.shop_sichtbar, FELD.aktiv];

@@ -44,7 +44,7 @@ test('Neuanlage: Pflichtfelder und Nummer', () => {
   assert.ok(pruefeNeuanlage({ bezeichnung: 'x', typ: 'F' }).fehler.some(f => /artikel_nr/.test(f)));
   assert.ok(pruefeNeuanlage({ artikel_nr: 'A B', bezeichnung: 'x', typ: 'F' }).fehler.some(f => /artikel_nr/.test(f)));
   assert.ok(pruefeNeuanlage({ artikel_nr: 'A1', bezeichnung: '', typ: 'F' }).fehler.some(f => /bezeichnung/.test(f)));
-  assert.ok(pruefeNeuanlage({ artikel_nr: 'A1', bezeichnung: 'x', typ: 'Z' }).fehler.some(f => /typ/.test(f)));
+  assert.ok(pruefeNeuanlage({ artikel_nr: 'A1', bezeichnung: 'x', typ: 'X' }).fehler.some(f => /typ/.test(f)));
 });
 
 test('Neuanlage: Fehler in optionalen Feldern werden gemeldet', () => {

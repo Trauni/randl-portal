@@ -106,4 +106,38 @@ async function uebernehmeStammAusLexware(db, lexware, user = {}, erwartet, opt =
   return { geaendert: plan.zeilen.length, unveraendert: plan.gleich, mehrdeutig: plan.mehrdeutig.length, portalGeaendert: plan.portalGeaendert.length };
 }
 
-module.exports = { planeStammAusLexware, pruefeErwartung, uebernehmeStammAusLexware, SPARTEN, SPARTE_NACH_PRAEFIX };
+/**
+ * Typ-Vorschlag aus dem Lexware-Präfix: GZ- (Gaszubehör) ist Zubehör (Z), außer Versand und Fracht (D = Dienstleistung).
+ * Der Typ ist ein Portal-Feld; vorgeschlagen wird nur, gesetzt wird erst nach Bestätigung (Skript mit --ja), über dieselbe
+ * Änderungsfunktion wie "Felder bearbeiten" (Regeln, Verlauf, feld_stand Quelle portal).
+ */
+function planeTypAusPraefix(stamm, lexware) {
+  const nachKern = new Map();
+  for (const a of (lexware || []).filter((x) => !x.archived && x.articleNumber)) {
+    const nr = String(a.articleNumber).trim();
+    if (praefixVon(nr) === 'GZ') nachKern.set(ohnePraefix(nr), a);
+  }
+  const zeilen = [];
+  for (const s of stamm || []) {
+    const l = nachKern.get(String(s.artikel_nr));
+    if (!l) continue;
+    const typNeu = /versand|fracht/i.test(l.title || s.bezeichnung || '') ? 'D' : 'Z';
+    if (s.typ === typNeu) continue;
+    zeilen.push({ artikel_nr: String(s.artikel_nr), bezeichnung: l.title || s.bezeichnung || '', typAlt: s.typ || '', typNeu });
+  }
+  return zeilen.sort((a, b) => a.artikel_nr.localeCompare(b.artikel_nr));
+}
+
+/** Typen setzen: gruppiert je neuem Typ über artikelstamm.aendere; Fehler je Gruppe werden gesammelt, nichts bricht ab. */
+async function setzeTypen(zeilen, user = {}) {
+  const { aendere } = require('./artikelstamm');
+  const ergebnis = { geaendert: 0, fehler: [] };
+  for (const typ of [...new Set(zeilen.map((z) => z.typNeu))]) {
+    const nummern = zeilen.filter((z) => z.typNeu === typ).map((z) => z.artikel_nr);
+    try { ergebnis.geaendert += (await aendere(nummern, { typ }, user)).geaendert; }
+    catch (err) { ergebnis.fehler.push(`${typ}: ${err.message}`); }
+  }
+  return ergebnis;
+}
+
+module.exports = { planeTypAusPraefix, setzeTypen, planeStammAusLexware, pruefeErwartung, uebernehmeStammAusLexware, SPARTEN, SPARTE_NACH_PRAEFIX };

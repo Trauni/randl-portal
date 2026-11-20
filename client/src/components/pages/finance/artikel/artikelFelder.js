@@ -35,5 +35,5 @@ export const EDIT_FELDER = [
 // Beschriftung der Auswahlwerte 1/0 je Feld
 export const JA_NEIN = {
   aktiv: { 1: 'aktiv', 0: 'inaktiv' }, shop_sichtbar: { 1: 'ja', 0: 'nein' },
-  typ: { F: 'Füllung', P: 'Pfand / Leergut', S: 'Steuer/Nutzung (Kaufflasche)', V: 'Provision' },
+  typ: { F: 'Füllung', P: 'Pfand / Leergut', S: 'Steuer/Nutzung (Kaufflasche)', V: 'Provision', Z: 'Zubehör', D: 'Dienstleistung / Versand' },
 };
