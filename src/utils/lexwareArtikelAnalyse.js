@@ -78,7 +78,7 @@ function analysiere(lexware, stamm) {
 
 // Entscheidung Trauni 20.11.2026: Das Lexware-Präfix zeigt die Sparte. RM heißt bei uns Maschinenbau (nicht Metallarbeiten).
 const SPARTE_NACH_PRAEFIX = {
-  RG: 'Gashandel', NRG: 'Gashandel', PFAND: 'Gashandel',
+  RG: 'Gashandel', NRG: 'Gashandel', PFAND: 'Gashandel', GZ: 'Gashandel',
   RZ: 'Zeltverleih', RT: 'Technik und Event', RM: 'Maschinenbau',
 };
 const sparteVon = (praefix) => SPARTE_NACH_PRAEFIX[praefix] || '';
