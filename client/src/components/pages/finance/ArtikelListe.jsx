@@ -97,7 +97,7 @@ export default function ArtikelListe() {
 
   // Preis-Tool und Push SER arbeiten mit Lexware-Artikeln, Felder bearbeiten mit Artikeln aus dem Stamm
   const gewaehlt = artikel.filter((a) => auswahl.has(a.artikel_nr));
-  const lexwareIds = gewaehlt.filter((a) => a.lexware).map((a) => a.lexware.id);
+  const lexwareIds = gewaehlt.filter((a) => a.lexware?.preisTool).map((a) => a.lexware.id);
   const ohneLexware = gewaehlt.length - lexwareIds.length;
   const ohneStamm = gewaehlt.filter((a) => !a.im_stamm).length;
   const schluessel = [...lexwareIds].sort().join(',');
@@ -277,7 +277,7 @@ export default function ArtikelListe() {
             {stammRecht && <button className="btn" disabled={ohneStamm > 0 || auswahl.size > 500} onClick={() => shopSetzen(0)} title="Setzt „im Shop sichtbar“ im Artikelstamm auf nein">Im Shop ausblenden</button>}
             {stammRecht && <button className="btn" disabled={ohneStamm > 0 || auswahl.size > 500} onClick={() => setDialog('bearbeiten')}
               title={ohneStamm > 0 ? 'Artikel nur in Lexware sind nicht im Stamm' : auswahl.size > 500 ? 'Höchstens 500 Artikel gleichzeitig' : undefined}>Felder bearbeiten</button>}
-            {ohneLexware > 0 && <span style={{ fontSize: 13, color: '#e8e2d8' }}>{ohneLexware} ohne Lexware-Artikel (kein Preis/Push)</span>}
+            {ohneLexware > 0 && <span style={{ fontSize: 13, color: '#e8e2d8' }}>{ohneLexware} nicht im Preis-Tool (nur RG-/NRG-Artikel)</span>}
             {ohneStamm > 0 && <span style={{ fontSize: 13, color: '#e8e2d8' }}>{ohneStamm} nicht im Stamm (kein Bearbeiten)</span>}
           </SelectionBar>
         )}
@@ -351,7 +351,7 @@ export default function ArtikelListe() {
                             <Tag tone={a.shop_status === 'sichtbar' ? 'ok' : a.shop_status === 'nicht gesetzt' ? 'warn' : 'mute'}>{a.shop_status}</Tag>
                             {a.shop_abweichend && <div className="ui-table-sub" title="Der Shop folgt heute noch dem Lexware-Präfix, nicht dem Schalter im Portal">Lexware: {a.lexware.shop}</div>}
                           </>
-                        : (a.lexware ? <Tag tone={a.lexware.shop === 'sichtbar' ? 'ok' : 'mute'}>{a.lexware.shop}</Tag> : '–')}
+                        : (a.lexware?.shop ? <Tag tone={a.lexware.shop === 'sichtbar' ? 'ok' : 'mute'}>{a.lexware.shop}</Tag> : '–')}
                     </td>
                     <td><Status text={a.lexware_status} ton={lexTon} /></td>
                     {stammRecht && <>
