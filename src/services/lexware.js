@@ -202,7 +202,23 @@ function createClient({
     return apiCall('POST', `/${belegPfad(typ)}${q}`, payload);
   }
 
-  return { apiCall, getContact, searchContacts, updateContactNote, listVouchers, getVoucher, getVoucherFile, createVoucher };
+  /**
+   * Alle Artikel (#617), alle Seiten, nur lesend. Lexware liefert je Artikel u. a. id, title, type (PRODUCT/SERVICE),
+   * articleNumber, unitName, price { netPrice, taxRatePercentage … }, archived, version.
+   */
+  async function listArticles({ size = SEITE_MAX } = {}) {
+    const alle = [];
+    for (let page = 0; page < SEITEN_LIMIT; page++) {
+      const data = await apiCall('GET', `/articles?page=${page}&size=${size}`);
+      const inhalt = data?.content || [];
+      alle.push(...inhalt);
+      if (data?.last === true || inhalt.length < size) break;
+      if (data?.totalPages != null && page + 1 >= data.totalPages) break;
+    }
+    return alle;
+  }
+
+  return { apiCall, getContact, searchContacts, updateContactNote, listVouchers, getVoucher, getVoucherFile, createVoucher, listArticles };
 }
 
 module.exports = { ...createClient(), createClient, LexwareError, BASE_URL, BELEG_PFADE, datum };
