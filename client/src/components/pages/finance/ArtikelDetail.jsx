@@ -4,6 +4,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { Panel, Tabs, Tag, GasCylinder } from '../../ui';
 import FeldFormular from './artikel/FeldFormular';
 import PreisTab from './artikel/PreisTab';
+import LexwareAnlegen from './artikel/LexwareAnlegen';
 import EinkaufTab from './artikel/EinkaufTab';
 import VerlaufTab from './artikel/VerlaufTab';
 import { FELD } from './artikel/artikelFelder';
@@ -32,6 +33,7 @@ export default function ArtikelDetail() {
   const [fehler, setFehler] = useState('');
   const [params] = useSearchParams();
   const [tab, setTab] = useState(() => (['stamm', 'flaschen', 'adr', 'preis', 'einkauf', 'verlauf'].includes(params.get('reiter')) ? params.get('reiter') : 'stamm'));
+  const [zeigeAnlegen, setZeigeAnlegen] = useState(false);
   const [stand, setStand] = useState(0);   // zählt hoch, wenn etwas gespeichert wurde (Verlauf neu laden)
 
   const laden = useCallback(async () => {
@@ -77,6 +79,7 @@ export default function ArtikelDetail() {
     <FeldFormular key={`${key}-${stand}`} artikel={artikel} felder={felder} alle={daten.artikel} canEdit={canEdit && imStamm} onGespeichert={laden} />
   );
   const kannAktivieren = canEdit && imStamm && !artikel.aktiv;
+  const kannInLexwareAnlegen = canEdit && stammRecht && imStamm && !artikel.lexware;
 
   return (
     <div style={{ maxWidth: 1400, display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -91,6 +94,7 @@ export default function ArtikelDetail() {
           </div>
         </div>
         {stammRecht && imStamm && <button className="btn btn-secondary" onClick={() => setTab('verlauf')}>Änderungsverlauf</button>}
+        {kannInLexwareAnlegen && <button className="btn btn-secondary" onClick={() => setZeigeAnlegen((v) => !v)} title="Legt diesen Artikel in Lexware an">In Lexware anlegen</button>}
         {kannAktivieren && (
           <button className="btn btn-primary" disabled={artikel.luecken.length > 0} onClick={aktivieren}
             title={artikel.luecken.length ? `Erst ergänzen: ${artikel.luecken.join(', ')}` : 'Artikel geht an die Fahrer-App'}>Für Fahrer-App aktivieren</button>
@@ -98,6 +102,7 @@ export default function ArtikelDetail() {
       </div>
 
       {fehler && <div className="alert alert-error">✗ {fehler}</div>}
+      {zeigeAnlegen && kannInLexwareAnlegen && <LexwareAnlegen nummern={[artikel.artikel_nr]} onClose={() => setZeigeAnlegen(false)} onFertig={laden} />}
       {!stammRecht && <div className="alert alert-info">Stammdaten, SER und Fahrer-App sehen nur Personen mit dem Recht „Preise“. Hier steht, was Lexware zum Artikel weiß.</div>}
       {stammRecht && !imStamm && <div className="alert alert-info">Dieser Artikel steht nur in Lexware, noch nicht im Artikelstamm. In der Artikelliste über „Neuer Artikel“ mit der Nummer {nr} anlegen, danach lässt er sich hier bearbeiten.</div>}
 
