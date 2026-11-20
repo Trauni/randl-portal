@@ -281,6 +281,7 @@ export default function ArtikelListe() {
               title={mitLexware > 0 ? 'Mindestens ein gewählter Artikel steht schon in Lexware; nur Artikel ohne Lexware-Artikel lassen sich anlegen' : ohneStamm > 0 ? 'Nur Artikel aus dem Stamm' : auswahl.size > 50 ? 'Höchstens 50 Artikel gleichzeitig' : 'Legt die gewählten Artikel in Lexware an'}>In Lexware anlegen</button>}
             {stammRecht && <button className="btn" disabled={ohneStamm > 0 || auswahl.size > 500} onClick={() => setDialog('bearbeiten')}
               title={ohneStamm > 0 ? 'Artikel nur in Lexware sind nicht im Stamm' : auswahl.size > 500 ? 'Höchstens 500 Artikel gleichzeitig' : undefined}>Felder bearbeiten</button>}
+            {stammRecht && mitLexware > 0 && <span style={{ fontSize: 13, color: '#ffd9a0' }}>„In Lexware anlegen“ geht nicht: {mitLexware} {mitLexware === 1 ? 'gewählter Artikel steht' : 'gewählte Artikel stehen'} schon in Lexware</span>}
             {ohneLexware > 0 && <span style={{ fontSize: 13, color: '#e8e2d8' }}>{ohneLexware} nicht im Preis-Tool (nur RG-/NRG-Artikel)</span>}
             {ohneStamm > 0 && <span style={{ fontSize: 13, color: '#e8e2d8' }}>{ohneStamm} nicht im Stamm (kein Bearbeiten)</span>}
           </SelectionBar>
