@@ -25,7 +25,7 @@ const FILTER = [
 ];
 
 const lexTon = { ok: 'ok', abweichend: 'err', fehlt: 'warn' };
-const serTon = { ok: 'ok', abweichend: 'err', 'Name anders': 'warn', fehlt: 'warn' };
+const serTon = { ok: 'ok', abweichend: 'err', fehlt: 'warn' };
 
 function Status({ text, ton }) {
   if (text === 'nicht verglichen') return <span className="ui-table-sub">–</span>;

@@ -31,9 +31,9 @@ test('Preise: Stamm führt; abweichender Lexware- oder SER-Preis wird markiert',
   assert.equal(z.ser.preis_cent, 2926);
 });
 
-test('SER: Name anders, fehlt (nur bei im Shop sichtbaren Füllungen), NRG läuft nicht über SER', () => {
+test('SER: anderer Name ist keine Abweichung mehr (#617), fehlt (nur bei im Shop sichtbaren Füllungen), NRG läuft nicht über SER', () => {
   const nameAnders = verbinde({ stamm: [stammFuellung()], lexware: [lex()], ser: [ser({ name: 'Treibgas 11kg' })] })[0];
-  assert.equal(nameAnders.ser_status, 'Name anders');
+  assert.equal(nameAnders.ser_status, 'ok');
   const fehlt = verbinde({ stamm: [stammFuellung()], lexware: [lex()], ser: [] })[0];
   assert.equal(fehlt.ser_status, 'fehlt');
   const nrg = verbinde({ stamm: [stammFuellung({ artikel_nr: '7802500' })], lexware: [lex({ articleNumber: 'NRG-7802500' })], ser: [] })[0];

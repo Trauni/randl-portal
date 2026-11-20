@@ -3,12 +3,12 @@
  * Reine Funktionen ohne DB. Schlüssel ist die Nummer ohne Präfix (wie im Stamm).
  *
  *  - Lexware:  "ok" | "abweichend" (Netto-Preis anders als im Stamm) | "fehlt" (Füllung ohne RG-/NRG-Artikel) | "nicht verglichen"
- *  - SER:      "ok" | "abweichend" (Preis) | "Name anders" | "fehlt" (RG-Füllung ohne SER-Produkt) | "nicht verglichen"
+ *  - SER:      "ok" | "abweichend" (Preis) | "fehlt" (RG-Füllung ohne SER-Produkt) | "nicht verglichen"
+ *              Die Namen werden nicht mehr verglichen (#617): Lexware und Portal führen die neuen Bezeichnungen, SER wird abgelöst.
  *  - Fahrer-App: "aktiv" | "inaktiv" (nur aktive Artikel gehen an die App); dazu `luecken` = was für die App noch fehlt
  */
 
 const stammNr = (nr) => String(nr || '').trim().replace(/^N?RG-/i, '');
-const normName = (s) => String(s || '').toLowerCase().replace(/[\s\-_;,./]+/g, ' ').trim();
 const leer = (v) => v == null || v === '';
 const cent = (euro) => (euro == null ? null : Math.round(Number(euro) * 100));
 
@@ -40,7 +40,6 @@ function laeuftSchon(z) {
   }
   if (z.ser_status === 'ok') punkte.push({ stelle: 'SER', ok: 'ok', text: 'angelegt, Preis und Name passen' });
   else if (z.ser_status === 'abweichend') punkte.push({ stelle: 'SER', ok: 'warn', text: 'Preis weicht ab, Push SER nötig' });
-  else if (z.ser_status === 'Name anders') punkte.push({ stelle: 'SER', ok: 'warn', text: 'Name weicht ab' });
   else if (z.ser_status === 'fehlt') punkte.push({ stelle: 'SER', ok: 'warn', text: 'nicht im SER-Export' });
   punkte.push(z.im_stamm
     ? { stelle: 'Tourplanung', ok: 'ok', text: 'nimmt den Artikel an' }
@@ -102,7 +101,6 @@ function verbinde({ stamm, lexware = [], ser = [], lexwareVerfuegbar = true }) {
     if (!serVerfuegbar) serStatus = 'nicht verglichen';
     else if (!s) serStatus = lex && lex.shop === 'sichtbar' && (typ === 'F' || !a) ? 'fehlt' : 'nicht verglichen';
     else if (bezugCent != null && s.preis_cent != null && Number(s.preis_cent) !== bezugCent) serStatus = 'abweichend';
-    else if (normName(s.name) !== normName(a?.bezeichnung ?? lex?.name)) serStatus = 'Name anders';
     else serStatus = 'ok';
 
     // Shop-Kennzeichen (#610): der Wert im Portal führt; ohne Wert gilt das Lexware-Präfix. Weicht beides ab, folgt der Shop noch dem Präfix.
@@ -144,7 +142,7 @@ function verbinde({ stamm, lexware = [], ser = [], lexwareVerfuegbar = true }) {
 
 /** Zähler für den Hinweisbalken "Zu erledigen" und die Filter. */
 function zusammenfassung(zeilen) {
-  const abweichend = (z) => z.lexware_status === 'abweichend' || z.ser_status === 'abweichend' || z.ser_status === 'Name anders';
+  const abweichend = (z) => z.lexware_status === 'abweichend' || z.ser_status === 'abweichend';
   return {
     gesamt: zeilen.length,
     unvollstaendig: zeilen.filter((z) => z.luecken.length > 0).map((z) => z.artikel_nr),
