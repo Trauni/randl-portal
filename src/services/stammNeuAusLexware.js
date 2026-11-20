@@ -4,7 +4,8 @@
  * Gasart und Pfandflasche dazukommen müssten. Geschrieben wird nur in die Portal-Datenbank, nichts nach Lexware, SER oder in den Shop.
  *
  * Angelegt wird: Nummer ohne Präfix als Schlüssel, Bezeichnung, Typ nach Präfix, Einheit, Lexware-ID, Sparte, Nettopreis, MwSt.
- * Nicht angelegt wird, was bewusst gelöscht wurde (gas_artikel_geloescht) oder schon im Stamm steht.
+ * Nicht angelegt wird, was schon im Stamm steht, und was bewusst gelöscht wurde (gas_artikel_geloescht), außer mit auchGeloeschte:
+ * dann wird der Löschvermerk aufgehoben. Mit inaktiv werden die neuen Artikel inaktiv angelegt (für die Fahrer-App unsichtbar).
  */
 const { ohnePraefix, praefixVon, sparteVon } = require('../utils/lexwareArtikelAnalyse');
 
@@ -19,7 +20,7 @@ function typVon(praefix, titel) {
   return null;
 }
 
-function planeNeuAusLexware(stamm, lexware, geloescht = [], { praefixe = ['GZ'] } = {}) {
+function planeNeuAusLexware(stamm, lexware, geloescht = [], { praefixe = ['GZ'], auchGeloeschte = false } = {}) {
   const erlaubt = new Set(praefixe.map((p) => p.toUpperCase()));
   const vorhanden = new Set((stamm || []).map((s) => String(s.artikel_nr)));
   const weg = new Set((geloescht || []).map(String));
@@ -30,14 +31,15 @@ function planeNeuAusLexware(stamm, lexware, geloescht = [], { praefixe = ['GZ'] 
     if (!erlaubt.has(praefix)) continue;
     const nr = ohnePraefix(nummer);
     if (vorhanden.has(nr)) continue;
-    if (weg.has(nr)) { uebersprungen.push({ nummer, grund: 'bewusst gelöscht' }); continue; }
+    const warGeloescht = weg.has(nr);
+    if (warGeloescht && !auchGeloeschte) { uebersprungen.push({ nummer, grund: 'bewusst gelöscht' }); continue; }
     if (!NR_RE.test(nr)) { uebersprungen.push({ nummer, grund: 'Nummer passt nicht (1 bis 16 Zeichen, Buchstaben, Ziffern, - _)' }); continue; }
     const titel = norm(a.title);
     if (!titel || titel.length > 120) { uebersprungen.push({ nummer, grund: 'Bezeichnung leer oder länger als 120 Zeichen' }); continue; }
     const netto = a.price?.netPrice;
     zeilen.push({
       artikel_nr: nr, lexware_nummer: nummer, bezeichnung: titel, typ: typVon(praefix, titel), einheit: norm(a.unitName) || null,
-      lexware_id: a.id, sparte: sparteVon(praefix) || null,
+      lexware_id: a.id, sparte: sparteVon(praefix) || null, warGeloescht,
       preis_netto_cent: netto == null ? null : Math.round(Number(netto) * 100),
       mwst_satz: a.price?.taxRatePercentage ?? a.price?.taxRate ?? null,
     });
@@ -70,7 +72,8 @@ async function legeNeuAusLexwareAn(db, lexware, user = {}, erwartet, opt = {}) {
       stand.typ = { quelle: 'portal', am: jetzt };
       const felder = ['artikel_nr', 'aktiv', 'zaehlt_als_flasche', 'feld_stand', ...Object.keys(werte)];
       await conn.query(`INSERT INTO gas_artikel (${felder.join(', ')}) VALUES (${felder.map(() => '?').join(', ')})`,
-        [z.artikel_nr, 1, 0, JSON.stringify(stand), ...Object.values(werte)]);
+        [z.artikel_nr, opt.inaktiv ? 0 : 1, 0, JSON.stringify(stand), ...Object.values(werte)]);
+      if (z.warGeloescht) await conn.query('DELETE FROM gas_artikel_geloescht WHERE artikel_nr = ?', [z.artikel_nr]);
       await conn.query('INSERT INTO gas_artikel_aenderungen (artikel_nr, feld, alt, neu, von_id, von_name) VALUES (?, ?, NULL, ?, ?, ?)',
         [z.artikel_nr, '(Artikel)', `angelegt aus Lexware ${z.lexware_nummer}`, ...von]);
     }

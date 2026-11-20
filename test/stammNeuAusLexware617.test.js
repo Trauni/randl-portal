@@ -48,3 +48,16 @@ test('Anlegen: Zeile mit Lexware-ID, Einheit, Sparte, Preis, kein Shop-Kennzeich
   await assert.rejects(legeNeuAusLexwareAn(db2, [l('GZ-5901600')], {}, { anzahl: 0 }), (e) => e.status === 409);
   assert.equal(log2.length, 0);
 });
+
+test('Gelöschte: nur mit auchGeloeschte angelegt, Löschvermerk fällt weg; inaktiv legt inaktiv an', async () => {
+  const p = planeNeuAusLexware([], [l('GZ-100'), l('GZ-200')], ['100'], { auchGeloeschte: true });
+  assert.deepEqual(p.zeilen.map((z) => [z.artikel_nr, z.warGeloescht]), [['100', true], ['200', false]]);
+
+  const { db, log } = fakeDb([], [{ artikel_nr: '100' }]);
+  const r = await legeNeuAusLexwareAn(db, [l('GZ-100'), l('GZ-200')], { username: 'k' }, { anzahl: 2 }, { auchGeloeschte: true, inaktiv: true });
+  assert.equal(r.angelegt, 2);
+  const inserts = log.filter((x) => x[0] === 'INSERT INTO gas_artikel');
+  assert.equal(inserts[0][1][1], 0, 'aktiv = 0');
+  const dels = log.filter((x) => x[0] === 'DELETE FROM gas_artikel_geloescht');
+  assert.deepEqual(dels.map((d) => d[1]), [['100']]);
+});
