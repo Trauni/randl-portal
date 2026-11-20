@@ -36,3 +36,7 @@ test('Kodierung: UTF-8 und Windows-Latin-1 (Excel) ergeben denselben Text', () =
   assert.equal(dekodiere(Buffer.from('Füllung Stück', 'utf8')), 'Füllung Stück');
   assert.equal(dekodiere(Buffer.from('Füllung Stück', 'latin1')), 'Füllung Stück');
 });
+
+test('Kodierung: beschädigte Datei (Ersatzzeichen) wird abgelehnt statt falsch gelesen', () => {
+  assert.throws(() => dekodiere(Buffer.from('St\uFFFDck', 'utf8')), /beschädigte Zeichen/);
+});
