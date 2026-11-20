@@ -6,6 +6,9 @@
 const { GRUPPEN: EK_GRUPPEN } = require('../services/gasEkPreise');
 const { GASART_REIHENFOLGE } = require('../services/gasStamm');
 
+const TYPEN = ['F', 'P', 'S', 'V'];
+const TYP_NAME = { F: 'Füllung', P: 'Pfand/Leergut', S: 'Steuer/Nutzung (Kaufflasche)', V: 'Provision' };
+
 const KATEGORIE_ZU_FAKTOR = { 50: 1, 3: 2, 1: 3 };
 const leer = v => v === null || v === undefined || (typeof v === 'string' && v.trim() === '');
 const txt = (max) => v => {
@@ -23,6 +26,7 @@ const zahl = (min, max, ganz = false) => v => {
 // feld → { parse, nullable }
 const FELDER = {
   bezeichnung: { parse: txt(120), nullable: false },
+  typ: { parse: v => { const t = String(v).trim().toUpperCase(); if (!TYPEN.includes(t)) throw new Error(`Typ: ${TYPEN.join(', ')}`); return t; }, nullable: false },
   aktiv: { parse: v => (v === true || v === 1 || v === '1' || v === 'true' ? 1 : v === false || v === 0 || v === '0' || v === 'false' ? 0 : (() => { throw new Error('Ja/Nein erwartet'); })()), nullable: false },
   un_nr: { parse: v => { const t = String(v).trim().replace(/^UN\s*/i, ''); if (!/^\d{4}$/.test(t)) throw new Error('UN-Nummer hat 4 Ziffern'); return t; }, nullable: true },
   gefahrklasse: { parse: v => { const t = String(v).trim(); if (!/^\d(\.\d)?$/.test(t)) throw new Error('Gefahrklasse wie 2.1'); return t; }, nullable: true },
@@ -61,7 +65,31 @@ function pruefeAenderung(eingabe) {
   return { werte, fehler };
 }
 
-const TYPEN = ['F', 'P', 'S', 'V'];
+/** Nur Füllungen haben Gasart, Pfand-/Kaufflasche und Einkaufs-Preisgruppe. */
+const NUR_FUELLUNG = ['gasart', 'kategorie', 'kg_fuellung', 'pfand_artikel_nr', 'kaufflasche_artikel_nr', 'ek_gruppe'];
+
+/**
+ * Was automatisch mitgeändert wird, wenn ein Artikel zu etwas anderem als einer Füllung wird (Kappe, Palette, Pfand ...):
+ * die Felder, die nur eine Füllung haben kann, werden geleert; ohne Shop-Kennzeichen wird er ausgeblendet.
+ */
+function folgenAusTypwechsel(neuerTyp, zeile) {
+  if (neuerTyp === 'F') return {};
+  const extra = {};
+  for (const f of NUR_FUELLUNG) if (!leer(zeile[f])) extra[f] = null;
+  if (zeile.shop_sichtbar == null) extra.shop_sichtbar = 0;
+  return extra;
+}
+
+/** Regeln für den Endzustand eines Artikels: Fehlertexte (leer = in Ordnung). */
+function pruefeZustand(nr, z) {
+  const fehler = [];
+  const keineFuellung = z.typ && z.typ !== 'F';
+  if (keineFuellung && !leer(z.gasart)) fehler.push(`${nr}: ${TYP_NAME[z.typ] || z.typ} hat keine Gasart (nur Füllungen)`);
+  if (keineFuellung && !leer(z.pfand_artikel_nr)) fehler.push(`${nr}: ${TYP_NAME[z.typ] || z.typ} hat keine Pfandflasche (nur Füllungen)`);
+  if (keineFuellung && !leer(z.kaufflasche_artikel_nr)) fehler.push(`${nr}: ${TYP_NAME[z.typ] || z.typ} hat keine Kaufflasche (nur Füllungen)`);
+  if (!leer(z.pfand_artikel_nr) && !leer(z.kaufflasche_artikel_nr)) fehler.push(`${nr}: Pfandflasche und Kaufflasche schließen sich aus, eine Füllung hat entweder oder`);
+  return fehler;
+}
 
 /** Neuen Artikel von Hand anlegen: Nummer, Bezeichnung und Typ sind Pflicht, der Rest wie bei der Bearbeitung. */
 function pruefeNeuanlage(eingabe) {
@@ -75,8 +103,9 @@ function pruefeNeuanlage(eingabe) {
 
   const { werte, fehler: weitere } = Object.keys(rest).length ? pruefeAenderung(rest) : { werte: {}, fehler: [] };
   fehler.push(...weitere);
+  if (TYPEN.includes(typ) && !weitere.length) fehler.push(...pruefeZustand(nummer, { typ, ...werte }));
   if (fehler.length) return { werte: {}, fehler };
   return { artikel_nr: nummer, werte: { bezeichnung: String(bezeichnung).trim(), typ, ...werte }, fehler };
 }
 
-module.exports = { pruefeAenderung, pruefeNeuanlage, FELDER, TYPEN };
+module.exports = { pruefeAenderung, pruefeNeuanlage, pruefeZustand, folgenAusTypwechsel, FELDER, TYPEN, TYP_NAME, NUR_FUELLUNG };

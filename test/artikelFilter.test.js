@@ -47,6 +47,6 @@ test('Filter: Suche mit mehreren Wörtern in Nummer, Name und UN-Nummer', async 
 test('Prüffilter: Füllung ohne UN-Nr. bzw. ohne Pfandflasche', async () => {
   const { filtereArtikel, LUECKEN } = await import('../client/src/utils/artikelFilter.js');
   assert.deepEqual(nrn(filtereArtikel(daten, { fehlt: 'UN-Nr.' })), ['T022']);
-  assert.deepEqual(filtereArtikel(daten, { fehlt: 'Pfandflasche' }), []);
-  assert.ok(LUECKEN.includes('Pfandflasche') && LUECKEN.includes('UN-Nr.'));
+  assert.deepEqual(filtereArtikel(daten, { fehlt: 'Pfand- oder Kaufflasche' }), []);
+  assert.ok(LUECKEN.includes('Pfand- oder Kaufflasche') && LUECKEN.includes('UN-Nr.'));
 });

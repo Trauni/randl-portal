@@ -4,13 +4,16 @@
 
 const { getPool } = require('../db');
 const { leseArtikelExport, planeAbgleich, FELDER } = require('../utils/artikelstammImport');
-const { pruefeAenderung, pruefeNeuanlage } = require('../utils/artikelstammAendern');
+const { pruefeAenderung, pruefeNeuanlage, pruefeZustand, folgenAusTypwechsel } = require('../utils/artikelstammAendern');
 
 const SPALTEN = ['artikel_nr', 'aktiv', 'feld_stand', ...FELDER];
 const parseJson = v => (typeof v === 'string' ? JSON.parse(v) : v) || {};
 
 // Paletten und Kappen zählen in der Gas-Auswertung (#460) nicht als Flasche
 const zaehltAlsFlasche = w => (w.typ === 'F' && !/palette|kappe/i.test(w.bezeichnung || '') ? 1 : 0);
+
+// Spalten, die die Regeln (Typ, Gasart, Pfand- oder Kaufflasche) für den Endzustand brauchen
+const SPALTEN_REGELN = ['typ', 'bezeichnung', 'gasart', 'kategorie', 'kg_fuellung', 'pfand_artikel_nr', 'kaufflasche_artikel_nr', 'ek_gruppe', 'shop_sichtbar', 'zaehlt_als_flasche'];
 
 // #610: Pfand, Kaufflaschen und Provision sind im Shop standardmäßig ausgeblendet; Füllungen bleiben ohne Wert (dann gilt das Lexware-Präfix)
 const shopStandard = w => (w.typ && w.typ !== 'F' ? { shop_sichtbar: 0 } : {});
@@ -134,8 +137,10 @@ async function aendere(nummern, eingabe, user = {}) {
       if (!k.length) throw fehler400(`Kaufflasche ${werte.kaufflasche_artikel_nr} gibt es nicht`);
     }
     const spalten = Object.keys(werte);
+    // Spalten, die für die Regeln (Typ, Gasart, Pfand/Kaufflasche) gebraucht werden, immer mitlesen
+    const gelesen = [...new Set([...spalten, ...SPALTEN_REGELN])];
     const [rows] = await conn.query(
-      `SELECT artikel_nr, feld_stand, ${spalten.join(', ')} FROM gas_artikel WHERE artikel_nr IN (?) FOR UPDATE`, [nummern]);
+      `SELECT artikel_nr, feld_stand, ${gelesen.join(', ')} FROM gas_artikel WHERE artikel_nr IN (?) FOR UPDATE`, [nummern]);
     const gefunden = new Set(rows.map(r => r.artikel_nr));
     const fehlen = nummern.filter(n => !gefunden.has(n));
     if (fehlen.length) throw fehler400(`Artikel nicht gefunden: ${fehlen.slice(0, 5).join(', ')}`);
@@ -143,13 +148,28 @@ async function aendere(nummern, eingabe, user = {}) {
     const jetzt = new Date().toISOString();
     let geaendert = 0;
     for (const r of rows) {
-      const diff = spalten.filter(k => !gleichWert(r[k], werte[k]));
+      // Je Artikel können Folgeänderungen dazukommen (Typwechsel zur Nicht-Füllung leert Gasart, Pfand- und Kaufflasche ...)
+      const w = { ...werte };
+      if ('typ' in werte) {
+        Object.assign(w, folgenAusTypwechsel(werte.typ, r), werte);
+        w.zaehlt_als_flasche = zaehltAlsFlasche({ typ: werte.typ, bezeichnung: 'bezeichnung' in werte ? werte.bezeichnung : r.bezeichnung });
+        if (r.typ === 'P' && werte.typ !== 'P') {
+          const [verwendet] = await conn.query('SELECT artikel_nr FROM gas_artikel WHERE pfand_artikel_nr = ? LIMIT 3', [r.artikel_nr]);
+          if (verwendet.length) throw fehler400(`${r.artikel_nr} ist noch Pfandflasche von ${verwendet.map(v => v.artikel_nr).join(', ')} und bleibt Typ Pfand`);
+        }
+      }
+      // Regeln nur prüfen, wenn diese Änderung die betroffenen Felder anfasst (alte Altlasten blockieren keine anderen Änderungen)
+      if (['typ', 'gasart', 'pfand_artikel_nr', 'kaufflasche_artikel_nr'].some(k => k in w)) {
+        const f = pruefeZustand(r.artikel_nr, { ...r, ...w });
+        if (f.length) throw fehler400(f.join('; '));
+      }
+      const diff = Object.keys(w).filter(k => !gleichWert(r[k], w[k]));
       if (!diff.length) continue;
       const stand = { ...parseJson(r.feld_stand), ...Object.fromEntries(diff.map(k => [k, { quelle: 'portal', am: jetzt }])) };
       await conn.query(`UPDATE gas_artikel SET ${diff.map(k => `${k} = ?`).join(', ')}, feld_stand = ? WHERE artikel_nr = ?`,
-        [...diff.map(k => werte[k]), JSON.stringify(stand), r.artikel_nr]);
+        [...diff.map(k => w[k]), JSON.stringify(stand), r.artikel_nr]);
       await conn.query('INSERT INTO gas_artikel_aenderungen (artikel_nr, feld, alt, neu, von_id, von_name) VALUES ?',
-        [diff.map(k => [r.artikel_nr, k, alsText(r[k]), alsText(werte[k]), user.id || null, user.fullName || user.username || null])]);
+        [diff.map(k => [r.artikel_nr, k, alsText(r[k]), alsText(w[k]), user.id || null, user.fullName || user.username || null])]);
       geaendert++;
     }
     await conn.commit();
