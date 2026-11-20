@@ -29,4 +29,20 @@ function parseContentFromTitle(title) {
   return found.size === 1 ? [...found.values()][0] : null;
 }
 
-module.exports = { parseContentFromTitle, isPriceToolArticle };
+/**
+ * Inhalt eines Lexware-Gasartikels (#617): die Füllmenge des Stamms gilt zuerst (Nummer ohne RG-/NRG-, Einheit kg oder l),
+ * sonst der alte Eintrag aus gas_article_content. Rückgabe { value, unit: 'kg'|'L', source, updatedAt } oder null.
+ */
+function inhaltFuer(artikel, alterEintrag, stammNachNr) {
+  const nr = String(artikel.articleNumber || '').trim().replace(/^N?RG-/i, '');
+  const s = stammNachNr.get(nr);
+  if (s && s.fuellmenge != null && Number(s.fuellmenge) > 0 && (s.fuellmenge_einheit === 'kg' || s.fuellmenge_einheit === 'l')) {
+    return { value: Number(s.fuellmenge), unit: s.fuellmenge_einheit === 'l' ? 'L' : 'kg', source: 'stamm', updatedAt: null };
+  }
+  const c = alterEintrag;
+  return c && c.content_value != null
+    ? { value: Number(c.content_value), unit: c.content_unit, source: c.source, updatedAt: c.updated_at }
+    : null;
+}
+
+module.exports = { parseContentFromTitle, isPriceToolArticle, inhaltFuer };
