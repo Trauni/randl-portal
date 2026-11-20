@@ -40,16 +40,21 @@ export default function ArtikelListe() {
   const [laedt, setLaedt] = useState(true);
   const [fehler, setFehler] = useState('');
   const [hinweis, setHinweis] = useState('');
-  const [kurz, setKurz] = useState('alle');
-  const [suche, setSuche] = useState('');
-  const [typ, setTyp] = useState('');
-  const [einheit, setEinheit] = useState('');
-  const [sparte, setSparte] = useState('');
-  const [shop, setShop] = useState('');
-  const [fehlt, setFehlt] = useState('');
-  const [tags, setTags] = useState([]);
-  const [nurAktiv, setNurAktiv] = useState(true);
-  const [mehrSpalten, setMehrSpalten] = useState(false);
+  // Filter bleiben beim Wechsel in die Detailseite und zurück erhalten (sessionStorage, pro Browser-Tab)
+  const gemerkt = useMemo(() => { try { return JSON.parse(sessionStorage.getItem('artikelListeFilter') || '{}'); } catch { return {}; } }, []);
+  const [kurz, setKurz] = useState(gemerkt.kurz || 'alle');
+  const [suche, setSuche] = useState(gemerkt.suche || '');
+  const [typ, setTyp] = useState(gemerkt.typ || '');
+  const [einheit, setEinheit] = useState(gemerkt.einheit || '');
+  const [sparte, setSparte] = useState(gemerkt.sparte || '');
+  const [shop, setShop] = useState(gemerkt.shop || '');
+  const [fehlt, setFehlt] = useState(gemerkt.fehlt || '');
+  const [tags, setTags] = useState(Array.isArray(gemerkt.tags) ? gemerkt.tags : []);
+  const [nurAktiv, setNurAktiv] = useState(gemerkt.nurAktiv ?? true);
+  const [mehrSpalten, setMehrSpalten] = useState(!!gemerkt.mehrSpalten);
+  useEffect(() => {
+    try { sessionStorage.setItem('artikelListeFilter', JSON.stringify({ kurz, suche, typ, einheit, sparte, shop, fehlt, tags, nurAktiv, mehrSpalten })); } catch { /* ohne Speicher: Filter gehen verloren, mehr nicht */ }
+  }, [kurz, suche, typ, einheit, sparte, shop, fehlt, tags, nurAktiv, mehrSpalten]);
   const [auswahl, setAuswahl] = useState(() => new Set());
   const [dialog, setDialog] = useState('');           // '' | preis | serpush | bearbeiten
   const [zeigeNeu, setZeigeNeu] = useState(false);

@@ -4,7 +4,7 @@
 
 const { getPool } = require('../db');
 const { leseArtikelExport, planeAbgleich, FELDER } = require('../utils/artikelstammImport');
-const { pruefeAenderung, pruefeNeuanlage, pruefeZustand, folgenAusTypwechsel } = require('../utils/artikelstammAendern');
+const { pruefeAenderung, pruefeNeuanlage, pruefeZustand, folgenAusTypwechsel, loeseGegenflasche } = require('../utils/artikelstammAendern');
 
 const SPALTEN = ['artikel_nr', 'aktiv', 'feld_stand', ...FELDER];
 const parseJson = v => (typeof v === 'string' ? JSON.parse(v) : v) || {};
@@ -149,7 +149,7 @@ async function aendere(nummern, eingabe, user = {}) {
     let geaendert = 0;
     for (const r of rows) {
       // Je Artikel können Folgeänderungen dazukommen (Typwechsel zur Nicht-Füllung leert Gasart, Pfand- und Kaufflasche ...)
-      const w = { ...werte };
+      const w = { ...werte, ...loeseGegenflasche(werte, r) };
       if ('typ' in werte) {
         Object.assign(w, folgenAusTypwechsel(werte.typ, r), werte);
         w.zaehlt_als_flasche = zaehltAlsFlasche({ typ: werte.typ, bezeichnung: 'bezeichnung' in werte ? werte.bezeichnung : r.bezeichnung });
