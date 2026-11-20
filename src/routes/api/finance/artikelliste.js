@@ -4,6 +4,7 @@ const router = require('express').Router();
 const { getPool } = require('../../../db');
 const { hasArea } = require('../../../utils/permissions');
 const { loadGasArticles } = require('../../../services/gasArticles');
+const { ladeAlleLexware, alsListenArtikel } = require('../../../services/lexwareAlle');
 const requireArea = require('../../../middleware/requireArea');
 const { verbinde, zusammenfassung } = require('../../../utils/artikelListe');
 const { uebernehmeShopAusLexware } = require('../../../services/shopSichtbar');
@@ -15,7 +16,11 @@ router.get('/', async (req, res) => {
   const darfStamm = hasArea(user.role, user.accessTags, 'gashandel.preise');
   try {
     let lexware = []; let cachedAt = null; let lexwareFehler = null;
-    try { ({ articles: lexware, cachedAt } = await loadGasArticles()); }
+    try {
+      ({ articles: lexware, cachedAt } = await loadGasArticles());
+      // PFAND- und GZ-Artikel direkt aus Lexware dazu; fällt das aus, bleibt die Liste wie bisher (RG/NRG)
+      try { lexware = [...lexware, ...alsListenArtikel(await ladeAlleLexware())]; } catch (e) { console.error('[Artikelliste] Lexware (alle Artikel):', e.message); }
+    }
     catch (err) {
       if (!darfStamm) throw err;            // ohne Stamm gäbe es sonst gar nichts zu zeigen
       lexwareFehler = err.message;

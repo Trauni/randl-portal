@@ -109,3 +109,28 @@ test('Lücken: Pfandflasche ODER Kaufflasche genügt, beide fehlen = Lücke', ()
   assert.deepEqual(luecken({ ...voll }), ['Pfand- oder Kaufflasche']);
   assert.deepEqual(luecken({ ...voll, pfand_artikel_nr: '', kaufflasche_artikel_nr: null }), ['Pfand- oder Kaufflasche']);
 });
+
+test('PFAND- und GZ-Artikel aus Lexware werden dem Stammartikel zugeordnet, ohne Shop-Kennzeichen und ohne Preis-Tool (#617)', () => {
+  const stamm = [stammFuellung({ artikel_nr: '2801000', typ: 'P', preis_netto_cent: 3361, un_nr: null }), stammFuellung({ artikel_nr: '5900000', typ: 'Z', preis_netto_cent: 210, un_nr: null })];
+  const [pfand, zubehoer] = verbinde({
+    stamm,
+    lexware: [
+      { id: 'L1', articleNumber: 'PFAND-2801000', name: 'Camping Leergut 5 kg Flasche', netPrice: 33.61, tags: [], content: null, preisTool: false },
+      { id: 'L2', articleNumber: 'GZ-5900000', name: 'Lecksuchspray', netPrice: 2.5, tags: [], content: null, preisTool: false },
+    ],
+    ser: [],
+  });
+  assert.equal(pfand.lexware.id, 'L1');
+  assert.equal(pfand.lexware.shop, null);
+  assert.equal(pfand.lexware.preisTool, false);
+  assert.equal(pfand.lexware_status, 'ok');
+  assert.equal(pfand.shop_abweichend, false);
+  assert.equal(zubehoer.lexware_status, 'abweichend', 'Preis 2,50 in Lexware gegen 2,10 im Stamm');
+  assert.equal(zubehoer.shop_abweichend, false);
+});
+
+test('RG-Artikel behalten Shop-Kennzeichen und Preis-Tool', () => {
+  const [z] = verbinde({ stamm: [stammFuellung()], lexware: [lex()], ser: [] });
+  assert.ok(['sichtbar', 'ausgeblendet'].includes(z.lexware.shop));
+  assert.equal(z.lexware.preisTool, true);
+});

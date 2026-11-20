@@ -8,7 +8,9 @@
  *  - Fahrer-App: "aktiv" | "inaktiv" (nur aktive Artikel gehen an die App); dazu `luecken` = was für die App noch fehlt
  */
 
-const stammNr = (nr) => String(nr || '').trim().replace(/^N?RG-/i, '');
+// Nummer ohne Lexware-Präfix (RG-, NRG-, PFAND-, GZ-) = Schlüssel im Stamm
+const stammNr = (nr) => String(nr || '').trim().replace(/^(N?RG|PFAND|GZ)-/i, '');
+const imShopNachPraefix = (nr) => /^N?RG-/i.test(String(nr || ''));
 const leer = (v) => v == null || v === '';
 const cent = (euro) => (euro == null ? null : Math.round(Number(euro) * 100));
 
@@ -34,7 +36,7 @@ function laeuftSchon(z) {
   if (z.lexware) {
     const abw = z.lexware_status === 'abweichend';
     punkte.push({ stelle: 'Lexware', ok: abw ? 'warn' : 'ok',
-      text: `${z.lexware.nummer}, im Shop ${z.lexware.shop}${abw ? ', Preis weicht vom Stamm ab' : ''}` });
+      text: `${z.lexware.nummer}${z.lexware.shop ? `, im Shop ${z.lexware.shop}` : ''}${abw ? ', Preis weicht vom Stamm ab' : ''}` });
   } else if (z.lexware_status === 'fehlt') {
     punkte.push({ stelle: 'Lexware', ok: 'warn', text: 'kein RG-/NRG-Artikel gefunden' });
   }
@@ -60,7 +62,10 @@ function lexwareInfo(l) {
   return {
     id: l.id, nummer: l.articleNumber, name: l.name, tags: l.tags || [],
     netto_cent: cent(l.netPrice), inhalt: l.content || null,
-    shop: String(l.articleNumber).toUpperCase().startsWith('NRG-') ? 'ausgeblendet' : 'sichtbar',
+    // Der Shop kennt nur RG- (sichtbar) und NRG- (ausgeblendet); PFAND-, GZ- haben dort kein Kennzeichen
+    shop: !imShopNachPraefix(l.articleNumber) ? null : String(l.articleNumber).toUpperCase().startsWith('NRG-') ? 'ausgeblendet' : 'sichtbar',
+    einheit: l.einheit ?? null,
+    preisTool: l.preisTool !== false,   // das Preis-Tool (Lexware + Portal) gilt nur für die Gasfüllungen RG-/NRG-
   };
 }
 
@@ -105,7 +110,7 @@ function verbinde({ stamm, lexware = [], ser = [], lexwareVerfuegbar = true }) {
 
     // Shop-Kennzeichen (#610): der Wert im Portal führt; ohne Wert gilt das Lexware-Präfix. Weicht beides ab, folgt der Shop noch dem Präfix.
     const portalWert = a && a.shop_sichtbar != null ? Number(a.shop_sichtbar) === 1 : null;
-    const lexWert = lex ? lex.shop === 'sichtbar' : null;
+    const lexWert = lex && lex.shop ? lex.shop === 'sichtbar' : null;
     const shopStatus = portalWert == null ? 'nicht gesetzt' : portalWert ? 'sichtbar' : 'ausgeblendet';
     const shopAbweichend = portalWert != null && lexWert != null && portalWert !== lexWert;
 

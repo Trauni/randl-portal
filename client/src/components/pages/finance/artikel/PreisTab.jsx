@@ -53,7 +53,7 @@ export default function PreisTab({ artikel, canEdit, onGeaendert }) {
   const [dialog, setDialog] = useState('');
   const [protokoll, setProtokoll] = useState(null);
   const [fehler, setFehler] = useState('');
-  const lexId = artikel.lexware?.id;
+  const lexId = artikel.lexware?.preisTool ? artikel.lexware.id : null;   // Preis-Tool nur für RG-/NRG-
 
   const laden = useCallback(() => {
     if (!canEdit) return;
