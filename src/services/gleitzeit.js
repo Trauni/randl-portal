@@ -205,15 +205,23 @@ async function verlauf(employeeId, { von, bis, gruppe = 'monat' } = {}) {
   }));
 }
 
+/** Ab 20 Uhr (Berlin) ist der heutige Tag abgeschlossen und gebucht. */
+const heuteAbgeschlossen = () =>
+  Number(new Date().toLocaleString('en-GB', { timeZone: 'Europe/Berlin', hour: '2-digit', hour12: false })) >= 20;
+
 /**
- * Nach einer Zeitkorrektur oder Fremderfassung für einen vergangenen Tag.
- * Der heutige Tag wird ohnehin vom Tagesabschluss gebucht. Fehler blockieren
- * die Zeiterfassung nicht (analog urlaub.betroffeneUrlaubeNeuberechnen).
+ * Nach Stopp, Nachtrag, Korrektur oder Fremderfassung.
+ * Vergangene Tage werden sofort neu gebucht. Der heutige Tag nur, wenn der
+ * Tagesabschluss (20 Uhr) schon gelaufen ist — sonst bucht ihn der Abschluss.
+ * Fehler blockieren die Zeiterfassung nicht (analog urlaub.betroffeneUrlaubeNeuberechnen).
  */
 async function tagGeaendert(employeeId, tag) {
-  if (tag >= heuteLokal()) return null;
+  const heute = heuteLokal();
+  if (tag > heute || (tag === heute && !heuteAbgeschlossen())) return null;
   try {
-    return await neuberechnen(employeeId, { von: tag, bis: tag, quelle: 'neuberechnung' });
+    return await neuberechnen(employeeId, {
+      von: tag, bis: tag, heuteAbgeschlossen: tag === heute, quelle: 'neuberechnung',
+    });
   } catch (e) {
     console.error(`[gleitzeit] Neuberechnung ${employeeId}/${tag} fehlgeschlagen: ${e.message}`);
     return { employeeId, tag, fehler: e.message };

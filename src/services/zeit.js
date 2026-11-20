@@ -140,6 +140,12 @@ async function stoppen(entryId) {
         AND TIMESTAMPDIFF(SECOND, te.start, te.ende) > 21600`, [entryId]);
 
   await rundenUndSpiegeln(entryId);
+
+  // Stopp nach dem Tagesabschluss (20 Uhr) oder über Mitternacht: Tag sofort
+  // neu buchen, sonst fehlt der Eintrag bis zum nächsten Abschluss (#490).
+  const [[e]] = await db.execute(
+    `SELECT employee_id, DATE_FORMAT(tag,'%Y-%m-%d') AS tag FROM time_entries WHERE id=?`, [entryId]);
+  if (e) await gleitzeit.tagGeaendert(e.employee_id, e.tag);
 }
 
 /** Manuelle Tageserfassung — Pause ist eine reine Minutenzahl, kein Timer. */
