@@ -14,6 +14,7 @@ const FARBEN = {
   'Arcox (Mischgas)': '#3e9a45',  // Mischgas: hellgrün
   'Stickstoff': '#1f1d1b',        // schwarz
   'Ballongas/Helium': '#8a5a2b',  // Helium: braun
+  'Druckluft': '#5d6d7e',         // Luft: grau-blau (Schulter nach EN 1089-3 weiß/schwarz geteilt, hier vereinfacht)
 };
 
 /** Farbe für die Schulter, null wenn die Gasart unbekannt ist (Symbol zeigt dann eine leere Flasche). */

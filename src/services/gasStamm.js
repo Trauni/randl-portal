@@ -7,7 +7,7 @@
  */
 
 const KG_ARTEN = new Set(['Propan', 'Propan Treibgas', 'CO2', 'Campingaz']); // nur hier ist die Füllmenge in kg
-const GASART_REIHENFOLGE = ['Propan', 'Propan Treibgas', 'CO2', 'Biergas', 'Campingaz', 'Argon', 'Arcox (Mischgas)', 'Sauerstoff', 'Stickstoff', 'Acetylen', 'Formiergas', 'Ballongas/Helium'];
+const GASART_REIHENFOLGE = ['Propan', 'Propan Treibgas', 'CO2', 'Biergas', 'Campingaz', 'Argon', 'Arcox (Mischgas)', 'Sauerstoff', 'Stickstoff', 'Acetylen', 'Formiergas', 'Ballongas/Helium', 'Druckluft'];
 
 /** Nur für Artikel ohne gepflegte Gasart: aus der Artikelnummer abgeleitet, sonst 'Sonstige'. */
 const gasartVon = (nr) => {
