@@ -45,6 +45,7 @@ export default function ArtikelListe() {
   const [typ, setTyp] = useState('');
   const [einheit, setEinheit] = useState('');
   const [sparte, setSparte] = useState('');
+  const [shop, setShop] = useState('');
   const [fehlt, setFehlt] = useState('');
   const [tags, setTags] = useState([]);
   const [nurAktiv, setNurAktiv] = useState(true);
@@ -69,13 +70,13 @@ export default function ArtikelListe() {
   useEffect(() => { laden(); }, [laden]);
 
   // Neue Suche oder neuer Filter leert die Auswahl, damit keine unsichtbaren Artikel markiert bleiben (Wunsch 06.10.2026)
-  useEffect(() => { setAuswahl(new Set()); setDialog(''); }, [kurz, suche, typ, einheit, sparte, fehlt, tags, nurAktiv]);
+  useEffect(() => { setAuswahl(new Set()); setDialog(''); }, [kurz, suche, typ, einheit, sparte, shop, fehlt, tags, nurAktiv]);
 
   const artikel = daten?.artikel || [];
   const zus = daten?.zusammenfassung;
   const stammRecht = !!daten?.rechte?.stamm;
   const alleTags = useMemo(() => [...new Set(artikel.flatMap((a) => a.lexware?.tags || []))].sort(), [artikel]);
-  const sichtbar = useMemo(() => filtereArtikel(artikel, { kurz, suche, typ, einheit, sparte, fehlt, tags, nurAktiv }), [artikel, kurz, suche, typ, einheit, sparte, fehlt, tags, nurAktiv]);
+  const sichtbar = useMemo(() => filtereArtikel(artikel, { kurz, suche, typ, einheit, sparte, shop, fehlt, tags, nurAktiv }), [artikel, kurz, suche, typ, einheit, sparte, shop, fehlt, tags, nurAktiv]);
   const alleSparten = useMemo(() => [...new Set(artikel.map((a) => a.sparte).filter(Boolean))].sort(), [artikel]);
 
   const alleSichtbarGewaehlt = sichtbar.length > 0 && sichtbar.every((a) => auswahl.has(a.artikel_nr));
@@ -86,8 +87,8 @@ export default function ArtikelListe() {
     return n;
   });
   const toggleTag = (t) => setTags((f) => (f.includes(t) ? f.filter((x) => x !== t) : [...f, t]));
-  const filterZuruecksetzen = () => { setKurz('alle'); setSuche(''); setTyp(''); setEinheit(''); setSparte(''); setFehlt(''); setTags([]); };
-  const filterAktiv = kurz !== 'alle' || suche || typ || einheit || sparte || fehlt || tags.length > 0;
+  const filterZuruecksetzen = () => { setKurz('alle'); setSuche(''); setTyp(''); setEinheit(''); setSparte(''); setShop(''); setFehlt(''); setTags([]); };
+  const filterAktiv = kurz !== 'alle' || suche || typ || einheit || sparte || shop || fehlt || tags.length > 0;
 
   // Preis-Tool und Push SER arbeiten mit Lexware-Artikeln, Felder bearbeiten mit Artikeln aus dem Stamm
   const gewaehlt = artikel.filter((a) => auswahl.has(a.artikel_nr));
@@ -225,6 +226,14 @@ export default function ArtikelListe() {
             <select className="form-select" style={{ width: 'auto' }} value={typ} onChange={(e) => setTyp(e.target.value)} aria-label="Typ">
               <option value="">Alle Typen</option>
               {Object.entries(TYP_AUSWAHL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          )}
+          {stammRecht && (
+            <select className="form-select" style={{ width: 'auto' }} value={shop} onChange={(e) => setShop(e.target.value)} aria-label="Shop">
+              <option value="">Shop: alle</option>
+              <option value="sichtbar">Shop: sichtbar</option>
+              <option value="ausgeblendet">Shop: ausgeblendet</option>
+              <option value="nicht gesetzt">Shop: nicht gesetzt</option>
             </select>
           )}
           {stammRecht && (

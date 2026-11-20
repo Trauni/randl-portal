@@ -9,11 +9,12 @@ export const istAbweichend = (a) => a.lexware_status === 'abweichend' || a.ser_s
  * typ:      '' | F | P | S | V
  * einheit:  '' | kg | L | fehlt   (Inhalt aus Lexware)
  * fehlt:     '' | Bezeichnung einer Lücke (z. B. 'UN-Nr.', 'Pfand- oder Kaufflasche') = Prüffilter "Füllung ohne …"
+ * shop:     '' | sichtbar | ausgeblendet | nicht gesetzt   (Shop-Kennzeichen im Stamm, #610)
  * sparte:   '' | Name der Sparte | '(ohne)'  (#617)
  * tags:     leer = alle, sonst muss der Lexware-Artikel mindestens einen haben
  * nurAktiv: blendet im Stamm inaktive Artikel aus (Artikel nur in Lexware bleiben sichtbar)
  */
-export function filtereArtikel(artikel, { kurz = 'alle', suche = '', typ = '', einheit = '', fehlt = '', tags = [], nurAktiv = false, sparte = '' } = {}) {
+export function filtereArtikel(artikel, { kurz = 'alle', suche = '', typ = '', einheit = '', fehlt = '', tags = [], nurAktiv = false, sparte = '', shop = '' } = {}) {
   const woerter = suche.trim().toLowerCase().split(/\s+/).filter(Boolean);
   return artikel.filter((a) => {
     if (nurAktiv && a.aktiv === false) return false;
@@ -22,6 +23,7 @@ export function filtereArtikel(artikel, { kurz = 'alle', suche = '', typ = '', e
     if (kurz === 'abw' && !istAbweichend(a)) return false;
     if (kurz === 'luecke' && a.luecken.length === 0) return false;
     if (typ && a.typ !== typ) return false;
+    if (shop && a.shop_status !== shop) return false;
     if (sparte && (sparte === '(ohne)' ? a.sparte : a.sparte !== sparte)) return false;
     if (fehlt && !a.luecken.includes(fehlt)) return false;
     if (einheit === 'fehlt' && !(a.lexware && !a.lexware.inhalt)) return false;

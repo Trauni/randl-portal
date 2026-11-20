@@ -58,3 +58,11 @@ test('Filter: Sparte (#617), auch "ohne Sparte"', async () => {
   assert.deepEqual(nrn(filtereArtikel(d, { sparte: '(ohne)' })), ['3']);
   assert.equal(filtereArtikel(d, {}).length, 3);
 });
+
+test('Filter: Shop-Kennzeichen sichtbar / ausgeblendet / nicht gesetzt (#610)', async () => {
+  const { filtereArtikel } = await import('../client/src/utils/artikelFilter.js');
+  const d = [z({ artikel_nr: '1', shop_status: 'sichtbar' }), z({ artikel_nr: '2', shop_status: 'ausgeblendet' }), z({ artikel_nr: '3', shop_status: 'nicht gesetzt' })];
+  assert.deepEqual(nrn(filtereArtikel(d, { shop: 'sichtbar' })), ['1']);
+  assert.deepEqual(nrn(filtereArtikel(d, { shop: 'nicht gesetzt' })), ['3']);
+  assert.equal(filtereArtikel(d, {}).length, 3);
+});
