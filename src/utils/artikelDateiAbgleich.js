@@ -91,4 +91,43 @@ function gleicheAb(datei, stamm, lexware) {
   return { zeilen, nurPortal, nurLexware, nurDatei: zeilen.filter((z) => z.imPortal === 'nein') };
 }
 
-module.exports = { leseCsv, gleicheAb, zahl, dekodiere };
+/**
+ * Was müsste in Lexware geändert werden, damit es der Datei entspricht? (Nummer, Bezeichnung, Einheit; Preise nie)
+ * Zuordnung: erst gleiche Nummer; sonst dieselbe Nummer ohne Präfix, wenn sie in Lexware genau einmal vorkommt
+ * (PFAND-5900000 in Lexware ↔ GZ-5900000 in der Datei: das Präfix wird mitgeändert).
+ * Ergebnis: { aenderungen: [{ id, nummerAlt, alt: {articleNumber,title,unitName}, neu: {…nur geänderte Felder}, felder: [...] }],
+ *             unveraendert, fehlenInLexware: [Nummer], mehrdeutig: [Nummer] }
+ */
+function planeLexwareAenderung(datei, lexware) {
+  const aktiv = (lexware || []).filter((a) => !a.archived && a.articleNumber);
+  const nachNr = new Map(aktiv.map((a) => [String(a.articleNumber).trim(), a]));
+  const nachKern = new Map();
+  for (const a of aktiv) {
+    const k = ohnePraefix(String(a.articleNumber).trim());
+    nachKern.set(k, [...(nachKern.get(k) || []), a]);
+  }
+  const dateiNrn = new Set(datei.map((d) => norm(d.Artikelnummer)));
+  const aenderungen = [], fehlenInLexware = [], mehrdeutig = [];
+  let unveraendert = 0;
+  for (const d of datei) {
+    const nr = norm(d.Artikelnummer);
+    if (!nr) continue;
+    let a = nachNr.get(nr);
+    if (!a) {
+      const kandidaten = (nachKern.get(ohnePraefix(nr)) || []).filter((x) => !dateiNrn.has(String(x.articleNumber).trim()));
+      if (kandidaten.length > 1) { mehrdeutig.push(nr); continue; }
+      a = kandidaten[0];
+    }
+    if (!a) { fehlenInLexware.push(nr); continue; }
+    const neu = {};
+    if (String(a.articleNumber).trim() !== nr) neu.articleNumber = nr;
+    if (norm(d.Bezeichnung) && norm(a.title) !== norm(d.Bezeichnung)) neu.title = norm(d.Bezeichnung);
+    if (norm(d.Einheit) && norm(a.unitName) !== norm(d.Einheit)) neu.unitName = norm(d.Einheit);
+    if (!Object.keys(neu).length) { unveraendert++; continue; }
+    aenderungen.push({ id: a.id, nummerAlt: String(a.articleNumber).trim(), alt: { articleNumber: a.articleNumber, title: a.title, unitName: a.unitName }, neu, felder: Object.keys(neu) });
+  }
+  aenderungen.sort((x, y) => x.nummerAlt.localeCompare(y.nummerAlt));
+  return { aenderungen, unveraendert, fehlenInLexware, mehrdeutig };
+}
+
+module.exports = { leseCsv, gleicheAb, zahl, dekodiere, planeLexwareAenderung };

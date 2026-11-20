@@ -31,6 +31,8 @@ const VERSUCHE_429 = 4;
 // Nur-Lesen-Felder, die beim PUT weggelassen werden (Test am Testkontakt 16.10.2026: PUT ok,
 // sonst keine Felder veraendert)
 const NUR_LESEN = ['organizationId', 'archived'];
+// Artikel: gleiche Idee; id steht in der URL, die Zeitstempel setzt Lexware selbst. Beim ersten echten Schreiben prüfen.
+const ARTIKEL_NUR_LESEN = ['id', 'organizationId', 'archived', 'createdDate', 'updatedDate'];
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -218,7 +220,31 @@ function createClient({
     return alle;
   }
 
-  return { apiCall, getContact, searchContacts, updateContactNote, listVouchers, getVoucher, getVoucherFile, createVoucher, listArticles };
+  const getArticle = (id) => apiCall('GET', `/articles/${encodeURIComponent(id)}`);
+
+  /**
+   * Felder eines Artikels ändern (#617), ohne den Rest anzufassen: PUT ersetzt den ganzen Artikel, deshalb wird der aktuelle
+   * Stand gelesen und nur `felder` darübergelegt (title, unitName, articleNumber …). Nur-Lesen-Felder fallen beim Senden weg.
+   * Ist nichts anders, wird nicht geschrieben. Bei 409 (zwischendurch geändert) einmal neu lesen.
+   * Ergebnis: { geaendert, vorher (Stand vor der Änderung, zum Zurücksetzen), version }
+   */
+  async function updateArticle(id, felder, { aktuell } = {}) {
+    for (let versuch = 1; ; versuch++) {
+      const current = versuch === 1 && aktuell ? aktuell : await getArticle(id);
+      if (Object.entries(felder).every(([k, v]) => current[k] === v)) return { geaendert: false, vorher: current, version: current.version };
+      const payload = { ...current, ...felder };
+      for (const f of ARTIKEL_NUR_LESEN) delete payload[f];
+      try {
+        const res = await apiCall('PUT', `/articles/${encodeURIComponent(id)}`, payload);
+        return { geaendert: true, vorher: current, version: res?.version };
+      } catch (err) {
+        if (err.status === 409 && versuch < 2) continue;
+        throw err;
+      }
+    }
+  }
+
+  return { apiCall, getArticle, updateArticle, getContact, searchContacts, updateContactNote, listVouchers, getVoucher, getVoucherFile, createVoucher, listArticles };
 }
 
 module.exports = { ...createClient(), createClient, LexwareError, BASE_URL, BELEG_PFADE, datum };
