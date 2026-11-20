@@ -93,3 +93,45 @@ test('Auswertung ändert die Eingaben nicht', () => {
   analysiere(lex, [{ artikel_nr: '1' }]);
   assert.deepEqual(lex, kopie);
 });
+
+// ── Listen zum Durchgehen (Detailausgabe) ──────────────────────────────────────────────────────────
+const { listen, alsCsv, sparteVon } = require('../src/utils/lexwareArtikelAnalyse');
+
+test('Sparte nach Präfix: RM heißt Maschinenbau', () => {
+  assert.equal(sparteVon('RG'), 'Gashandel');
+  assert.equal(sparteVon('NRG'), 'Gashandel');
+  assert.equal(sparteVon('PFAND'), 'Gashandel');
+  assert.equal(sparteVon('RZ'), 'Zeltverleih');
+  assert.equal(sparteVon('RT'), 'Technik und Event');
+  assert.equal(sparteVon('RM'), 'Maschinenbau');
+  assert.equal(sparteVon('(ohne Nummer)'), '');
+});
+
+test('Listen: Stammartikel ohne Lexware, Lexware ohne Stamm, ohne Nummer, Typ je Einheit', () => {
+  const lex = [
+    art('RG-1', { unitName: 'Füllung' }), art('PFAND-2', { unitName: 'Stück' }), art('RZ-13003', { unitName: 'Stück', title: 'Bank normal' }),
+    { id: 'x', title: 'Palette groß', type: 'PRODUCT', unitName: 'Stück' },
+  ];
+  const stamm = [
+    { artikel_nr: '1', bezeichnung: 'Propan 11', typ: 'F', aktiv: 1, preis_netto_cent: 2926, verwendet: [] },
+    { artikel_nr: '2', bezeichnung: 'Pfand 11', typ: 'P', aktiv: 1, preis_netto_cent: null, verwendet: ['Tourposition (3)', 'importierter Beleg (10)'] },
+    { artikel_nr: '17801000', bezeichnung: 'Altlast', typ: 'S', aktiv: 0, preis_netto_cent: 100, verwendet: ['importierter Beleg (2)'] },
+  ];
+  const l = listen(lex, stamm);
+  assert.deepEqual(l.stammOhneLexware, [{ artikel_nr: '17801000', bezeichnung: 'Altlast', typ: 'S', aktiv: 'nein', preisNetto: '1.00', verwendet: 'importierter Beleg (2)' }]);
+  assert.deepEqual(l.lexwareOhneStamm.map((z) => [z.nummer, z.sparte, z.bezeichnung]), [['RZ-13003', 'Zeltverleih', 'Bank normal']]);
+  assert.deepEqual(l.lexwareOhneNummer.map((z) => z.bezeichnung), ['Palette groß']);
+  assert.deepEqual(l.typJeEinheit, { 'F | Füllung': 1, 'P | Stück': 1 });
+  assert.deepEqual(l.pfand.map((z) => [z.nummer, z.einheit, z.stammTyp]), [['PFAND-2', 'Stück', 'P']]);
+});
+
+test('Listen: Pfand-Artikel ohne Stammartikel sind erkennbar', () => {
+  const l = listen([art('PFAND-9', { unitName: 'Pfand' })], []);
+  assert.equal(l.pfand[0].stammTyp, '(nicht im Stamm)');
+  assert.equal(l.lexwareOhneStamm[0].nummer, 'PFAND-9');
+});
+
+test('CSV: Semikolon, Anführungszeichen bei Bedarf, BOM und Windows-Zeilenende', () => {
+  const csv = alsCsv([{ a: 'x;y', b: 'sagt "hallo"', c: 5 }, { a: 'Zeile', b: null, c: '' }], ['a', 'b', 'c']);
+  assert.equal(csv, '﻿a;b;c\r\n"x;y";"sagt ""hallo""";5\r\nZeile;;\r\n');
+});

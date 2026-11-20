@@ -76,4 +76,62 @@ function analysiere(lexware, stamm) {
   };
 }
 
-module.exports = { analysiere, praefixVon, ohnePraefix };
+// Entscheidung Trauni 20.11.2026: Das Lexware-Präfix zeigt die Sparte. RM heißt bei uns Maschinenbau (nicht Metallarbeiten).
+const SPARTE_NACH_PRAEFIX = {
+  RG: 'Gashandel', NRG: 'Gashandel', PFAND: 'Gashandel',
+  RZ: 'Zeltverleih', RT: 'Technik und Event', RM: 'Maschinenbau',
+};
+const sparteVon = (praefix) => SPARTE_NACH_PRAEFIX[praefix] || '';
+
+/**
+ * Listen zum Durchgehen vor dem Abgleich (#617), alle nur lesend:
+ *  - stammOhneLexware: Stammartikel, die es in Lexware nicht (mehr) gibt; "verwendet" sagt, wo sie noch vorkommen
+ *    (Touren, Lieferscheine, importierte Belege). Wer nirgends vorkommt, lässt sich bedenkenlos löschen.
+ *  - lexwareOhneStamm / lexwareOhneNummer: Lexware-Artikel ohne Gegenstück im Stamm bzw. ohne Artikelnummer
+ *  - typJeEinheit: bei den gefundenen Artikeln, welche Einheit zu welchem Stamm-Typ gehört (Grundlage für den Mass Change)
+ *  - pfand: alle Lexware-Artikel mit Präfix PFAND mit Einheit und Stamm-Typ
+ * stamm: { artikel_nr, bezeichnung, typ, aktiv, preis_netto_cent, verwendet: [Text] }
+ */
+function listen(lexware, stamm) {
+  const aktiv = (lexware || []).filter((a) => !a.archived);
+  const nachNr = new Map();
+  for (const a of aktiv) if (nummerVon(a)) nachNr.set(ohnePraefix(nummerVon(a)), a);
+  const stammNachNr = new Map((stamm || []).map((s) => [String(s.artikel_nr), s]));
+
+  const zeile = (a) => {
+    const nr = nummerVon(a);
+    const p = praefixVon(nr);
+    return { nummer: nr, sparte: sparteVon(p), bezeichnung: a.title || a.name || '', einheit: einheitVon(a), lexwareTyp: a.type || '' };
+  };
+
+  const stammOhneLexware = (stamm || []).filter((s) => !nachNr.has(String(s.artikel_nr)))
+    .map((s) => ({
+      artikel_nr: String(s.artikel_nr), bezeichnung: s.bezeichnung || '', typ: s.typ || '', aktiv: s.aktiv == null ? '' : (Number(s.aktiv) ? 'ja' : 'nein'),
+      preisNetto: s.preis_netto_cent == null ? '' : (Number(s.preis_netto_cent) / 100).toFixed(2),
+      verwendet: (s.verwendet || []).join('; '),
+    }))
+    .sort((x, y) => x.artikel_nr.localeCompare(y.artikel_nr));
+
+  const lexwareOhneStamm = aktiv.filter((a) => nummerVon(a) && !stammNachNr.has(ohnePraefix(nummerVon(a)))).map(zeile)
+    .sort((x, y) => x.nummer.localeCompare(y.nummer));
+  const lexwareOhneNummer = aktiv.filter((a) => !nummerVon(a)).map(zeile).sort((x, y) => x.bezeichnung.localeCompare(y.bezeichnung));
+
+  const gefunden = aktiv.filter((a) => nummerVon(a) && stammNachNr.has(ohnePraefix(nummerVon(a))));
+  const typJeEinheit = zaehle(gefunden, (a) => `${stammNachNr.get(ohnePraefix(nummerVon(a))).typ || '(ohne Typ)'} | ${einheitVon(a)}`);
+  const pfand = aktiv.filter((a) => praefixVon(nummerVon(a)) === 'PFAND')
+    .map((a) => ({ ...zeile(a), stammTyp: stammNachNr.get(ohnePraefix(nummerVon(a)))?.typ || '(nicht im Stamm)' }))
+    .sort((x, y) => x.einheit.localeCompare(y.einheit) || x.nummer.localeCompare(y.nummer));
+
+  return { stammOhneLexware, lexwareOhneStamm, lexwareOhneNummer, typJeEinheit, pfand };
+}
+
+/** CSV für Excel: Semikolon, Anführungszeichen bei Bedarf, Windows-Zeilenende, mit BOM für die Umlaute. */
+function alsCsv(zeilen, spalten) {
+  const feld = (v) => {
+    const t = v == null ? '' : String(v);
+    return /[;"\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+  return '﻿' + [spalten.join(';'), ...zeilen.map((z) => spalten.map((s) => feld(z[s])).join(';'))].join('\r\n') + '\r\n';
+}
+
+module.exports = { analysiere, listen, alsCsv, sparteVon, praefixVon, ohnePraefix, SPARTE_NACH_PRAEFIX };
