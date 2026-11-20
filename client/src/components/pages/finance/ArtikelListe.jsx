@@ -35,7 +35,7 @@ function Status({ text, ton }) {
 
 export default function ArtikelListe() {
   const { hasArea } = useAuth();
-  const canEdit = hasArea('gashandel.preise');
+  const canEdit = hasArea('artikel.bearbeiten');
 
   const [daten, setDaten] = useState(null);
   const [laedt, setLaedt] = useState(true);

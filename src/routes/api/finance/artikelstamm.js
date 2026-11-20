@@ -2,7 +2,7 @@ const router = require('express').Router();
 const multer = require('multer');
 const service = require('../../../services/artikelstamm');
 
-// #552: Artikelstamm. Rechtepruefung am Mount-Punkt in server.js: requireArea('gashandel.preise').
+// #552: Artikelstamm. Rechtepruefung am Mount-Punkt in server.js: requireArea('artikel.bearbeiten').
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 // multer liefert den Dateinamen als Latin-1 – Umlaute sonst kaputt

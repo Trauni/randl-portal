@@ -26,7 +26,7 @@ const Haken = ({ ok }) => (ok === 'ok'
 export default function ArtikelDetail() {
   const { nr } = useParams();
   const { hasArea } = useAuth();
-  const canEdit = hasArea('gashandel.preise');
+  const canEdit = hasArea('artikel.bearbeiten');
   const zeigeEinkauf = hasArea('gashandel.auswertung');
 
   const [daten, setDaten] = useState(null);
