@@ -29,7 +29,11 @@ function leseCsv(text) {
 
 /** Excel speichert CSV meist als Windows-Latin-1, andere Programme als UTF-8: erst streng UTF-8 versuchen, sonst Latin-1. */
 function dekodiere(buffer) {
-  try { return new TextDecoder('utf-8', { fatal: true }).decode(buffer); } catch { return buffer.toString('latin1'); }
+  let text;
+  try { text = new TextDecoder('utf-8', { fatal: true }).decode(buffer); } catch { text = buffer.toString('latin1'); }
+  // U+FFFD = Ersatzzeichen: die Datei wurde unterwegs beschädigt (z. B. Textmodus, Editor), Umlaute sind nicht mehr zu retten
+  if (text.includes('\uFFFD')) throw new Error('Die Datei enthält beschädigte Zeichen (Umlaute durch ▒/� ersetzt). Bitte unverändert, im Binärmodus, neu auf den Server kopieren.');
+  return text;
 }
 
 const zahl = (v) => {
