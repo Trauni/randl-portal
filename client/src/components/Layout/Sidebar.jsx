@@ -80,6 +80,7 @@ const SECTION_DEFAULT = { persoenlich: true };
 const SECTION_KEY = 'sidebar-sections';
 // Welcher Bereich zu einer URL gehört — damit der Bereich der aktiven Seite aufgeht.
 const SECTION_PFADE = [
+  ['artikel', '/gashandel/artikel'],
   ['gashandel', '/finance/'], ['gashandel', '/gashandel/'],
   ['zeltverleih', '/zeltverleih/'],
   ['maschinenbau', '/metallarbeiten/'],
@@ -119,6 +120,7 @@ export default function Sidebar({ user }) {
   const can    = (area) => hasArea(role, tags, area);
 
   const showGashandel = can('gashandel');
+  const showArtikel = can('artikel.lesen');
   const showGasAuswertung = can('gashandel.auswertung');
   const showLadebasen = can('fahrer.geraete');
   const showZeltplaner = can('zeltplanung');
@@ -197,6 +199,12 @@ export default function Sidebar({ user }) {
           <NavItem to="/zeit"   icon="clock"    label="Meine Zeiterfassung" collapsed={collapsed}/>
         </NavSection>
 
+        {showArtikel && (
+          <NavSection id="artikel" label="Artikel" offen={!!sections.artikel} onToggle={toggleSection} collapsed={collapsed}>
+            <NavItem to="/gashandel/artikel/liste" icon="products" label="Artikelstamm" collapsed={collapsed}/>
+          </NavSection>
+        )}
+
         {showGashandel && (
           <NavSection id="gashandel" label="Gashandel" offen={!!sections.gashandel} onToggle={toggleSection} collapsed={collapsed}>
             <NavItem to="/finance/kunden"       icon="employees" label="Kunden"            collapsed={collapsed}/>
@@ -205,7 +213,6 @@ export default function Sidebar({ user }) {
             <NavItem to="/finance/mitteilungen" icon="bell"      label="Mitteilungen"      collapsed={collapsed}/>
             <NavItem to="/finance/info-mail"    icon="documents" label="Info-Mail Rollout" collapsed={collapsed}/>
             {showLadebasen && <NavItem to="/gashandel/disposition" icon="documents" label="Disposition" collapsed={collapsed}/>}
-            <NavItem to="/gashandel/artikel/liste" icon="products" label="Artikel" collapsed={collapsed}/>
             <NavItem to="/finance/widmann-bestand" icon="products" label="Bestände" collapsed={collapsed}/>
             {showGasAuswertung && <NavItem to="/gashandel/auswertung" icon="documents" label="Auswertung" collapsed={collapsed}/>}
             {showLadebasen && <NavItem to="/gashandel/einstellungen" icon="products" label="Einstellungen" collapsed={collapsed}/>}

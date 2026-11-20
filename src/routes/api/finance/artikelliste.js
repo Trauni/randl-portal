@@ -1,5 +1,5 @@
 const router = require('express').Router();
-// Mount-Punkt in server.js: requireArea('gashandel'). Stammdaten (ADR, Gewicht, Fahrer-App) nur mit gashandel.preise,
+// Mount-Punkt in server.js: requireArea('artikel.lesen') (#618, alle Mitarbeiter). Stammdaten (ADR, Gewicht, Fahrer-App) nur mit artikel.bearbeiten,
 // ohne dieses Recht zeigt die Liste wie die frühere Produktseite nur Lexware-Artikel.
 const { getPool } = require('../../../db');
 const { hasArea } = require('../../../utils/permissions');
@@ -14,7 +14,7 @@ const { planePreiseAusLexware, uebernehmePreiseAusLexware } = require('../../../
 // #606: eine Artikelliste aus Stamm, Lexware und SER (siehe utils/artikelListe.js)
 router.get('/', async (req, res) => {
   const user = req.session.user || {};
-  const darfStamm = hasArea(user.role, user.accessTags, 'gashandel.preise');
+  const darfStamm = hasArea(user.role, user.accessTags, 'artikel.bearbeiten');
   try {
     let lexware = []; let cachedAt = null; let lexwareFehler = null;
     try {
@@ -50,7 +50,7 @@ router.get('/', async (req, res) => {
 });
 
 // #610: Shop-Kennzeichen aus dem Lexware-Präfix übernehmen (RG- = sichtbar, NRG- = ausgeblendet), nur wo im Portal noch nichts steht
-router.post('/shop-aus-lexware', requireArea('gashandel.preise'), async (req, res) => {
+router.post('/shop-aus-lexware', requireArea('artikel.bearbeiten'), async (req, res) => {
   try {
     const { articles } = await loadGasArticles();
     const u = req.session.user || {};
@@ -63,7 +63,7 @@ router.post('/shop-aus-lexware', requireArea('gashandel.preise'), async (req, re
 
 // Preise aus Lexware in den Artikelstamm übernehmen: Vorschau (schreibt nichts) und Übernahme mit Bestätigung.
 // Lexware ist nur Quelle; es wird nichts nach Lexware, SER oder in den Shop geschrieben.
-router.get('/preise-aus-lexware', requireArea('gashandel.preise'), async (req, res) => {
+router.get('/preise-aus-lexware', requireArea('artikel.bearbeiten'), async (req, res) => {
   try {
     const { articles, cachedAt } = await loadGasArticles();
     const [stamm] = await getPool().query('SELECT artikel_nr, bezeichnung, preis_netto_cent FROM gas_artikel');
@@ -74,7 +74,7 @@ router.get('/preise-aus-lexware', requireArea('gashandel.preise'), async (req, r
   }
 });
 
-router.post('/preise-aus-lexware', requireArea('gashandel.preise'), async (req, res) => {
+router.post('/preise-aus-lexware', requireArea('artikel.bearbeiten'), async (req, res) => {
   const { confirm, expected } = req.body || {};
   if (confirm !== true) return res.status(400).json({ error: 'Übernahme muss ausdrücklich bestätigt werden' });
   try {
@@ -91,7 +91,7 @@ router.post('/preise-aus-lexware', requireArea('gashandel.preise'), async (req, 
 
 // #617: Artikel aus dem Portal in Lexware anlegen. bestaetigt=false: Vorschau (schreibt nichts); true: anlegen.
 // Es wird nur angelegt, was es in Lexware noch nicht gibt; nach SER und in den Shop geht nichts.
-router.post('/lexware-anlegen', requireArea('gashandel.preise'), async (req, res) => {
+router.post('/lexware-anlegen', requireArea('artikel.bearbeiten'), async (req, res) => {
   const { nummern, praefix, bestaetigt, erwartet } = req.body || {};
   const u = req.session.user || {};
   try {

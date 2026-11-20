@@ -145,8 +145,8 @@ app.use('/api/finance/info-mail', requireArea('gashandel'), financeInfoMailRoute
 app.use('/api/finance/widmann-bestand', requireArea('gashandel'), financeWidmannRouter);
 app.use('/api/finance/article-content', requireArea('gashandel'), financeArticleContentRouter);
 app.use('/api/finance/price-tool', requireArea('gashandel.preise'), financePriceToolRouter);
-app.use('/api/finance/artikelstamm', requireArea('gashandel.preise'), financeArtikelstammRouter);
-app.use('/api/finance/artikelliste', requireArea('gashandel'), financeArtikellisteRouter);
+app.use('/api/finance/artikelstamm', requireArea('artikel.bearbeiten'), financeArtikelstammRouter);
+app.use('/api/finance/artikelliste', requireArea('artikel.lesen'), financeArtikellisteRouter);
 app.use('/api/finance/gas-auswertung', requireArea('gashandel.auswertung'), gasAuswertungRouter);
 app.use('/api/content/cms',    requireArea('content'), contentCmsRouter);
 app.use('/api/content/bilder', requireArea('content'), contentBilderRouter);
