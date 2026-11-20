@@ -118,6 +118,8 @@ function verbinde({ stamm, lexware = [], ser = [], lexwareVerfuegbar = true }) {
       im_stamm: !!a,
       typ,
       aktiv: a ? !!a.aktiv : null,
+      einheit: a?.einheit ?? null,         // Einheit wie in Lexware (#617)
+      sparte: a?.sparte ?? null,           // Sparte aus dem Lexware-Präfix (#617)
       gasart: a?.gasart ?? null,
       un_nr: a?.un_nr ?? null, gefahrklasse: a?.gefahrklasse ?? null,
       befoerderungskategorie: a?.befoerderungskategorie ?? null, ggvs_faktor: a?.ggvs_faktor ?? null,

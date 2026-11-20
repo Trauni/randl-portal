@@ -50,3 +50,11 @@ test('Prüffilter: Füllung ohne UN-Nr. bzw. ohne Pfandflasche', async () => {
   assert.deepEqual(filtereArtikel(daten, { fehlt: 'Pfand- oder Kaufflasche' }), []);
   assert.ok(LUECKEN.includes('Pfand- oder Kaufflasche') && LUECKEN.includes('UN-Nr.'));
 });
+
+test('Filter: Sparte (#617), auch "ohne Sparte"', async () => {
+  const { filtereArtikel } = await import('../client/src/utils/artikelFilter.js');
+  const d = [z({ artikel_nr: '1', sparte: 'Gashandel' }), z({ artikel_nr: '2', sparte: 'Zeltverleih' }), z({ artikel_nr: '3', sparte: null })];
+  assert.deepEqual(nrn(filtereArtikel(d, { sparte: 'Gashandel' })), ['1']);
+  assert.deepEqual(nrn(filtereArtikel(d, { sparte: '(ohne)' })), ['3']);
+  assert.equal(filtereArtikel(d, {}).length, 3);
+});

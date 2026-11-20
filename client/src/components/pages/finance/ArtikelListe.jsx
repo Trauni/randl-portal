@@ -44,6 +44,7 @@ export default function ArtikelListe() {
   const [suche, setSuche] = useState('');
   const [typ, setTyp] = useState('');
   const [einheit, setEinheit] = useState('');
+  const [sparte, setSparte] = useState('');
   const [fehlt, setFehlt] = useState('');
   const [tags, setTags] = useState([]);
   const [nurAktiv, setNurAktiv] = useState(true);
@@ -68,13 +69,14 @@ export default function ArtikelListe() {
   useEffect(() => { laden(); }, [laden]);
 
   // Neue Suche oder neuer Filter leert die Auswahl, damit keine unsichtbaren Artikel markiert bleiben (Wunsch 06.10.2026)
-  useEffect(() => { setAuswahl(new Set()); setDialog(''); }, [kurz, suche, typ, einheit, fehlt, tags, nurAktiv]);
+  useEffect(() => { setAuswahl(new Set()); setDialog(''); }, [kurz, suche, typ, einheit, sparte, fehlt, tags, nurAktiv]);
 
   const artikel = daten?.artikel || [];
   const zus = daten?.zusammenfassung;
   const stammRecht = !!daten?.rechte?.stamm;
   const alleTags = useMemo(() => [...new Set(artikel.flatMap((a) => a.lexware?.tags || []))].sort(), [artikel]);
-  const sichtbar = useMemo(() => filtereArtikel(artikel, { kurz, suche, typ, einheit, fehlt, tags, nurAktiv }), [artikel, kurz, suche, typ, einheit, fehlt, tags, nurAktiv]);
+  const sichtbar = useMemo(() => filtereArtikel(artikel, { kurz, suche, typ, einheit, sparte, fehlt, tags, nurAktiv }), [artikel, kurz, suche, typ, einheit, sparte, fehlt, tags, nurAktiv]);
+  const alleSparten = useMemo(() => [...new Set(artikel.map((a) => a.sparte).filter(Boolean))].sort(), [artikel]);
 
   const alleSichtbarGewaehlt = sichtbar.length > 0 && sichtbar.every((a) => auswahl.has(a.artikel_nr));
   const umschalten = (nr) => setAuswahl((s) => { const n = new Set(s); n.has(nr) ? n.delete(nr) : n.add(nr); return n; });
@@ -84,8 +86,8 @@ export default function ArtikelListe() {
     return n;
   });
   const toggleTag = (t) => setTags((f) => (f.includes(t) ? f.filter((x) => x !== t) : [...f, t]));
-  const filterZuruecksetzen = () => { setKurz('alle'); setSuche(''); setTyp(''); setEinheit(''); setFehlt(''); setTags([]); };
-  const filterAktiv = kurz !== 'alle' || suche || typ || einheit || fehlt || tags.length > 0;
+  const filterZuruecksetzen = () => { setKurz('alle'); setSuche(''); setTyp(''); setEinheit(''); setSparte(''); setFehlt(''); setTags([]); };
+  const filterAktiv = kurz !== 'alle' || suche || typ || einheit || sparte || fehlt || tags.length > 0;
 
   // Preis-Tool und Push SER arbeiten mit Lexware-Artikeln, Felder bearbeiten mit Artikeln aus dem Stamm
   const gewaehlt = artikel.filter((a) => auswahl.has(a.artikel_nr));
@@ -141,7 +143,7 @@ export default function ArtikelListe() {
     if (bleibenGewaehlt) setAuswahl(new Set(bleibenGewaehlt));
   };
 
-  const spalten = 4 + (canEdit ? 1 : 0) + (stammRecht ? 3 : 0) + (mehrSpalten ? 8 : 0) + 8;
+  const spalten = 4 + (canEdit ? 1 : 0) + (stammRecht ? 5 : 0) + (mehrSpalten ? 8 : 0) + 8;
 
   return (
     <div style={{ maxWidth: 1500, display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -226,6 +228,13 @@ export default function ArtikelListe() {
             </select>
           )}
           {stammRecht && (
+            <select className="form-select" style={{ width: 'auto' }} value={sparte} onChange={(e) => setSparte(e.target.value)} aria-label="Sparte">
+              <option value="">Alle Sparten</option>
+              {alleSparten.map((n) => <option key={n} value={n}>{n}</option>)}
+              <option value="(ohne)">ohne Sparte</option>
+            </select>
+          )}
+          {stammRecht && (
             <select className="form-select" style={{ width: 'auto' }} value={fehlt} onChange={(e) => setFehlt(e.target.value)} aria-label="Prüffilter">
               <option value="">Prüffilter: keiner</option>
               {LUECKEN.map((l) => <option key={l} value={l}>Füllung ohne {l}</option>)}
@@ -280,7 +289,7 @@ export default function ArtikelListe() {
             <thead>
               <tr>
                 {canEdit && <th style={{ width: 36 }}><input type="checkbox" aria-label="Alle sichtbaren auswählen" checked={alleSichtbarGewaehlt} onChange={alleUmschalten} style={cb} /></th>}
-                <th>Nr.</th><th>Bezeichnung</th><th>Typ</th><th>ADR</th>
+                <th>Nr.</th><th>Bezeichnung</th><th>Typ</th>{stammRecht && <><th>Sparte</th><th>Einheit</th></>}<th>ADR</th>
                 <th className="r">Preis netto</th><th>Inhalt</th><th className="r">je kg/L</th>
                 {mehrSpalten && <><th>Tags</th><th>ADR-Benennung</th><th>Kat.</th><th className="r">kg</th><th className="r">Menge</th><th className="r">MwSt.</th><th>Pfand</th><th>Kaufflasche</th></>}
                 <th>Shop</th><th>Lexware</th>{stammRecht && <><th>SER</th><th>Fahrer-App</th></>}
@@ -293,7 +302,7 @@ export default function ArtikelListe() {
                 return (
                   <tr key={a.artikel_nr} className={auswahl.has(a.artikel_nr) ? 'is-selected' : undefined} style={{ opacity: a.aktiv === false ? 0.6 : 1 }}>
                     {canEdit && <td><input type="checkbox" aria-label={`${a.artikel_nr} auswählen`} checked={auswahl.has(a.artikel_nr)} onChange={() => umschalten(a.artikel_nr)} style={cb} /></td>}
-                    <td style={{ fontWeight: 700 }}>{a.artikel_nr}</td>
+                    <td style={{ fontWeight: 700 }}>{a.artikel_nr}{a.lexware?.nummer && <div className="ui-table-sub" title="Artikelnummer in Lexware">{a.lexware.nummer}</div>}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                         <GasCylinder gasart={a.gasart} typ={a.typ} />
@@ -307,6 +316,7 @@ export default function ArtikelListe() {
                       </div>
                     </td>
                     <td>{TYPEN[a.typ] || '–'}</td>
+                    {stammRecht && <><td>{a.sparte || '–'}</td><td>{a.einheit || '–'}</td></>}
                     <td className="ui-table-sub">{a.un_nr ? `UN ${a.un_nr}${a.gefahrklasse ? `, ${a.gefahrklasse}` : ''}` : (a.typ === 'F' ? 'fehlt' : '–')}</td>
                     <td className="r">{eur(a.preis_netto_cent)}</td>
                     <td><InhaltZelle lexware={a.lexware} canEdit={canEdit} onSaved={inhaltGespeichert} /></td>
