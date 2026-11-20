@@ -6,8 +6,8 @@
 const { GRUPPEN: EK_GRUPPEN } = require('../services/gasEkPreise');
 const { GASART_REIHENFOLGE } = require('../services/gasStamm');
 
-const TYPEN = ['F', 'P', 'S', 'V'];
-const TYP_NAME = { F: 'Füllung', P: 'Pfand/Leergut', S: 'Steuer/Nutzung (Kaufflasche)', V: 'Provision' };
+const TYPEN = ['F', 'P', 'S', 'V', 'Z', 'D'];
+const TYP_NAME = { F: 'Füllung', P: 'Pfand/Leergut', S: 'Steuer/Nutzung (Kaufflasche)', V: 'Provision', Z: 'Zubehör', D: 'Dienstleistung/Versand' };
 
 const KATEGORIE_ZU_FAKTOR = { 50: 1, 3: 2, 1: 3 };
 const leer = v => v === null || v === undefined || (typeof v === 'string' && v.trim() === '');

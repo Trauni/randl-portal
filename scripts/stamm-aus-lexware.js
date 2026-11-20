@@ -5,12 +5,14 @@
  *   node scripts/stamm-aus-lexware.js --ja                  übernimmt in die Portal-Datenbank (nichts geht nach Lexware)
  *   node scripts/stamm-aus-lexware.js --ja --auch-portal-geaenderte   überschreibt auch Bezeichnungen, die im Portal von Hand geändert wurden
  *
+ *   node scripts/stamm-aus-lexware.js --typ-gz [--ja]      Typ-Vorschlag: GZ-Artikel werden Zubehör (Z), Versand/Fracht Dienstleistung (D)
+ *
  * Bezeichnungen, die im Portal von Hand geändert wurden, werden standardmäßig nur gemeldet, nicht überschrieben. Der Typ bleibt unberührt.
  */
 require('dotenv').config({ override: true });
 const lexware = require('../src/services/lexware');
 const { getPool } = require('../src/db');
-const { planeStammAusLexware, uebernehmeStammAusLexware } = require('../src/services/stammAusLexware');
+const { planeStammAusLexware, uebernehmeStammAusLexware, planeTypAusPraefix, setzeTypen } = require('../src/services/stammAusLexware');
 
 (async () => {
   const args = process.argv.slice(2);
@@ -18,6 +20,15 @@ const { planeStammAusLexware, uebernehmeStammAusLexware } = require('../src/serv
   const db = getPool();
   const artikel = await lexware.listArticles();
   const [stamm] = await db.query('SELECT artikel_nr, bezeichnung, einheit, lexware_id, gruppe_id, feld_stand FROM gas_artikel');
+  if (args.includes('--typ-gz')) {
+    const [mitTyp] = await db.query('SELECT artikel_nr, bezeichnung, typ FROM gas_artikel');
+    const typen = planeTypAusPraefix(mitTyp, artikel);
+    console.log(`Typ-Vorschlag für ${typen.length} Artikel (GZ- = Zubehör, Versand/Fracht = Dienstleistung):`);
+    for (const z of typen) console.log(`    ${z.artikel_nr}  ${z.typAlt || '–'} → ${z.typNeu}  ${z.bezeichnung}`);
+    if (!args.includes('--ja')) console.log('\nNichts geändert. Zum Setzen mit --ja wiederholen.');
+    else console.log('\nGesetzt:', await setzeTypen(typen, { username: 'Typ aus GZ-Präfix (#617)' }));
+    process.exit(0);
+  }
   const plan = planeStammAusLexware(stamm, artikel, opt);
 
   console.log(`Stamm: ${stamm.length} Artikel. Zu ändern: ${plan.zeilen.length}. Schon gleich: ${plan.gleich}. Ohne Lexware-Treffer: ${plan.keinLexware.length}. Mehrdeutig: ${plan.mehrdeutig.length}. Im Portal von Hand geänderter Name: ${plan.portalGeaendert.length}\n`);

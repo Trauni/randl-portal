@@ -64,3 +64,16 @@ test('Übernahme: stimmt die Vorschau nicht mehr, 409 und nichts geschrieben', a
   await assert.rejects(uebernehmeStammAusLexware(db, [lex('GZ-5900000')], {}, { anzahl: 0 }), (e) => e.status === 409);
   assert.equal(log.length, 0);
 });
+
+const { planeTypAusPraefix } = require('../src/services/stammAusLexware');
+test('Typ-Vorschlag: GZ- wird Zubehör, Versand und Fracht Dienstleistung, Gleiches und andere Präfixe bleiben', () => {
+  const stamm = [
+    { artikel_nr: '5900000', bezeichnung: 'Lecksuchspray', typ: 'S' }, { artikel_nr: '8996500', bezeichnung: 'Versandporto Flasche', typ: 'P' },
+    { artikel_nr: '8996501', bezeichnung: 'Fracht Absperrgitter Paletten', typ: 'D' }, { artikel_nr: '5900001', bezeichnung: 'Palette', typ: 'P' },
+    { artikel_nr: '5900002', bezeichnung: 'Ballongasventil', typ: 'Z' },
+  ];
+  const l = (nr, t) => ({ articleNumber: nr, title: t });
+  const z = planeTypAusPraefix(stamm, [l('GZ-5900000', 'Lecksuchspray'), l('GZ-8996500', 'Versandporto Flasche'), l('GZ-8996501', 'Fracht Absperrgitter Paletten'),
+    l('PFAND-5900001', 'Palette'), l('GZ-5900002', 'Ballongasventil')]);
+  assert.deepEqual(z.map((x) => [x.artikel_nr, x.typAlt, x.typNeu]), [['5900000', 'S', 'Z'], ['8996500', 'P', 'D']]);
+});

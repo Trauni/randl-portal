@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Panel } from '../../../ui';
 
-const TYPEN = { F: 'Füllung', P: 'Pfand', S: 'Steuer/Nutzung (Kaufflasche)', V: 'Provision' };
+const TYPEN = { F: 'Füllung', P: 'Pfand', S: 'Steuer/Nutzung (Kaufflasche)', V: 'Provision', Z: 'Zubehör', D: 'Dienstleistung / Versand' };
 const FELDER = [['artikel_nr', 'Nummer *'], ['bezeichnung', 'Bezeichnung *'], ['un_nr', 'UN-Nr.'], ['gefahrklasse', 'Gefahrklasse'], ['preis_netto_cent', 'Netto-Preis (Cent)']];
 
 /** Neuen Artikel im Stamm anlegen (für Artikel, die im SER-Export fehlen). Nummer wie in SER/Lexware ohne Präfix. */

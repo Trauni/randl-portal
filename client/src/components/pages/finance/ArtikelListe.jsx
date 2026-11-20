@@ -14,8 +14,8 @@ import PreiseAusLexware from './artikel/PreiseAusLexware';
 // #606 Artikel (Liste): ein Blick auf Stamm, Lexware, SER und Fahrer-App je Artikel.
 // Teil 2 von 4: alle Funktionen der Seiten Produkte und Artikelstamm. Die alten Seiten bleiben bis zur Umleitung (Teil 4).
 
-const TYPEN = { F: 'Füllung', P: 'Pfand', S: 'Kaufflasche', V: 'Provision' };
-const TYP_AUSWAHL = { F: 'Füllung', P: 'Pfand', S: 'Steuer/Nutzung (Kaufflasche)', V: 'Provision' };
+const TYPEN = { F: 'Füllung', P: 'Pfand', S: 'Kaufflasche', V: 'Provision', Z: 'Zubehör', D: 'Dienstleistung' };
+const TYP_AUSWAHL = { F: 'Füllung', P: 'Pfand', S: 'Steuer/Nutzung (Kaufflasche)', V: 'Provision', Z: 'Zubehör', D: 'Dienstleistung / Versand' };
 const eur = (c) => (c == null ? '–' : (c / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €');
 const zahl = (v) => (v == null ? '–' : Number(v).toLocaleString('de-DE', { maximumFractionDigits: 3 }));
 
