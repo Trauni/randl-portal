@@ -5,6 +5,7 @@ const requireArea = require('../../../middleware/requireArea');
 const { getPool } = require('../../../db');
 const { parseContentFromTitle } = require('../../../utils/gasContent');
 const { loadGasArticles: loadArticles } = require('../../../services/gasArticles');
+const { aendere } = require('../../../services/artikelstamm');
 
 // #251 (06.10.2026): Inhalt (Wert + Einheit kg/L) pro Gas-Artikel für das
 // Preis-Tool (#249). Lexware bleibt führend für Titel und Preise; der Inhalt
@@ -66,6 +67,21 @@ router.put('/:id', PREISE, async (req, res) => {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: 'Ungültige Artikel-ID' });
 
   try {
+    // #617: gibt es den Artikel im Stamm, wird dort die Füllmenge gepflegt (eine Quelle, mit Verlauf)
+    const nr = String(articleNumber || '').trim().replace(/^N?RG-/i, '');
+    const [imStamm] = nr ? await getPool().query('SELECT 1 FROM gas_artikel WHERE artikel_nr = ?', [nr]) : [[]];
+    if (imStamm.length) {
+      const loeschen = value === null || value === '' || value === undefined;
+      if (!loeschen) {
+        const v = parseFloat(String(value).replace(',', '.'));
+        if (!(v > 0) || v > 100000) return res.status(400).json({ error: 'Inhalt muss eine positive Zahl sein' });
+        if (unit !== 'kg' && unit !== 'L') return res.status(400).json({ error: 'Einheit muss kg oder L sein' });
+        await aendere([nr], { fuellmenge: v, fuellmenge_einheit: unit.toLowerCase() }, req.session.user || {});
+        return res.json({ success: true, content: { value: v, unit, source: 'stamm' } });
+      }
+      await aendere([nr], { fuellmenge: null, fuellmenge_einheit: null }, req.session.user || {});
+      return res.json({ success: true, content: null });
+    }
     if (value === null || value === '' || value === undefined) {
       await getPool().execute('DELETE FROM gas_article_content WHERE lexware_article_id = ?', [id]);
       return res.json({ success: true, content: null });
