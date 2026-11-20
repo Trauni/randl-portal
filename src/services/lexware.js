@@ -244,7 +244,13 @@ function createClient({
     }
   }
 
-  return { apiCall, getArticle, updateArticle, getContact, searchContacts, updateContactNote, listVouchers, getVoucher, getVoucherFile, createVoucher, listArticles };
+  /**
+   * Neuen Artikel anlegen (#617). Pflicht laut Lexware: title, type (PRODUCT|SERVICE), unitName; dazu articleNumber und
+   * price { netPrice, leadingPrice 'NET', taxRate }. Ergebnis laut Lexware: { id, resourceUri, createdDate, updatedDate, version }.
+   */
+  const createArticle = (payload) => apiCall('POST', '/articles', payload);
+
+  return { apiCall, createArticle, getArticle, updateArticle, getContact, searchContacts, updateContactNote, listVouchers, getVoucher, getVoucherFile, createVoucher, listArticles };
 }
 
 module.exports = { ...createClient(), createClient, LexwareError, BASE_URL, BELEG_PFADE, datum };
