@@ -109,6 +109,8 @@ export default function ArtikelDetail() {
               <>
                 <div className="ui-feld"><span>Artikelnummer</span><b style={{ fontSize: 17 }}>{artikel.artikel_nr}</b><span className="ui-table-sub">Schlüssel, entspricht SER, ohne Präfix</span></div>
                 <div className="ui-feld"><span>Lexware-Kennzeichen</span><span>{artikel.lexware ? <><Tag tone={artikel.lexware.shop === 'sichtbar' ? 'ok' : 'mute'}>{artikel.lexware.nummer.startsWith('NRG-') ? 'NRG-' : 'RG-'}</Tag>{artikel.shop_abweichend && <> <Tag tone="warn">weicht vom Portal ab</Tag></>}</> : '–'}</span><span className="ui-table-sub">Der Shop folgt heute noch diesem Präfix, nicht dem Schalter unten.</span></div>
+                <div className="ui-feld"><span>Sparte</span><b>{artikel.sparte || '–'}</b><span className="ui-table-sub">aus dem Lexware-Präfix (RG, PFAND, GZ = Gashandel)</span></div>
+                <div className="ui-feld"><span>Einheit</span><b>{artikel.einheit || '–'}</b><span className="ui-table-sub">wie in Lexware</span></div>
                 {imStamm ? formular(felderStamm(artikel.typ), 'stamm-' + artikel.typ) : <div className="ui-feld"><span>Bezeichnung</span><span>{artikel.bezeichnung}</span><span className="ui-table-sub">aus Lexware</span></div>}
               </>
             )}
