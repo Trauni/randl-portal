@@ -72,3 +72,14 @@ test('Gasart am Artikel: nur bekannte Gasarten (für Auswertung und Flaschenfarb
   assert.equal(pruefeAenderung({ gasart: '' }).werte.gasart, null);
   assert.match(pruefeAenderung({ gasart: 'Nebel' }).fehler[0], /Gasart/);
 });
+
+test('Pfandflasche und Kaufflasche: wer die eine setzt, löst die andere (keine Fehlermeldung mehr)', () => {
+  const { loeseGegenflasche } = require('../src/utils/artikelstammAendern');
+  assert.deepEqual(loeseGegenflasche({ pfand_artikel_nr: '2802013' }, { kaufflasche_artikel_nr: '5920055' }), { kaufflasche_artikel_nr: null });
+  assert.deepEqual(loeseGegenflasche({ kaufflasche_artikel_nr: '5920055' }, { pfand_artikel_nr: '2802013' }), { pfand_artikel_nr: null });
+  assert.deepEqual(loeseGegenflasche({ pfand_artikel_nr: '2802013' }, { kaufflasche_artikel_nr: null }), {});
+  assert.deepEqual(loeseGegenflasche({ pfand_artikel_nr: '2802013', kaufflasche_artikel_nr: null }, { kaufflasche_artikel_nr: '5920055' }), {}, 'ausdrücklich geleert: nichts zusätzlich');
+  assert.deepEqual(loeseGegenflasche({ pfand_artikel_nr: null }, { kaufflasche_artikel_nr: '5920055' }), {}, 'Pfand wird nur entfernt: Kaufflasche bleibt');
+  const { pruefeZustand } = require('../src/utils/artikelstammAendern');
+  assert.equal(pruefeZustand('1', { typ: 'F', pfand_artikel_nr: '2', kaufflasche_artikel_nr: '3' }).length, 1, 'beide gleichzeitig bleiben verboten');
+});

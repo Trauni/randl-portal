@@ -80,6 +80,17 @@ function folgenAusTypwechsel(neuerTyp, zeile) {
   return extra;
 }
 
+/**
+ * Pfandflasche und Kaufflasche schließen sich aus. Wer eine der beiden setzt, löst die andere am Artikel automatisch
+ * (statt mit einem Fehler abzubrechen). Gibt die zusätzlichen Änderungen zurück, z. B. { kaufflasche_artikel_nr: null }.
+ */
+function loeseGegenflasche(werte, zeile) {
+  const extra = {};
+  if (!leer(werte.pfand_artikel_nr) && !('kaufflasche_artikel_nr' in werte) && !leer(zeile.kaufflasche_artikel_nr)) extra.kaufflasche_artikel_nr = null;
+  if (!leer(werte.kaufflasche_artikel_nr) && !('pfand_artikel_nr' in werte) && !leer(zeile.pfand_artikel_nr)) extra.pfand_artikel_nr = null;
+  return extra;
+}
+
 /** Regeln für den Endzustand eines Artikels: Fehlertexte (leer = in Ordnung). */
 function pruefeZustand(nr, z) {
   const fehler = [];
@@ -108,4 +119,4 @@ function pruefeNeuanlage(eingabe) {
   return { artikel_nr: nummer, werte: { bezeichnung: String(bezeichnung).trim(), typ, ...werte }, fehler };
 }
 
-module.exports = { pruefeAenderung, pruefeNeuanlage, pruefeZustand, folgenAusTypwechsel, FELDER, TYPEN, TYP_NAME, NUR_FUELLUNG };
+module.exports = { pruefeAenderung, pruefeNeuanlage, pruefeZustand, folgenAusTypwechsel, loeseGegenflasche, FELDER, TYPEN, TYP_NAME, NUR_FUELLUNG };

@@ -41,17 +41,16 @@ export default function FeldFormular({ artikel, felder, alle, canEdit, onGespeic
 
   const feld = ([f, label, typ, hinweis]) => {
     const wert = eingabe[f];
-    const set = (v) => setEingabe((e) => ({ ...e, [f]: v }));
-    const fehltWert = wert === '' && ['un_nr', 'gefahrklasse', 'ggvs_faktor', 'fuellgewicht_kg'].includes(f);
-    // Eine Füllung hat Pfandflasche ODER Kaufflasche: ist die eine gewählt, ist die andere gesperrt
+    // Eine Füllung hat Pfandflasche ODER Kaufflasche: wer die eine wählt, löst die andere (Eingabe wird dabei geleert)
     const gegen = f === 'pfand_artikel_nr' ? 'kaufflasche_artikel_nr' : f === 'kaufflasche_artikel_nr' ? 'pfand_artikel_nr' : null;
-    const gesperrt = !!gegen && eingabe[gegen] != null && eingabe[gegen] !== '';
+    const set = (v) => setEingabe((e) => ({ ...e, [f]: v, ...(gegen && v !== '' ? { [gegen]: '' } : {}) }));
+    const fehltWert = wert === '' && ['un_nr', 'gefahrklasse', 'ggvs_faktor', 'fuellgewicht_kg'].includes(f);
     const cls = `form-select${fehltWert ? ' ui-miss' : ''}`;
     let eingabeFeld;
     if (!canEdit) eingabeFeld = <b>{wert === '' ? (f === 'shop_sichtbar' ? 'nicht gesetzt' : '–') : (JA_NEIN[f] ? JA_NEIN[f][wert] : wert)}</b>;
     else if (typ === 'pfand' || typ === 'kauf') {
       eingabeFeld = (
-        <select id={`f-${f}`} className={cls} value={wert} disabled={gesperrt} title={gesperrt ? 'Erst die andere Flasche entfernen: Pfandflasche oder Kaufflasche, nie beides' : undefined} onChange={(e) => set(e.target.value)}>
+        <select id={`f-${f}`} className={cls} value={wert} onChange={(e) => set(e.target.value)}>
           <option value="">– keiner –</option>
           {(typ === 'kauf' ? kaufListe : pfandListe).map((p) => <option key={p.artikel_nr} value={p.artikel_nr}>{p.artikel_nr} {p.bezeichnung}</option>)}
         </select>

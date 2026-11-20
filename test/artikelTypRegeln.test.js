@@ -95,8 +95,19 @@ test('Pfandartikel, an dem noch eine Füllung hängt, bleibt Typ P', async () =>
 test('Gasart auf eine Nicht-Füllung setzen wird abgelehnt, Pfand und Kaufflasche zugleich ebenfalls', async () => {
   neu();
   await assert.rejects(() => service.aendere(['7801200'], { gasart: 'Propan' }, {}), (e) => /keine Gasart/.test(e.message));
-  await assert.rejects(() => service.aendere(['7801100'], { kaufflasche_artikel_nr: 'K1' }, {}), (e) => /schließen sich aus/.test(e.message));
+  // beides ausdrücklich zugleich: abgelehnt
+  await assert.rejects(() => service.aendere(['7801100'], { pfand_artikel_nr: '7801200', kaufflasche_artikel_nr: 'K1' }, {}), (e) => /schließen sich aus/.test(e.message));
   assert.equal(tabelle.find((x) => x.artikel_nr === '7801100').kaufflasche_artikel_nr, null);
+});
+
+test('Kaufflasche setzen löst die vorhandene Pfandflasche automatisch (und umgekehrt), statt abzulehnen', async () => {
+  neu();
+  const a = tabelle.find((x) => x.artikel_nr === '7801100');
+  assert.ok(a.pfand_artikel_nr, 'Ausgangslage: Pfandflasche vorhanden');
+  const r = await service.aendere(['7801100'], { kaufflasche_artikel_nr: 'K1' }, {});
+  assert.equal(r.geaendert, 1);
+  assert.equal(a.kaufflasche_artikel_nr, 'K1');
+  assert.equal(a.pfand_artikel_nr, null);
 });
 
 test('Altlasten blockieren keine anderen Änderungen (Regeln greifen nur bei betroffenen Feldern)', async () => {
