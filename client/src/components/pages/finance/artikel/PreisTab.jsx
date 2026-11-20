@@ -8,6 +8,43 @@ const eur = (n) => (n == null ? '–' : Number(n).toLocaleString('de-DE', { mini
 const STATUS = { ok: ['ok', 'ok'], pending: ['läuft', 'warn'], conflict: ['Konflikt', 'err'], error: ['Fehler', 'err'] };
 const ZIEL = { lexware: 'Lexware', ser: 'SER' };
 
+// Preis in Euro eingeben, gespeichert wird in Cent. Nur für Artikel im Stamm, die das Preis-Tool nicht erreicht (Pfand, Zubehör, neue Artikel).
+function PortalPreis({ artikel, onGeaendert }) {
+  const start = artikel.preis_netto_cent == null ? '' : (artikel.preis_netto_cent / 100).toFixed(2).replace('.', ',');
+  const [wert, setWert] = useState(start);
+  const [busy, setBusy] = useState(false);
+  const [fehler, setFehler] = useState('');
+  const [ok, setOk] = useState(false);
+  const speichern = async () => {
+    // 90,00 und 90.00 sind 90 Euro; 1.234,50 sind 1234,50 (Punkt nur dann Tausender, wenn ein Komma folgt)
+    const roh = String(wert).trim();
+    const euro = Number(roh.includes(',') ? roh.replace(/\./g, '').replace(',', '.') : roh);
+    if (wert.trim() !== '' && !(euro >= 0)) { setFehler('Bitte einen Betrag wie 90,00 eingeben'); return; }
+    setBusy(true); setFehler(''); setOk(false);
+    try {
+      const r = await fetch('/api/finance/artikelstamm/aendern', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nummern: [artikel.artikel_nr], werte: { preis_netto_cent: wert.trim() === '' ? '' : Math.round(euro * 100) } }) });
+      const d = await r.json();
+      if (!r.ok || d.error) throw new Error(d.error || 'Fehler ' + r.status);
+      setOk(true); onGeaendert();
+    } catch (e) { setFehler(e.message); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="ui-feld">
+      <label htmlFor="f-preis-euro">Preis netto ändern</label>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <input id="f-preis-euro" className="form-input" style={{ width: 140 }} value={wert} onChange={(e) => { setWert(e.target.value); setOk(false); }} inputMode="decimal" placeholder="z. B. 90,00" />
+        <span>€</span>
+        <button className="btn btn-primary" disabled={busy || wert === start} onClick={speichern}>{busy ? 'Speichere…' : 'Speichern'}</button>
+        {ok && <span style={{ color: 'var(--ok-fg)' }}>✓ gespeichert</span>}
+        {fehler && <span style={{ color: 'var(--err-fg)' }}>✗ {fehler}</span>}
+      </div>
+      <span className="ui-table-sub">Gilt nur im Portal. Das Preis-Tool erreicht diesen Artikel nicht; in Lexware den Preis bei Bedarf selbst nachziehen, bis der Abgleich in beide Richtungen da ist.</span>
+    </div>
+  );
+}
+
 /**
  * Preis eines Artikels: Stand in Stamm, Lexware und SER, Preise anpassen und Push SER (die bisherigen Dialoge)
  * und das Preisprotokoll dieses Artikels (wer, wann, welche Regel, alt/neu, Ergebnis).
@@ -32,6 +69,7 @@ export default function PreisTab({ artikel, canEdit, onGeaendert }) {
       <div className="ui-feld"><span>Lexware</span><span>{artikel.lexware ? eurC(artikel.lexware.netto_cent) : 'kein Artikel'} {artikel.lexware_status === 'abweichend' && <Tag tone="err">Preis anders</Tag>}</span><span className="ui-table-sub">{artikel.lexware?.nummer}</span></div>
       <div className="ui-feld"><span>SER</span><span>{artikel.ser ? eurC(artikel.ser.preis_cent) : 'nicht im Export'} {artikel.ser_status === 'abweichend' && <Tag tone="err">Preis anders</Tag>}</span><span className="ui-table-sub">Stand des letzten SER-Exports</span></div>
 
+      {canEdit && !lexId && artikel.im_stamm && <PortalPreis key={artikel.preis_netto_cent} artikel={artikel} onGeaendert={onGeaendert} />}
       {canEdit && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, padding: '16px 0' }}>
           <button className="btn btn-primary" disabled={!lexId} onClick={() => setDialog('preis')} title={lexId ? undefined : 'Der Preis wird über den Lexware-Artikel geändert'}>Preis anpassen</button>
