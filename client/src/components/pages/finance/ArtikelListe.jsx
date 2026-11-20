@@ -10,6 +10,7 @@ import ArtikelNeu from './artikel/ArtikelNeu';
 import ArtikelBearbeiten from './artikel/ArtikelBearbeiten';
 import SerAbgleich from './artikel/SerAbgleich';
 import PreiseAusLexware from './artikel/PreiseAusLexware';
+import LexwareAnlegen from './artikel/LexwareAnlegen';
 
 // #606 Artikel (Liste): ein Blick auf Stamm, Lexware, SER und Fahrer-App je Artikel.
 // Teil 2 von 4: alle Funktionen der Seiten Produkte und Artikelstamm. Die alten Seiten bleiben bis zur Umleitung (Teil 4).
@@ -100,6 +101,7 @@ export default function ArtikelListe() {
   const lexwareIds = gewaehlt.filter((a) => a.lexware?.preisTool).map((a) => a.lexware.id);
   const ohneLexware = gewaehlt.length - lexwareIds.length;
   const ohneStamm = gewaehlt.filter((a) => !a.im_stamm).length;
+  const mitLexware = gewaehlt.filter((a) => a.lexware).length;   // diese gibt es in Lexware schon
   const schluessel = [...lexwareIds].sort().join(',');
   const stand = daten?.cachedAt ? new Date(daten.cachedAt).toLocaleString('de-DE') : null;
   const ohneInhalt = daten?.ohneInhalt || 0;
@@ -275,6 +277,8 @@ export default function ArtikelListe() {
               title="Lexware-Preise der ausgewählten RG-Artikel per STMUPD an SER senden">Push SER</button>
             {stammRecht && <button className="btn" disabled={ohneStamm > 0 || auswahl.size > 500} onClick={() => shopSetzen(1)} title="Setzt „im Shop sichtbar“ im Artikelstamm">Im Shop zeigen</button>}
             {stammRecht && <button className="btn" disabled={ohneStamm > 0 || auswahl.size > 500} onClick={() => shopSetzen(0)} title="Setzt „im Shop sichtbar“ im Artikelstamm auf nein">Im Shop ausblenden</button>}
+            {stammRecht && <button className="btn" disabled={ohneStamm > 0 || mitLexware > 0 || auswahl.size > 50} onClick={() => setDialog('lexanlegen')}
+              title={mitLexware > 0 ? 'Mindestens ein gewählter Artikel steht schon in Lexware; nur Artikel ohne Lexware-Artikel lassen sich anlegen' : ohneStamm > 0 ? 'Nur Artikel aus dem Stamm' : auswahl.size > 50 ? 'Höchstens 50 Artikel gleichzeitig' : 'Legt die gewählten Artikel in Lexware an'}>In Lexware anlegen</button>}
             {stammRecht && <button className="btn" disabled={ohneStamm > 0 || auswahl.size > 500} onClick={() => setDialog('bearbeiten')}
               title={ohneStamm > 0 ? 'Artikel nur in Lexware sind nicht im Stamm' : auswahl.size > 500 ? 'Höchstens 500 Artikel gleichzeitig' : undefined}>Felder bearbeiten</button>}
             {ohneLexware > 0 && <span style={{ fontSize: 13, color: '#e8e2d8' }}>{ohneLexware} nicht im Preis-Tool (nur RG-/NRG-Artikel)</span>}
@@ -290,6 +294,11 @@ export default function ArtikelListe() {
         {canEdit && dialog === 'serpush' && lexwareIds.length > 0 && (
           <div style={{ padding: 14, borderBottom: '1px solid var(--border)' }}>
             <SerPush key={schluessel} articleIds={lexwareIds} onClose={() => setDialog('')} />
+          </div>
+        )}
+        {canEdit && stammRecht && dialog === 'lexanlegen' && gewaehlt.length > 0 && (
+          <div style={{ padding: 14, borderBottom: '1px solid var(--border)' }}>
+            <LexwareAnlegen key={gewaehlt.map((a) => a.artikel_nr).join(',')} nummern={gewaehlt.map((a) => a.artikel_nr)} onClose={() => setDialog('')} onFertig={laden} />
           </div>
         )}
         {canEdit && stammRecht && dialog === 'bearbeiten' && gewaehlt.length > 0 && ohneStamm === 0 && (

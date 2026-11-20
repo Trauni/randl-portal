@@ -5,6 +5,7 @@ const { getPool } = require('../../../db');
 const { hasArea } = require('../../../utils/permissions');
 const { loadGasArticles } = require('../../../services/gasArticles');
 const { ladeAlleLexware, alsListenArtikel } = require('../../../services/lexwareAlle');
+const lexwareAnlage = require('../../../services/lexwareAnlage');
 const requireArea = require('../../../middleware/requireArea');
 const { verbinde, zusammenfassung } = require('../../../utils/artikelListe');
 const { uebernehmeShopAusLexware } = require('../../../services/shopSichtbar');
@@ -84,6 +85,22 @@ router.post('/preise-aus-lexware', requireArea('gashandel.preise'), async (req, 
     res.json(r);
   } catch (err) {
     console.error('[Artikelliste] preise-aus-lexware:', err.message);
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+// #617: Artikel aus dem Portal in Lexware anlegen. bestaetigt=false: Vorschau (schreibt nichts); true: anlegen.
+// Es wird nur angelegt, was es in Lexware noch nicht gibt; nach SER und in den Shop geht nichts.
+router.post('/lexware-anlegen', requireArea('gashandel.preise'), async (req, res) => {
+  const { nummern, praefix, bestaetigt, erwartet } = req.body || {};
+  const u = req.session.user || {};
+  try {
+    if (bestaetigt !== true) return res.json(await lexwareAnlage.vorschau(getPool(), nummern, praefix));
+    const r = await lexwareAnlage.anlegen(getPool(), nummern, praefix, u, erwartet);
+    console.log('[Artikelliste] in Lexware angelegt:', r.angelegt.map((a) => a.lexware_nummer).join(', ') || '-', r.fehler ? `Fehler: ${r.fehler}` : '', 'von', u.username);
+    res.json(r);
+  } catch (err) {
+    console.error('[Artikelliste] lexware-anlegen:', err.message);
     res.status(err.status || 500).json({ error: err.message });
   }
 });
