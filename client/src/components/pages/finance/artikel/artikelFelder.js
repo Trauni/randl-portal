@@ -7,7 +7,7 @@ export const EK_GRUPPEN = { propan: 'Propan, je kg', motogas: 'Motogas / Bluetec
 
 export const FELD = {
   bezeichnung: ['bezeichnung', 'Bezeichnung', 'text', 'Name wie in SER'],
-  typ: ['typ', 'Typ', 'select:F,P,S,V', 'Alles, was keine Füllung ist (Kappe, Palette, Pfand ...), hat keine Gasart und keine Pfand-/Kaufflasche; beim Wechsel werden diese Felder geleert'],
+  typ: ['typ', 'Typ', 'select:F,P,S,V,Z,D', 'Alles, was keine Füllung ist (Kappe, Palette, Pfand ...), hat keine Gasart und keine Pfand-/Kaufflasche; beim Wechsel werden diese Felder geleert'],
   gasart: ['gasart', 'Gasart', 'gasart', 'für Auswertung und Flaschenfarbe'],
   mwst_satz: ['mwst_satz', 'MwSt. %', 'select:19,7', 'wie in Lexware'],
   aktiv: ['aktiv', 'Status', 'select:1,0', '1 = aktiv, 0 = inaktiv (nur aktive gehen an die Fahrer-App)'],
