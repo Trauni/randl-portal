@@ -1,9 +1,11 @@
 /**
  * Lagerverkauf (#516, Konzept #513 Abschnitt 11), Büro: Session + requireArea('fahrer.geraete').
  *
- *   GET  /api/fahrer-lager             { pin: { gesetzt, gesetztAm, gesetztVon }, sammelmail: { an, uhrzeit } }
+ *   GET  /api/fahrer-lager             { pin: { gesetzt, gesetztAm, gesetztVon }, sammelmail: { an, uhrzeit, aktiv, letzte, fehler } }
  *   POST /api/fahrer-lager/pin         neue Sonder-PIN fürs Storno → { pin, gesetztAm } (Klartext nur in dieser Antwort)
- *   PUT  /api/fahrer-lager/sammelmail  { an, uhrzeit } → wie GET
+ *   PUT  /api/fahrer-lager/sammelmail  { an, uhrzeit, aktiv } → wie GET
+ *   POST /api/fahrer-lager/sammelmail/senden  { tag? }  Test-Versand jetzt (Betreff mit „[Test]“, zählt nicht als Tagesversand)
+ *   GET  /api/fahrer-lager/sammelmail/pdf?tag=  das PDF der Mail zum Ansehen
  *
  * Die PIN gilt für alle Lager-Geräte (Entscheidung Klaus 23.11.2026). Gespeichert wird nur der PBKDF2-Hash, den die
  * App mit /api/fahrer/heute bekommt und offline prüft. Eine neue PIN ersetzt die alte, sobald das Gerät synct.
@@ -17,7 +19,8 @@ const PIN_RUNDEN = 100000;
 const PIN_STELLEN = 5;
 const EMAIL = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
 const UHRZEIT = /^([01]\d|2[0-3]):[0-5]\d$/;
-const SAMMELMAIL_STANDARD = { an: [], uhrzeit: '18:00' };
+const SAMMELMAIL_STANDARD = { an: [], uhrzeit: '18:00', aktiv: false };
+const TAG = /^\d{4}-\d{2}-\d{2}$/;
 
 /** PBKDF2-SHA256 wie in der App (fahrer-app/www/speicher.js pinHash). */
 function pinHash(pin, salzHex, runden) {
@@ -45,9 +48,11 @@ function empfaenger(wert) {
 /**
  * @param {object} deps
  * @param {object} deps.store  { lesen(schluessel), setzen(schluessel, wert, von) } – services/fahrerEinstellungen.js
+ * @param {object} [deps.sammelmail]  services/fahrerSammelmail.js (versenden, vorbereiten)
  * @param {() => number} [deps.uhr]
  */
-function erstelleLagerRouter({ store, uhr = Date.now }) {
+function erstelleLagerRouter({ store, sammelmail = null, uhr = Date.now }) {
+  const heute = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin' }).format(new Date(uhr()));
   const router = express.Router();
 
   async function stand() {
@@ -55,7 +60,10 @@ function erstelleLagerRouter({ store, uhr = Date.now }) {
     const mail = { ...SAMMELMAIL_STANDARD, ...json(await store.lesen('sammelmail'), {}) };
     return {
       pin: { gesetzt: Boolean(pin && pin.hash), gesetztAm: pin?.gesetztAm || null, gesetztVon: pin?.gesetztVon || null },
-      sammelmail: { an: mail.an || [], uhrzeit: mail.uhrzeit || SAMMELMAIL_STANDARD.uhrzeit },
+      sammelmail: {
+        an: mail.an || [], uhrzeit: mail.uhrzeit || SAMMELMAIL_STANDARD.uhrzeit, aktiv: Boolean(mail.aktiv),
+        letzte: json(await store.lesen('sammelmail_letzte'), null), fehler: json(await store.lesen('sammelmail_fehler'), null),
+      },
     };
   }
 
@@ -76,8 +84,37 @@ function erstelleLagerRouter({ store, uhr = Date.now }) {
     const an = empfaenger(req.body?.an);
     const uhrzeit = String(req.body?.uhrzeit || '').trim() || SAMMELMAIL_STANDARD.uhrzeit;
     if (!UHRZEIT.test(uhrzeit)) throw new FahrerFehler(400, 'uhrzeit_ungueltig', 'Uhrzeit im Format HH:MM, z. B. 18:00');
-    await store.setzen('sammelmail', JSON.stringify({ an, uhrzeit }), req.session?.user?.id);
+    const aktiv = req.body?.aktiv === true;
+    if (aktiv && !an.length) throw new FahrerFehler(400, 'mail_fehlt', 'Für den Versand bitte mindestens einen Empfänger eintragen');
+    await store.setzen('sammelmail', JSON.stringify({ an, uhrzeit, aktiv }), req.session?.user?.id);
     res.json(await stand());
+  }));
+
+  const tagAus = (wert) => {
+    const tag = String(wert || '') || heute();
+    if (!TAG.test(tag)) throw new FahrerFehler(400, 'tag_ungueltig', 'Tag im Format JJJJ-MM-TT');
+    return tag;
+  };
+
+  router.post('/sammelmail/senden', sicher(async (req, res) => {
+    if (!sammelmail) throw new FahrerFehler(503, 'nicht_eingerichtet', 'Sammelmail ist nicht eingerichtet');
+    const tag = tagAus(req.body?.tag);
+    try {
+      const r = await sammelmail.versenden(tag, { manuell: true });
+      console.log(`[Sammelmail] Test-Versand ${tag} von ${req.session?.user?.username}: ${JSON.stringify(r)}`);
+      res.json(r);
+    } catch (err) {
+      throw new FahrerFehler(502, 'versand_fehlgeschlagen', err.message);
+    }
+  }));
+
+  router.get('/sammelmail/pdf', sicher(async (req, res) => {
+    if (!sammelmail) throw new FahrerFehler(503, 'nicht_eingerichtet', 'Sammelmail ist nicht eingerichtet');
+    const tag = tagAus(req.query.tag);
+    const m = await sammelmail.vorbereiten(tag);
+    res.set('Content-Type', 'application/pdf');
+    res.set('Content-Disposition', `inline; filename="Lagerbelege-${tag}.pdf"`);
+    res.send(Buffer.from(m.pdf));
   }));
 
   return router;

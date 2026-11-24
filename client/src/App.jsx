@@ -22,6 +22,7 @@ import EinkaufspreiseWeiter from './components/pages/finance/EinkaufspreiseWeite
 import ArtikelListe from './components/pages/finance/ArtikelListe';
 import ArtikelDetail from './components/pages/finance/ArtikelDetail';
 import Einstellungen from './components/pages/finance/Einstellungen';
+import Belege from './components/pages/finance/Belege';
 import Disposition from './components/pages/finance/Disposition';
 import { CmsPage, CmsEditorPage } from './components/pages/content/CmsEditor'
 import Mitarbeiter from './components/pages/hr/Mitarbeiter'
@@ -104,6 +105,7 @@ function AppRoutes() {
         <Route path="gashandel/artikel/:nr" element={<ArtikelDetail />} />
         <Route path="gashandel/einkaufspreise" element={<EinkaufspreiseWeiter />} />
         <Route path="gashandel/einstellungen" element={<Einstellungen />} />
+        <Route path="gashandel/belege" element={<Belege />} />
         <Route path="gashandel/ladebasen" element={<Navigate to="/gashandel/einstellungen" replace />} />
         <Route path="gashandel/disposition" element={<Disposition />} />
         <Route path="gashandel/tourplanung" element={<Navigate to="/gashandel/disposition" replace />} />

@@ -213,6 +213,7 @@ export default function Sidebar({ user }) {
             <NavItem to="/finance/mitteilungen" icon="bell"      label="Mitteilungen"      collapsed={collapsed}/>
             <NavItem to="/finance/info-mail"    icon="documents" label="Info-Mail Rollout" collapsed={collapsed}/>
             {showLadebasen && <NavItem to="/gashandel/disposition" icon="documents" label="Disposition" collapsed={collapsed}/>}
+            {showLadebasen && <NavItem to="/gashandel/belege" icon="documents" label="Belege" collapsed={collapsed}/>}
             <NavItem to="/finance/widmann-bestand" icon="products" label="Bestände" collapsed={collapsed}/>
             {showGasAuswertung && <NavItem to="/gashandel/auswertung" icon="documents" label="Auswertung" collapsed={collapsed}/>}
             {showLadebasen && <NavItem to="/gashandel/einstellungen" icon="products" label="Einstellungen" collapsed={collapsed}/>}
