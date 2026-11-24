@@ -77,6 +77,22 @@ async function lsStand(geraetId) {
   return Number(rows[0]?.ls_stand) || 0;
 }
 
+/** LS- und BV-Stand (#516) eines Geräts für Antworten an die App. */
+async function staende(geraetId) {
+  const [rows] = await getPool().execute('SELECT ls_stand, bv_stand FROM fahrer_geraet WHERE id = ?', [geraetId]);
+  return { lsStand: Number(rows[0]?.ls_stand) || 0, bvStand: Number(rows[0]?.bv_stand) || 0 };
+}
+
+/** Beleg nach Nummer (LS-… oder BV-…), z. B. für das Storno eines Barverkaufs (#516). */
+async function belegNachNummer(nummer) {
+  const [rows] = await getPool().execute(
+    'SELECT ls_nummer, belegart, geraet_id, erstellt_am, storniert_am FROM fahrer_beleg WHERE ls_nummer = ?', [nummer]);
+  return rows[0] || null;
+}
+
+/** Einstellung der Fahrer-App (#516), z. B. storno_pin. */
+const einstellung = (schluessel) => require('./fahrerEinstellungen').lesen(schluessel);
+
 /**
  * Nach Tourende (#518): Bestellungen von Stopps, die nicht beliefert wurden (nicht angetroffen oder nie bearbeitet),
  * werden wieder frei und können neu eingeplant werden. Beliefert bleibt belegt. Der Stopp behält seinen Status.
@@ -111,20 +127,33 @@ async function wendeAn(conn, a, ereignisId) {
     case 'beleg': {
       const b = a.beleg;
       await conn.execute(
-        `INSERT INTO fahrer_beleg (ls_nummer, ereignis_id, geraet_id, employee_id, tour_id, stopp_id, kunde_nr, erstellt_am, unterzeichner, unterschrift_png, markierung)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [b.lsNummer, ereignisId, b.geraetId, b.employeeId, b.tourId, b.stoppId, b.kundeNr, b.erstelltAm, b.unterzeichner, b.unterschriftPng, b.markierung]
+        `INSERT INTO fahrer_beleg (ls_nummer, belegart, ereignis_id, geraet_id, employee_id, tour_id, stopp_id, kunde_nr, erstellt_am, unterzeichner,
+           unterschrift_png, verkaeufer, zahlart, summe_netto_cent, summe_brutto_cent, markierung)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [b.lsNummer, b.belegart || 'LS', ereignisId, b.geraetId, b.employeeId, b.tourId, b.stoppId, b.kundeNr, b.erstelltAm, b.unterzeichner,
+          b.unterschriftPng, b.verkaeufer || null, b.zahlart || null, b.summeNettoCent ?? null, b.summeBruttoCent ?? null, b.markierung]
       );
       for (const p of a.positionen) {
         await conn.execute(
-          'INSERT INTO fahrer_beleg_position (ls_nummer, artikel_nr, bezeichnung, soll, geliefert, leergut) VALUES (?, ?, ?, ?, ?, ?)',
-          [b.lsNummer, p.artikelNr, p.bezeichnung, p.soll, p.geliefert, p.leergut]
+          'INSERT INTO fahrer_beleg_position (ls_nummer, artikel_nr, bezeichnung, soll, geliefert, leergut, preis_netto_cent, mwst_satz) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [b.lsNummer, p.artikelNr, p.bezeichnung, p.soll, p.geliefert, p.leergut, p.preisNettoCent ?? null, p.mwstSatz ?? null]
         );
       }
       return;
     }
     case 'lsStand':
       await conn.execute('UPDATE fahrer_geraet SET ls_stand = GREATEST(ls_stand, ?) WHERE id = ?', [a.stand, a.geraetId]);
+      return;
+    case 'bvStand':
+      await conn.execute('UPDATE fahrer_geraet SET bv_stand = GREATEST(bv_stand, ?) WHERE id = ?', [a.stand, a.geraetId]);
+      return;
+    case 'storno':
+      // Nur einmal: Ein zweites Storno ändert nichts (die Fachregel lehnt es vorher ab).
+      await conn.execute(
+        `UPDATE fahrer_beleg SET storniert_am = ?, storno_grund = ?, storno_verkaeufer = ?, storno_ereignis_id = ?
+          WHERE ls_nummer = ? AND belegart = 'BV' AND storniert_am IS NULL`,
+        [a.storniertAm, a.grund, a.verkaeufer || null, ereignisId, a.lsNummer]
+      );
       return;
     default:
       throw new Error(`Unbekannte Änderung ${a.art}`);
@@ -184,5 +213,8 @@ module.exports = {
   stoppNachId,
   ereignisStatus,
   lsStand,
+  staende,
+  belegNachNummer,
+  einstellung,
   bucheEreignis,
 };

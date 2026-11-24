@@ -182,9 +182,16 @@ const fahrer = require('./src/routes/api/fahrer').erstelleFahrer({
 });
 app.use('/api/fahrer', require('cors')({ origin: ['https://localhost', 'capacitor://localhost'] }), fahrer.router);
 app.locals.requireFahrer = fahrer.requireFahrer;
-// #542: Tagesdaten und Ereignis-Eingang (Bearer wie oben)
+// #542: Tagesdaten und Ereignis-Eingang (Bearer wie oben). #516: Lager-Gerät bekommt den ganzen Kundenstamm aus dem Shop.
+const holeKundenstamm = require('./src/services/fahrerKundenstamm').erstelleKundenstamm({
+  shopFetch: (pfad) => require('./src/routes/api/finance/shopClient').shopFetch(pfad),
+  ausgeblendet: async () => {
+    const [rows] = await require('./src/db').getPool().execute('SELECT customer_id FROM customer_exclusions');
+    return new Set(rows.map((r) => r.customer_id));
+  },
+});
 app.use('/api/fahrer', require('cors')({ origin: ['https://localhost', 'capacitor://localhost'] }),
-  require('./src/routes/api/fahrer/touren').erstelleTourRouter({ store: require('./src/services/fahrerTouren'), requireFahrer: fahrer.requireFahrer }));
+  require('./src/routes/api/fahrer/touren').erstelleTourRouter({ store: require('./src/services/fahrerTouren'), requireFahrer: fahrer.requireFahrer, holeKundenstamm }));
 app.use('/api/fahrer-ladebasen', requireArea('fahrer.geraete'), require('./src/routes/api/fahrer/ladebasen').erstelleLadebasenRouter({ store: require('./src/services/fahrerLadebasen') }));
 // #518: Tourplanung im Büro (Bestellungen kommen aus der Shop-API)
 app.use('/api/fahrer-touren', requireArea('fahrer.geraete'), require('./src/routes/api/fahrer/planung').erstellePlanungRouter({
@@ -209,6 +216,8 @@ app.use('/api/fahrer-touren', requireArea('fahrer.geraete'), require('./src/rout
   },
 }));
 app.use('/api/fahrer-geraete', requireArea('fahrer.geraete'), require('./src/routes/api/fahrer/geraete').erstelleGeraeteRouter({ store: fahrerStore }));
+// #516: Lagerverkauf – Sonder-PIN fürs Storno und Sammelmail an die Buchhaltung
+app.use('/api/fahrer-lager', requireArea('fahrer.geraete'), require('./src/routes/api/fahrer/lager').erstelleLagerRouter({ store: require('./src/services/fahrerEinstellungen') }));
 
 
 // Versionsanzeige (#334): einmal beim Start ermitteln

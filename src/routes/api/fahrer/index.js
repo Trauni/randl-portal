@@ -2,6 +2,7 @@
  * Fahrer-App (#541): Kopplung, Login über Authentik, Geräte-Tokens. Konzept #513 Abschnitt 3 und 8.
  *
  *   POST /api/fahrer/geraet/koppeln  { code, publicKey, zeitstempel, signatur }
+ *                                    Lager-Gerät (#516): Antwort enthält gleich Access- und Dauer-Token (kein Login)
  *   POST /api/fahrer/login           { geraetId, idToken, zeitstempel, signatur }
  *   POST /api/fahrer/token           { geraetId, tagesToken, zeitstempel, signatur }
  *   POST /api/fahrer/logout          Bearer
@@ -17,8 +18,12 @@ const { FahrerFehler } = k;
 
 const TAGES_TOKEN_MS = 16 * 60 * 60 * 1000;
 const KOPPLUNG_MS = 10 * 60 * 1000;
+// Lager-Gerät (#516, Konzept 11.3): Dauerlogin bis zur Sperre oder neuen Kopplung. Die Frist ist nur eine Obergrenze.
+const DAUER_TOKEN_MS = 5 * 365 * 24 * 60 * 60 * 1000;
 
-const geraetAntwort = (g) => ({ kennung: g.kennung, rolle: g.rolle, bezeichnung: g.bezeichnung || null, lsStand: Number(g.ls_stand) || 0 });
+const geraetAntwort = (g) => ({
+  kennung: g.kennung, rolle: g.rolle, bezeichnung: g.bezeichnung || null, lsStand: Number(g.ls_stand) || 0, bvStand: Number(g.bv_stand) || 0,
+});
 
 function fehlerAntwort(res, err) {
   return res.status(err.status).json({ error: err.message, code: err.code });
@@ -97,13 +102,20 @@ function erstelleFahrer({ store, geheimnis, oidc, uhr = Date.now }) {
     const g = await store.loeseKopplungscodeEin({ codeHash: k.sha256(code), publicKey, zeitstempelMs: ts, jetzt: new Date(jetztMs) });
     if (!g) throw new FahrerFehler(400, 'code_ungueltig', 'Kopplungscode unbekannt, schon benutzt oder abgelaufen');
     console.log(`[Fahrer] Gerät ${g.kennung} gekoppelt`);
-    res.json({ geraetId: g.geraet_uid, ...geraetAntwort(g) });
+    if (g.rolle !== 'lager') return res.json({ geraetId: g.geraet_uid, ...geraetAntwort(g) });
+    // Lager (#516): Die Kopplung selbst ist die Anmeldung. Das Token gehört dem Gerät, nicht einem Mitarbeiter.
+    // Die Kopplung hat alte Tokens des Geräts schon widerrufen (loeseKopplungscodeEin).
+    const tagesToken = k.neuesTagesToken();
+    const tagesTokenBis = new Date(jetztMs + DAUER_TOKEN_MS);
+    const ttId = await store.legeTagestokenAn({ geraetId: g.id, employeeId: null, tokenHash: k.sha256(tagesToken), gueltigBis: tagesTokenBis, jetzt: new Date(jetztMs) });
+    res.json({ geraetId: g.geraet_uid, ...geraetAntwort(g), ...accessToken(g, null, ttId, jetztMs), tagesToken, tagesTokenBis: tagesTokenBis.toISOString() });
   }));
 
   router.post('/login', sicher(async (req, res) => {
     const jetztMs = uhr();
     const { geraetId, idToken, zeitstempel, signatur } = req.body || {};
     const g = await gekoppeltesGeraet(geraetId);
+    if (g.rolle === 'lager') throw new FahrerFehler(403, 'lager_ohne_login', 'Ein Lager-Gerät meldet sich nicht an, es ist mit der Kopplung angemeldet');
     await pruefeGeraeteSignatur(g, zeitstempel, k.signaturText.login({ geraetId, zeitstempel: Number(zeitstempel), idToken }), signatur, jetztMs);
 
     const claims = await k.pruefeIdToken(idToken, { ...oidc, jetztMs });
@@ -146,8 +158,9 @@ function erstelleFahrer({ store, geheimnis, oidc, uhr = Date.now }) {
   }));
 
   router.get('/ich', requireFahrer, sicher(async (req, res) => {
-    const [m, g] = await Promise.all([store.mitarbeiterNachId(req.fahrer.mitarbeiterId), store.geraetNachId(req.fahrer.geraetId)]);
-    res.json({ fahrer: { id: m?.id, name: m?.full_name || m?.username }, geraet: { geraetId: g.geraet_uid, ...geraetAntwort(g) } });
+    const g = await store.geraetNachId(req.fahrer.geraetId);
+    const m = req.fahrer.mitarbeiterId == null ? null : await store.mitarbeiterNachId(req.fahrer.mitarbeiterId);
+    res.json({ fahrer: m ? { id: m.id, name: m.full_name || m.username } : null, geraet: { geraetId: g.geraet_uid, ...geraetAntwort(g) } });
   }));
 
   return { router, requireFahrer };
@@ -161,4 +174,4 @@ async function neuerKopplungscodeFuer(store, geraetId, jetztMs = Date.now()) {
   return { code, gueltigBis: gueltigBis.toISOString() };
 }
 
-module.exports = { erstelleFahrer, neuerKopplungscodeFuer, sicher, TAGES_TOKEN_MS, KOPPLUNG_MS };
+module.exports = { erstelleFahrer, neuerKopplungscodeFuer, sicher, TAGES_TOKEN_MS, KOPPLUNG_MS, DAUER_TOKEN_MS };
