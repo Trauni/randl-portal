@@ -149,7 +149,7 @@ function OffeneBestellungen({ offen, auswahl, setAuswahl, onHinzu, aktiv }) {
           <div>
             <b>{b.kundeName || '—'}</b> <span className="ui-table-sub">#{b.kundeNr || 'ohne Nr.'}</span>
             <div className="ui-table-sub">{[b.adresse, b.lieferzeit, b.hinweis].filter(Boolean).join(' · ')}</div>
-            <div style={{ fontSize: 14 }}>{b.positionen.map((p) => `${p.menge}× ${p.artikelNr || '?'}`).join(' · ')}</div>
+            <div style={{ fontSize: 14 }}>{b.positionen.map((p) => (p.menge === 0 && p.leer > 0 ? `nur ${p.leer} Leergut ${p.artikelNr || '?'}` : `${p.menge}× ${p.artikelNr || '?'}`)).join(' · ')}</div>
           </div>
           <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
             <span className="ui-table-sub">{b.herkunft === 'mobile' ? 'Mobile' : 'Shop/Portal'}</span>
