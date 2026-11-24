@@ -260,6 +260,7 @@ export default function Sidebar({ user }) {
             <NavItem to="/content/shop"   icon="shop"   label="CMS Shopseite"    collapsed={collapsed}/>
             <NavItem to="/content/bilder" icon="images" label="Bilderverwaltung" collapsed={collapsed}/>
             <NavItem to="/content/hinweis" icon="bell" label="Hinweisbalken Website" collapsed={collapsed}/>
+            <NavItem to="/content/aktuelles" icon="documents" label="Aktuelles Website" collapsed={collapsed}/>
           </NavSection>
         )}
       </nav>
