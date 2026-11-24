@@ -173,10 +173,26 @@ function readJson(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
   catch (e) { if (e.code === 'ENOENT' && fallback !== undefined) return fallback; throw e; }
 }
+// Besitzer und Rechte wie die bisherige Datei bzw. wie der Webroot: Das Portal läuft als root, die Website gehört
+// dem Web-Benutzer. Ohne das wären ersetzte Seiten (index.html, zelt/index.html …) danach root-eigen.
+function wieVorbild(ziel, vorbild, istOrdner) {
+  try {
+    const st = fs.statSync(vorbild);
+    fs.chmodSync(ziel, istOrdner ? st.mode & 0o777 : st.mode & 0o666);
+    if (process.getuid && process.getuid() === 0) fs.chownSync(ziel, st.uid, st.gid);
+  } catch (_) { /* Vorbild fehlt oder kein root: Standardrechte bleiben */ }
+}
+function mkdirs(dir) {
+  if (fs.existsSync(dir)) return;
+  mkdirs(path.dirname(dir));
+  fs.mkdirSync(dir);
+  wieVorbild(dir, ROOT(), true);
+}
 function writeAtomic(file, text) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
+  mkdirs(path.dirname(file));
   const tmp = `${file}.tmp-${process.pid}`;
   fs.writeFileSync(tmp, text, 'utf8');
+  wieVorbild(tmp, fs.existsSync(file) ? file : path.join(ROOT(), 'index.html'), false);
   fs.renameSync(tmp, file);
 }
 // Schreibt nur bei Änderung (kein Zeitstempel-Rauschen im Sync nach GitHub). true = geschrieben.
@@ -658,11 +674,12 @@ async function uploadBilder(dateien, { alt, nachweis } = {}, user) {
     const basis = slugify(text || String(d.name || '').replace(/\.[^.]+$/, '')).slice(0, 50).replace(/-+$/, '') || 'bild';
     const file = `${basis}-${sha}.webp`;
     const img = sharp(d.buffer, { failOn: 'error' }).rotate();          // EXIF-Drehung anwenden; Metadaten werden nicht übernommen
-    for (const size of ['full', 'thumb']) fs.mkdirSync(path.dirname(imgPath(size, file)), { recursive: true });
+    for (const size of ['full', 'thumb']) mkdirs(path.dirname(imgPath(size, file)));
     const full = await img.clone().resize({ width: FULL_MAX, height: FULL_MAX, fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 80 }).toFile(imgPath('full', file));
     const th = await img.clone().resize({ width: THUMB_W, withoutEnlargement: true }).webp({ quality: 72 }).toFile(imgPath('thumb', file));
     const e = { file, w: full.width, h: full.height, tw: th.width, th: th.height, alt: text, nachweis: clean(nachweis, MAX.nachweis), hochgeladen: now(), von: user || null };
+    for (const size of ['full', 'thumb']) wieVorbild(imgPath(size, file), path.join(ROOT(), 'index.html'), false);
     neu.push(e); vorhanden.set(sha, e);
   }
   if (neu.length) { const d2 = load(); d2.bilder.push(...neu); save(d2); }   // kein Build nötig: neue Bilder sind noch nirgends eingebunden
