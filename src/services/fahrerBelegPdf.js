@@ -124,6 +124,12 @@ async function belegePdf({ titel, untertitel, belege, tagesliste = true, erstell
     seite.drawText(s, { x: rechts ? x - f.widthOfTextAtSize(s, gr) : x, y, size: gr, font: f, color: farbe });
   };
   const linie = (dicke = 0.5) => { seite.drawLine({ start: { x: RAND, y: y + 4 }, end: { x: BREITE - RAND, y: y + 4 }, thickness: dicke, color: LINIE }); };
+  // Trennlinie in einer Tabelle, direkt nach zeile(): mittig zwischen der Unterlänge der Zeile darüber (y + 12) und der
+  // Oberkante der nächsten (y + 6,5), dann etwas Luft. Mit linie() lief sie durch den Text der nächsten Zeile.
+  const trenner = () => {
+    seite.drawLine({ start: { x: RAND, y: y + 9.5 }, end: { x: BREITE - RAND, y: y + 9.5 }, thickness: 0.5, color: LINIE });
+    y -= 3;
+  };
   /** Tabellenzeile: spalten = [{ t, x, b (Breite), rechts }] */
   const zeile = (spalten, { gr = 9, f = font, farbe } = {}) => {
     platz(gr + 5);
@@ -146,13 +152,13 @@ async function belegePdf({ titel, untertitel, belege, tagesliste = true, erstell
     text('Übersicht', RAND, { gr: 12, f: fett }); y -= 16;
     const sp = [{ x: RAND, b: 86 }, { x: RAND + 88, b: 62 }, { x: RAND + 152, b: 58 }, { x: RAND + 212, b: 150 }, { x: RAND + 364, b: 70 }, { x: RAND + 436, b: 75, rechts: true }];
     zeile(['Nummer', 'Zeit', 'Art', 'Kunde', 'Verkäufer', 'Betrag'].map((t, i) => ({ ...sp[i], t })), { f: fett });
-    linie();
+    trenner();
     for (const b of belege) {
       const betrag = b.belegart === 'BV' ? euro(summen(b.positionen).bruttoCent) : '–';
       zeile([b.ls_nummer, zeitKurz(b.erstellt_am), artName(b), kundeText(b), b.verkaeufer || b.fahrer_name || '', b.storniert_am ? `${betrag} storniert` : betrag]
         .map((t, i) => ({ ...sp[i], t })), { farbe: b.storniert_am ? ROT : undefined });
     }
-    linie(); y -= 4;
+    trenner(); y -= 2;
     const summe = (l, w, f = font) => { platz(14); text(l, RAND + 212, { gr: 10, f }); text(w, BREITE - RAND, { gr: 10, f, rechts: true }); y -= 14; };
     summe(`Barverkäufe (${gueltig.length}${bv.length > gueltig.length ? `, ${bv.length - gueltig.length} storniert` : ''}) netto`, euro(s.nettoCent));
     for (const x of s.saetze) summe(`MwSt. ${zahl(x.satz)} %`, euro(x.mwstCent));
@@ -184,6 +190,7 @@ async function belegePdf({ titel, untertitel, belege, tagesliste = true, erstell
         : [{ x: RAND, b: 360 }, { x: RAND + 370, b: 70, rechts: true }, { x: RAND + 446, b: 65, rechts: true }];
     const kopf = bvB ? ['Artikel', 'Menge', 'Leer', 'Einzel netto', 'Gesamt netto'] : mitSoll ? ['Artikel', 'Bestellt', 'Geliefert', 'Leer'] : ['Artikel', 'Menge', 'Leer'];
     zeile(kopf.map((t, i) => ({ ...sp[i], t })), { f: fett });
+    trenner();
     for (const p of pos) {
       const name = `${p.bezeichnung}${p.artikel_nr ? ` (${p.artikel_nr})` : ''}`;
       const werte = bvB
