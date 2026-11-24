@@ -181,7 +181,7 @@ test('Koppeln, Login, /ich, Erneuern, Abmelden', async () => {
 
   const kopplung = await koppeln(geraet, code.slice(0, 4).toLowerCase() + '-' + code.slice(4));
   assert.equal(kopplung.status, 200, JSON.stringify(kopplung.body));
-  assert.deepEqual({ ...kopplung.body, geraetId: undefined }, { geraetId: undefined, kennung: 'T1', rolle: 'tablet', bezeichnung: null, lsStand: 41 });
+  assert.deepEqual({ ...kopplung.body, geraetId: undefined }, { geraetId: undefined, kennung: 'T1', rolle: 'tablet', bezeichnung: null, lsStand: 41, bvStand: 0 });
   const geraetId = kopplung.body.geraetId;
   assert.equal((await koppeln(neuesGeraet(), code)).status, 400, 'Code ist nur einmal gültig');
 
@@ -248,6 +248,39 @@ test('Zweiter Login auf demselben Tablet beendet den ersten', async () => {
   const anna = await login(geraet, geraetId, idToken({ sub: 'uid-anna' }));
   assert.equal((await get('/ich', sepp.body.accessToken)).status, 401);
   assert.equal((await get('/ich', anna.body.accessToken)).body.fahrer.name, 'Anna Maier');
+});
+
+test('Lager-Gerät (#516): Kopplung ist die Anmeldung, Dauer-Token ohne Mitarbeiter, kein Login, Sperre wirkt', async () => {
+  const geraet = neuesGeraet();
+  const g = await store.legeGeraetAn({ kennung: 'L1', rolle: 'lager' });
+  const { code } = await neuerKopplungscodeFuer(store, g.id, uhrMs);
+  const kopplung = await koppeln(geraet, code);
+  assert.equal(kopplung.status, 200, JSON.stringify(kopplung.body));
+  assert.equal(kopplung.body.rolle, 'lager');
+  assert.ok(kopplung.body.accessToken && kopplung.body.tagesToken, 'Tokens kommen gleich mit der Kopplung');
+  const jahre = (new Date(kopplung.body.tagesTokenBis).getTime() - uhrMs) / (365 * 24 * 60 * 60 * 1000);
+  assert.ok(jahre > 4, 'Dauer-Token läuft nicht nach 16 Stunden ab');
+
+  const ich = await get('/ich', kopplung.body.accessToken);
+  assert.equal(ich.status, 200, JSON.stringify(ich.body));
+  assert.equal(ich.body.fahrer, null);
+  assert.equal(ich.body.geraet.rolle, 'lager');
+  const req = (await get('/geschuetzt', kopplung.body.accessToken)).body;
+  assert.equal(req.mitarbeiterId, null);
+  assert.equal(req.rolle, 'lager');
+
+  const anmeldung = await login(geraet, kopplung.body.geraetId, idToken({ sub: 'uid-sepp' }));
+  assert.equal(anmeldung.status, 403);
+  assert.equal(anmeldung.body.code, 'lager_ohne_login');
+
+  uhrMs += 3 * 24 * 60 * 60 * 1000; // drei Tage später: Access-Token weg, Dauer-Token gilt noch
+  const neu = await erneuern(geraet, kopplung.body.geraetId, kopplung.body.tagesToken);
+  assert.equal(neu.status, 200, JSON.stringify(neu.body));
+  assert.equal((await get('/geschuetzt', neu.body.accessToken)).body.mitarbeiterId, null);
+
+  await store.sperreGeraet(g.id, new Date(uhrMs));
+  assert.equal((await get('/ich', neu.body.accessToken)).status, 401, 'Sperre beendet den Dauerlogin');
+  assert.equal((await erneuern(geraet, kopplung.body.geraetId, kopplung.body.tagesToken)).status, 403, 'gesperrtes Gerät bekommt kein neues Token');
 });
 
 test('Uhrzeit des Geräts mehr als 5 Minuten falsch', async () => {

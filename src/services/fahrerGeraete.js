@@ -7,7 +7,7 @@ const { getPool, getEmployeeByUid, getEmployeeById } = require('../db');
 const { FahrerFehler } = require('./fahrerKrypto');
 
 const GERAET_FELDER = `g.id, g.geraet_uid, g.kennung, g.rolle, g.bezeichnung, g.employee_id, g.public_key,
-  g.gekoppelt_am, g.gesperrt_am, g.ls_stand, g.letzte_signatur_ms, g.zuletzt_gesehen, g.erstellt_am`;
+  g.gekoppelt_am, g.gesperrt_am, g.ls_stand, g.bv_stand, g.letzte_signatur_ms, g.zuletzt_gesehen, g.erstellt_am`;
 
 async function geraetNachUid(geraetUid) {
   const [rows] = await getPool().execute(`SELECT ${GERAET_FELDER} FROM fahrer_geraet g WHERE g.geraet_uid = ?`, [String(geraetUid || '')]);
@@ -23,7 +23,8 @@ async function geraetNachId(id) {
 async function alleGeraete(jetzt) {
   const [rows] = await getPool().execute(
     `SELECT ${GERAET_FELDER}, e.full_name AS fahrer_name,
-       (SELECT e2.full_name FROM fahrer_tagestoken t JOIN employees e2 ON e2.id = t.employee_id
+       (SELECT CASE WHEN t.employee_id IS NULL THEN 'Dauerlogin' ELSE e2.full_name END
+          FROM fahrer_tagestoken t LEFT JOIN employees e2 ON e2.id = t.employee_id
          WHERE t.geraet_id = g.id AND t.widerrufen_am IS NULL AND t.gueltig_bis > ?
          ORDER BY t.id DESC LIMIT 1) AS angemeldet,
        (SELECT MAX(k.gueltig_bis) FROM fahrer_kopplungscode k
@@ -144,7 +145,7 @@ async function entsperreGeraet(id) {
   await getPool().execute('UPDATE fahrer_geraet SET gesperrt_am = NULL WHERE id = ?', [id]);
 }
 
-/** LS-Stand steigt nur (Konzept Abschnitt 7). Für #542: aus beleg.erstellt aufrufen. */
+/** LS-Stand steigt nur (Konzept Abschnitt 7). Für #542: aus beleg.erstellt aufrufen. BV-Stand (#516) bucht fahrerTouren. */
 async function hebeLsStand(geraetId, stand) {
   await getPool().execute('UPDATE fahrer_geraet SET ls_stand = GREATEST(ls_stand, ?) WHERE id = ?', [Number(stand) || 0, geraetId]);
 }

@@ -12,7 +12,7 @@ const crypto = require('crypto');
 
 const CODE_ZEICHEN = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const KENNUNG_MUSTER = /^[A-Z0-9]{2,5}$/;
-const ROLLEN = ['tablet', 'notfall'];
+const ROLLEN = ['tablet', 'notfall', 'lager']; // lager = festes Tablet am Lager (#516)
 const ACCESS_TOKEN_SEKUNDEN = 15 * 60;
 const SIGNATUR_FENSTER_MS = 5 * 60 * 1000;
 
@@ -49,7 +49,7 @@ function normalisiereKennung(kennung) {
 }
 
 function pruefeRolle(rolle) {
-  if (!ROLLEN.includes(rolle)) throw new FahrerFehler(400, 'rolle_ungueltig', 'Rolle muss tablet oder notfall sein');
+  if (!ROLLEN.includes(rolle)) throw new FahrerFehler(400, 'rolle_ungueltig', 'Rolle muss tablet, notfall oder lager sein');
   return rolle;
 }
 
