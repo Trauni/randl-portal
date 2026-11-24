@@ -60,10 +60,10 @@ test('Sonder-PIN: 5 Ziffern, nur einmal im Klartext, gespeichert nur als Hash, d
 });
 
 test('Sammelmail: Empfänger prüfen, Uhrzeit HH:MM, Standard 18:00', async () => {
-  assert.deepEqual((await rufe('/')).daten.sammelmail, { an: [], uhrzeit: '18:00' });
+  assert.deepEqual((await rufe('/')).daten.sammelmail, { an: [], uhrzeit: '18:00', aktiv: false, letzte: null, fehler: null });
   const ok = await rufe('/sammelmail', 'PUT', { an: 'buchhaltung@randl.example; chef@randl.example\nbuchhaltung@randl.example', uhrzeit: '17:30' });
   assert.equal(ok.status, 200, JSON.stringify(ok.daten));
-  assert.deepEqual(ok.daten.sammelmail, { an: ['buchhaltung@randl.example', 'chef@randl.example'], uhrzeit: '17:30' });
+  assert.deepEqual(ok.daten.sammelmail, { an: ['buchhaltung@randl.example', 'chef@randl.example'], uhrzeit: '17:30', aktiv: false, letzte: null, fehler: null });
   assert.equal((await rufe('/sammelmail', 'PUT', { an: 'kein-at-zeichen', uhrzeit: '17:30' })).daten.code, 'mail_ungueltig');
   assert.equal((await rufe('/sammelmail', 'PUT', { an: [], uhrzeit: '25:00' })).daten.code, 'uhrzeit_ungueltig');
   assert.throws(() => empfaenger(['a@b.de', 'c@d.de', 'e@f.de', 'g@h.de', 'i@j.de', 'k@l.de']), /Höchstens 5/);

@@ -216,8 +216,17 @@ app.use('/api/fahrer-touren', requireArea('fahrer.geraete'), require('./src/rout
   },
 }));
 app.use('/api/fahrer-geraete', requireArea('fahrer.geraete'), require('./src/routes/api/fahrer/geraete').erstelleGeraeteRouter({ store: fahrerStore }));
-// #516: Lagerverkauf – Sonder-PIN fürs Storno und Sammelmail an die Buchhaltung
-app.use('/api/fahrer-lager', requireArea('fahrer.geraete'), require('./src/routes/api/fahrer/lager').erstelleLagerRouter({ store: require('./src/services/fahrerEinstellungen') }));
+// #516: Lagerverkauf – Sonder-PIN fürs Storno und Sammelmail an die Buchhaltung (Versand über das admin-backend)
+const fahrerSammelmail = require('./src/services/fahrerSammelmail');
+const sammelmail = fahrerSammelmail.erstelleSammelmail({
+  belege: require('./src/services/fahrerBelege'),
+  einstellungen: require('./src/services/fahrerEinstellungen'),
+  senden: fahrerSammelmail.sendenUeber((pfad, o) => require('./src/routes/api/finance/shopClient').shopFetch(pfad, o)),
+  holeKundenstamm,
+});
+app.use('/api/fahrer-lager', requireArea('fahrer.geraete'), require('./src/routes/api/fahrer/lager').erstelleLagerRouter({ store: require('./src/services/fahrerEinstellungen'), sammelmail }));
+// #516: Belege und Vorgänge der Fahrer-App im Büro
+app.use('/api/fahrer-belege', requireArea('fahrer.geraete'), require('./src/routes/api/fahrer/belege').erstelleBelegeRouter({ store: require('./src/services/fahrerBelege'), holeKundenstamm }));
 
 
 // Versionsanzeige (#334): einmal beim Start ermitteln
@@ -286,6 +295,7 @@ require('./src/services/urlaub').starteZeitplan();
 // Kundenmails Fertigung/neue Fotos (#377), nur mit METALL_KUNDENMAILS_AKTIV=1
 require('./src/services/metallBenachrichtigung').starteZeitplan();
 require('./src/services/bestellMitteilungen').starteZeitplan();
+fahrerSammelmail.starteZeitplan(sammelmail); // #516: verschickt nur, wenn unter Einstellungen → Lagerverkauf eingeschaltet
 
 // ── F29 Schritt 3: Interner Listener fuer Service-zu-Service-Aufrufe ─────────
 // Komplett separate Express-Instanz, NUR die eine Route. Gebunden an die
