@@ -25,7 +25,7 @@ function naechsterTag(tag) {
 }
 
 const BELEG_FELDER = `b.ls_nummer, b.belegart, b.geraet_id, g.kennung AS geraet_kennung, g.rolle AS geraet_rolle, b.employee_id,
-  e.full_name AS fahrer_name, b.tour_id, t.bezeichnung AS tour_name, b.stopp_id, b.kunde_nr, s.kunde_name, s.kunde_adresse,
+  e.full_name AS fahrer_name, b.tour_id, t.bezeichnung AS tour_name, b.stopp_id, s.auftrag_ref, s.bestell_id, b.kunde_nr, s.kunde_name, s.kunde_adresse,
   b.erstellt_am, b.eingegangen_am, b.unterzeichner, b.verkaeufer, b.zahlart, b.summe_netto_cent, b.summe_brutto_cent,
   b.markierung, b.storniert_am, b.storno_grund, b.storno_verkaeufer`;
 const BELEG_JOIN = `fahrer_beleg b
@@ -119,10 +119,32 @@ async function lagerTag({ von, bis, stornoSeit }) {
   return rows;
 }
 
+/**
+ * Belege zu Kunden oder Bestellungen, ohne Zeitraum, neueste zuerst (Kunden- und Bestellansicht).
+ * kundenNr: Kundennummern (Lexware und SER, der Beleg trägt die Nummer, die beim Stopp stand),
+ * bestellIds: webshop_orders.id, verknüpft über den Stopp der Tourplanung (fahrer_stopp.bestell_id).
+ */
+async function zuordnung({ kundenNr = [], bestellIds = [], limit = 200 }) {
+  const kn = [...new Set(kundenNr.map((x) => String(x).trim()).filter(Boolean))];
+  const bi = [...new Set(bestellIds.map((x) => String(x).trim()).filter(Boolean))];
+  if (!kn.length && !bi.length) return [];
+  const oder = [];
+  const werte = [];
+  if (kn.length) { oder.push('b.kunde_nr IN (?)'); werte.push(kn); }
+  if (bi.length) { oder.push('s.bestell_id IN (?)'); werte.push(bi); }
+  const [rows] = await getPool().query(
+    `SELECT ${BELEG_FELDER},
+       (SELECT COALESCE(SUM(p.geliefert), 0) FROM fahrer_beleg_position p WHERE p.ls_nummer = b.ls_nummer) AS menge,
+       (SELECT COALESCE(SUM(p.leergut), 0) FROM fahrer_beleg_position p WHERE p.ls_nummer = b.ls_nummer) AS leergut
+     FROM ${BELEG_JOIN} WHERE ${oder.join(' OR ')} ORDER BY b.erstellt_am DESC, b.ls_nummer DESC LIMIT ${Math.min(Number(limit) || 200, 1000)}`,
+    werte);
+  return rows;
+}
+
 /** Geräte für Filter: Kennung und Rolle. */
 async function geraete() {
   const [rows] = await getPool().execute('SELECT id, kennung, rolle FROM fahrer_geraet ORDER BY rolle, kennung');
   return rows;
 }
 
-module.exports = { berlinTagesbeginn, berlinTag, naechsterTag, liste, detail, positionenZu, vorgaenge, lagerTag, geraete };
+module.exports = { berlinTagesbeginn, berlinTag, naechsterTag, liste, detail, positionenZu, vorgaenge, lagerTag, zuordnung, geraete };

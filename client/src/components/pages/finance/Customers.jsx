@@ -1,4 +1,5 @@
 import { useAuth } from '../../../context/AuthContext';
+import { BelegeZu } from './BelegPopup';
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import ProductSearch from "./ProductSearch";
 
@@ -403,6 +404,7 @@ function CustomerDetail({ customer: init, onClose, onRefresh }) {
             })}
           </div>
         )}
+        <BelegeZu kundenNr={[customer.lexware_customer_number, customer.customer_number]} titel="Lieferscheine und Barverkäufe" />
       </>) : (<>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.5rem .75rem', marginBottom:'1rem' }}>
           {[['name','Name'],['name2','Name2'],['name3','Name3'],['company_name','Firma'],['name_empfaenger','Empfänger'],['first_name','Vorname'],['last_name','Nachname'],['billing_street','Straße'],['billing_zip','PLZ'],['billing_city','Ort'],['email','E-Mail'],['invoice_email','E-Mail Rechnungen'],['phone','Telefon'],['mobile','Mobil'],['info_sped','Speditionsinfo']].map(([k,l]) => (

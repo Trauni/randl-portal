@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Panel, Tabs, Tag } from '../../ui';
+import { BelegPopup, Markierung, TYPEN, MARKIERUNG, zeit, euro, zahl } from './BelegPopup';
 
 // #516 Belege der Fahrer-App im Büro: alle Lieferscheine und Barverkäufe (Tour und Lager) mit Positionen, Unterschrift,
 // Storno und Verlauf, dazu das Protokoll aller Vorgänge der Geräte. Recht fahrer.geraete wie Disposition und Einstellungen.
@@ -12,94 +13,7 @@ const api = async (url) => {
 };
 
 const heute = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin' }).format(new Date());
-const zeit = (iso, mitDatum = true) => (iso ? new Date(iso).toLocaleString('de-DE', { ...(mitDatum ? { day: '2-digit', month: '2-digit' } : {}), hour: '2-digit', minute: '2-digit' }) : '–');
-const euro = (c) => (c == null ? '–' : `${(Number(c) / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`);
-const zahl = (v) => (v == null ? '' : Number(v).toLocaleString('de-DE', { maximumFractionDigits: 2 }));
-
-const TYPEN = {
-  'tour.gestartet': 'Tour gestartet', 'tour.beendet': 'Tour beendet', 'stopp.nicht_angetroffen': 'Nicht ausgeliefert',
-  'beleg.erstellt': 'Beleg erstellt', 'beleg.storniert': 'Barverkauf storniert',
-};
-const MARKIERUNG = {
-  nach_buero_ende: 'nach Büro-Ende', nach_uebergabe: 'nach Übergabe', tour_storniert: 'Tour storniert',
-  tour_unbekannt: 'Tour unbekannt', fremde_tour: 'fremde Tour', ohne_tour: 'ohne Tour',
-};
 const TABS = [{ id: 'belege', label: 'Belege' }, { id: 'vorgaenge', label: 'Vorgänge' }];
-
-function Markierung({ b }) {
-  if (!b.markierung || (b.markierung === 'ohne_tour' && b.geraetRolle === 'lager')) return null;
-  return <Tag tone="warn">{MARKIERUNG[b.markierung] || b.markierung}</Tag>;
-}
-
-function Detail({ nummer, onZu }) {
-  const [b, setB] = useState(null);
-  const [fehler, setFehler] = useState('');
-  useEffect(() => { setB(null); api(`/api/fahrer-belege/${encodeURIComponent(nummer)}`).then(setB).catch((e) => setFehler(e.message)); }, [nummer]);
-  if (!b) return <Panel title={nummer}><div className="ui-panel-body" style={{ color: 'var(--text3)' }}>{fehler || 'Lade …'}</div></Panel>;
-  const bv = b.belegart === 'BV';
-  return (
-    <Panel title={`${bv ? 'Barverkauf' : 'Lieferschein'} ${b.nummer}`}>
-      <div className="ui-panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', fontSize: 14, color: 'var(--text2)' }}>
-          <span>{zeit(b.erstelltAm)} · Gerät {b.geraet}{b.verkaeufer ? ` · Verkäufer ${b.verkaeufer}` : b.fahrer ? ` · Fahrer ${b.fahrer}` : ''}{b.tour ? ` · Tour ${b.tour.name}` : ''}</span>
-          {b.storniertAm && <Tag tone="err">storniert</Tag>}<Markierung b={b} />
-          <span style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <a className="btn btn-secondary btn-sm" href={`/api/fahrer-belege/${encodeURIComponent(b.nummer)}/pdf`} target="_blank" rel="noreferrer">PDF</a>
-            <button className="btn btn-secondary btn-sm" onClick={onZu}>Schließen</button>
-          </span>
-        </div>
-        <div style={{ fontSize: 15 }}>Kunde: <b>{b.kunde || (b.kundeNr ? `Kunde ${b.kundeNr}` : bv ? 'ohne Kunde' : '–')}</b>{b.kundeNr && b.kunde ? ` (${b.kundeNr})` : ''}</div>
-        {b.storniertAm && (
-          <div className="alert alert-error">Storniert am {zeit(b.storniertAm)}{b.stornoVerkaeufer ? ` von ${b.stornoVerkaeufer}` : ''}: {b.stornoGrund || '–'}</div>
-        )}
-        <div style={{ overflowX: 'auto' }}>
-          <table className="ui-table">
-            <thead><tr><th>Artikel</th>{!bv && <th style={{ textAlign: 'right' }}>Bestellt</th>}<th style={{ textAlign: 'right' }}>{bv ? 'Menge' : 'Geliefert'}</th><th style={{ textAlign: 'right' }}>Leer</th>
-              {bv && <><th style={{ textAlign: 'right' }}>Einzel netto</th><th style={{ textAlign: 'right' }}>Gesamt netto</th></>}</tr></thead>
-            <tbody>
-              {b.positionen.map((p, i) => (
-                <tr key={i}>
-                  <td>{p.bezeichnung}<div className="ui-table-sub">{p.artikelNr}</div></td>
-                  {!bv && <td style={{ textAlign: 'right' }}>{zahl(p.soll)}</td>}
-                  <td style={{ textAlign: 'right' }}>{zahl(p.geliefert)}</td><td style={{ textAlign: 'right' }}>{zahl(p.leergut)}</td>
-                  {bv && <><td style={{ textAlign: 'right' }}>{euro(p.preisNettoCent)}</td><td style={{ textAlign: 'right' }}>{p.preisNettoCent == null ? '–' : euro(Math.round(p.geliefert * p.preisNettoCent))}</td></>}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {bv && b.summen && (
-          <div style={{ alignSelf: 'flex-end', minWidth: 240, fontSize: 14, display: 'grid', gridTemplateColumns: '1fr auto', gap: '2px 16px' }}>
-            <span>Summe netto</span><span style={{ textAlign: 'right' }}>{euro(b.summen.nettoCent)}</span>
-            {b.summen.saetze.map((x) => [<span key={`l${x.satz}`}>MwSt. {x.satz} %</span>, <span key={`w${x.satz}`} style={{ textAlign: 'right' }}>{euro(x.mwstCent)}</span>])}
-            <b>{b.storniertAm ? 'Betrag (storniert)' : 'Bar bezahlt'}</b><b style={{ textAlign: 'right' }}>{euro(b.summen.bruttoCent)}</b>
-          </div>
-        )}
-        {(b.unterschriftPng || b.unterzeichner) && (
-          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end' }}>
-            {b.unterschriftPng && <img alt="Unterschrift" src={`data:image/png;base64,${b.unterschriftPng}`} style={{ maxWidth: 260, maxHeight: 90, background: '#fff', borderRadius: 6, padding: 4 }} />}
-            <span style={{ fontSize: 14, color: 'var(--text2)' }}>Unterschrift: {b.unterzeichner || '–'}</span>
-          </div>
-        )}
-        <div>
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>Verlauf</div>
-          <table className="ui-table">
-            <thead><tr><th>Eingang</th><th>Gerätezeit</th><th>Vorgang</th><th>Gerät</th><th>Ergebnis</th></tr></thead>
-            <tbody>
-              {b.verlauf.map((v) => (
-                <tr key={v.id}>
-                  <td>{zeit(v.eingegangenAm)}</td><td>{zeit(v.geraetZeit)}</td><td>{TYPEN[v.typ] || v.typ}</td><td>{v.geraet}</td>
-                  <td>{v.status === 'ok' ? <Tag tone="ok">angenommen</Tag> : <><Tag tone="err">abgelehnt</Tag> <span className="ui-table-sub">{v.fehlerText || v.fehlerCode}</span></>}</td>
-                </tr>
-              ))}
-              {!b.verlauf.length && <tr><td colSpan={5} style={{ color: 'var(--text3)' }}>Kein Vorgang gespeichert.</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </Panel>
-  );
-}
 
 function BelegeListe({ geraete }) {
   const [f, setF] = useState({ von: heute(), bis: heute(), geraet: '', art: '', storniert: '', q: '' });
@@ -113,6 +27,7 @@ function BelegeListe({ geraete }) {
   }, [query]);
   useEffect(() => { const t = setTimeout(laden, 250); return () => clearTimeout(t); }, [laden]);
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
+  const zu = useCallback(() => setOffen(null), []);
 
   const belege = daten?.belege || [];
   const bar = belege.filter((b) => b.belegart === 'BV' && !b.storniertAm).reduce((s, b) => s + (b.bruttoCent || 0), 0);
@@ -135,7 +50,7 @@ function BelegeListe({ geraete }) {
           {belege.some((b) => b.belegart === 'BV') && <> · Barverkäufe ohne Stornos: <b>{euro(bar)}</b></>}
         </div>
       )}
-      {offen && <Detail nummer={offen} onZu={() => setOffen(null)} />}
+      {offen && <BelegPopup nummer={offen} onZu={zu} />}
       <div style={{ overflowX: 'auto' }}>
         <table className="ui-table">
           <thead><tr><th>Zeit</th><th>Nummer</th><th>Gerät</th><th>Fahrer / Verkäufer</th><th>Kunde</th><th>Tour</th><th style={{ textAlign: 'right' }}>Menge / Leer</th><th style={{ textAlign: 'right' }}>Betrag</th><th>Status</th></tr></thead>
@@ -147,7 +62,7 @@ function BelegeListe({ geraete }) {
                 <td>{b.geraet}</td>
                 <td>{b.verkaeufer || b.fahrer || '–'}</td>
                 <td>{b.kunde || (b.kundeNr ? `Kunde ${b.kundeNr}` : b.belegart === 'BV' ? 'ohne Kunde' : '–')}{b.unterzeichner && <div className="ui-table-sub">unterschrieben: {b.unterzeichner}</div>}</td>
-                <td>{b.tour ? b.tour.name : '–'}</td>
+                <td>{b.tour ? b.tour.name : '–'}{b.bestellung && <div className="ui-table-sub">Bestellung {b.bestellung.ref || `#${String(b.bestellung.id).slice(-8).toUpperCase()}`}</div>}</td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{zahl(b.menge)} / {zahl(b.leergut)}</td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap', textDecoration: b.storniertAm ? 'line-through' : undefined }}>{b.belegart === 'BV' ? euro(b.bruttoCent) : '–'}</td>
                 <td>{b.storniertAm ? <Tag tone="err">storniert</Tag> : <Tag tone="ok">gültig</Tag>} <Markierung b={b} /></td>

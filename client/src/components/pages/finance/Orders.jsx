@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { NewOrderModal } from './Customers';
+import { BelegeZu, BelegPopup } from './BelegPopup';
 
 function StatusBadge({ status }) {
   const cfg = {
@@ -364,6 +365,7 @@ function OrderDetail({ order: initOrder, onClose, onRefresh, onReorder }) {
           📋 {order.delivery_note}
         </div>
       )}
+      <div style={{ marginBottom:'1rem' }}><BelegeZu bestellIds={[order.id]} titel="Lieferschein aus der Tour" /></div>
       {message && (
         <div style={{ padding:'.5rem .75rem', borderRadius:7, marginBottom:'.75rem', fontSize:'.82rem',
           background: message.startsWith('✓') ? 'rgba(46,189,122,.08)' : 'rgba(224,80,80,.08)',
@@ -403,6 +405,10 @@ export default function Orders() {
   const [massSer,  setMassSer]  = useState(false);
   const [filters,  setFilters]  = useState({ derived_status:'', period:'month', q:'' });
   const [autoPush, setAutoPush] = useState(null);
+  // Lieferscheine der Fahrer-App je Bestellung (über den Stopp der Tourplanung). Ohne Recht fahrer.geraete leer.
+  const [belegeJe, setBelegeJe] = useState({});
+  const [belegOffen, setBelegOffen] = useState(null);
+  const belegZu = useCallback(() => setBelegOffen(null), []);
 
   const loadAutoPush = useCallback(async () => {
     try {
@@ -411,6 +417,19 @@ export default function Orders() {
       setAutoPush(d.error ? null : d);
     } catch { setAutoPush(null); }
   }, []);
+
+  const ladeBelege = async (liste) => {
+    const ids = liste.map(o => o.id).filter(Boolean).slice(0, 200);
+    if (!ids.length) { setBelegeJe({}); return; }
+    try {
+      const r = await fetch('/api/fahrer-belege/zu?bestellung=' + encodeURIComponent(ids.join(',')));
+      if (!r.ok) { setBelegeJe({}); return; }
+      const d = await r.json();
+      const je = {};
+      for (const b of d.belege || []) if (b.bestellung?.id) (je[b.bestellung.id] ||= []).push(b);
+      setBelegeJe(je);
+    } catch { setBelegeJe({}); }
+  };
 
   const load = useCallback(async (f) => {
     loadAutoPush();
@@ -424,6 +443,7 @@ export default function Orders() {
       const d = await r.json();
       if (d.error) throw new Error(d.error);
       setOrders(d.orders || []);
+      ladeBelege(d.orders || []);
     } catch(e) { setError(e.message); }
     finally { setLoading(false); }
   }, []);
@@ -503,6 +523,7 @@ export default function Orders() {
   return (
     <div>
       {detail && <OrderDetail order={detail} onClose={() => setDetail(null)} onRefresh={() => load(filters)} onReorder={startReorder}/>}
+      {belegOffen && <BelegPopup nummer={belegOffen} onZu={belegZu}/>}
       {massSer && <MassSerModal orders={selectedOrders} onClose={() => setMassSer(false)} onDone={() => load(filters)}/>}
       {pickCustomer && <CustomerPicker onSelect={selectCustomerForNewOrder} onClose={() => setPickCustomer(false)}/>}
       {newOrderCustomer && <NewOrderModal customer={newOrderCustomer} deliveryAddresses={newOrderAddresses}
@@ -572,7 +593,15 @@ export default function Orders() {
                       <td style={{ padding:'.5rem .65rem', fontSize:'.78rem', color:'var(--text2)', whiteSpace:'nowrap' }}>{channelLabel(o)}</td>
                       <td style={{ padding:'.5rem .65rem', fontSize:'.78rem', color:'var(--text2)' }}>{(o.items||[]).length} Pos.</td>
                       <td style={{ padding:'.5rem .65rem', fontFamily:'DM Mono, monospace', fontSize:'.82rem', color:'var(--green)' }}>{net.toFixed(2)} €</td>
-                      <td style={{ padding:'.5rem .65rem' }}><OrderStatusBadge order={o}/></td>
+                      <td style={{ padding:'.5rem .65rem' }}><OrderStatusBadge order={o}/>
+                        {(belegeJe[o.id] || []).map(b => (
+                          <button key={b.nummer} onClick={() => setBelegOffen(b.nummer)} title="Lieferschein aus der Tour öffnen"
+                            style={{ marginLeft:'.35rem', fontSize:'.68rem', padding:'.1rem .4rem', borderRadius:4, cursor:'pointer', fontFamily:'DM Mono, monospace',
+                              background: b.storniertAm ? 'rgba(224,80,80,.08)' : 'rgba(46,189,122,.1)', border:`1px solid ${b.storniertAm ? 'rgba(224,80,80,.3)' : 'rgba(46,189,122,.3)'}`, color: b.storniertAm ? 'var(--red2)' : 'var(--green)' }}>
+                            📄 {b.nummer}
+                          </button>
+                        ))}
+                      </td>
                       <td style={{ padding:'.5rem .65rem' }}>
                         <button onClick={() => setDetail(o)} style={{ padding:'.22rem .55rem', borderRadius:5, fontSize:'.75rem', background:'transparent', border:'1px solid var(--border)', color:'var(--text2)', cursor:'pointer' }}>Detail</button>
                       </td>
