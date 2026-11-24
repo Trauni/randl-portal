@@ -38,7 +38,7 @@ async function stoppsZuTouren(tourIds) {
 async function positionenZuStopps(stoppIds) {
   if (!stoppIds.length) return [];
   const [rows] = await getPool().execute(
-    `SELECT id, stopp_id, artikel_nr, soll_menge FROM fahrer_stopp_position
+    `SELECT id, stopp_id, artikel_nr, soll_menge, soll_leergut FROM fahrer_stopp_position
       WHERE stopp_id IN (${platzhalter(stoppIds.length)}) ORDER BY stopp_id, id`,
     stoppIds
   );

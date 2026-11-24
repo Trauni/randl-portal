@@ -322,7 +322,7 @@ function erstelleTourRouter({ store, requireFahrer, holeKundenstamm = async () =
         stopps: stopps.filter((s) => s.tour_id === t.id).map((s) => ({
           id: id(s.id), reihenfolge: s.reihenfolge, auftragId: s.auftrag_ref || null, kundeId: s.kunde_nr,
           lieferzeit: s.lieferzeit || null, status: s.status,
-          positionen: positionen.filter((p) => p.stopp_id === s.id).map((p) => ({ id: id(p.id), artikelId: p.artikel_nr, sollMenge: zahl(p.soll_menge) })),
+          positionen: positionen.filter((p) => p.stopp_id === s.id).map((p) => ({ id: id(p.id), artikelId: p.artikel_nr, sollMenge: zahl(p.soll_menge), sollLeergut: zahl(p.soll_leergut) })),
         })),
       })),
       kunden: [...kunden.values()],

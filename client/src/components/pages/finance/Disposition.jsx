@@ -106,7 +106,7 @@ function Stopp({ s, index, anzahl, gesperrt, namen, onHoch, onRunter, onEntferne
       <div>
         <b>{s.kundeName}</b> <span className="ui-table-sub">#{s.kundeNr} · {s.auftragRef}</span>
         <div className="ui-table-sub">{s.adresse || 'Adresse fehlt'}</div>
-        <div style={{ fontSize: 14, marginTop: 2 }}>{s.positionen.map((p) => `${p.soll} ${namen[p.artikelNr] || p.artikelNr}`).join(', ')}</div>
+        <div style={{ fontSize: 14, marginTop: 2 }}>{s.positionen.map((p) => (p.soll === 0 && p.leergut > 0 ? `nur ${p.leergut} Leergut ${namen[p.artikelNr] || p.artikelNr}` : `${p.soll} ${namen[p.artikelNr] || p.artikelNr}`)).join(', ')}</div>
         {edit ? (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr auto', gap: 8, marginTop: 6 }}>
             <input className="form-input" placeholder="Lieferzeit" aria-label="Lieferzeit" value={edit.lieferzeit} onChange={(e) => setEdit((x) => ({ ...x, lieferzeit: e.target.value }))} />

@@ -7,6 +7,8 @@
  * Annahmen, vor dem Pilot fachlich zu prüfen (siehe PR):
  *  - Es zählt die Füllmenge aus dem Stamm (bei verdichteten Gasen ist das nach ADR der Fassungsraum in Litern).
  *  - Leergut, das zurückkommt, ist in der Rechnung nicht enthalten.
+ *  - Erwartetes Leergut (#614): bestellte Menge der Position (leergut), sonst Tausch 1:1 zur Vollmenge.
+ *    Nur bei Füllungen mit Pfandflasche; wird eine Kaufflasche mitverkauft, kommt nichts zurück.
  *  - Positionen ohne Faktor oder Füllmenge zählen 0 Punkte und werden als "unvollständig" gemeldet; die Summe ist dann nur eine Untergrenze.
  */
 
@@ -31,9 +33,22 @@ function adrLuecken(artikelNummern, artikel) {
 }
 
 /**
- * stopps: [{ id, reihenfolge, kundeName, positionen: [{ artikelNr, soll }] }] in Tourreihenfolge
+ * stopps: [{ id, reihenfolge, kundeName, positionen: [{ artikelNr, soll, leergut? }] }] in Tourreihenfolge
+ *   leergut: bestelltes Leergut, null/fehlt = unbekannt (dann wie soll)
  * artikel: { [artikelNr]: Zeile aus gas_artikel (inkl. Pfandartikel für die Bezeichnung) }
  */
+/** Leergut kommt zurück, wenn die Füllung an einer Pfandflasche hängt und keine Kaufflasche mitverkauft wird. */
+function erwartetesLeergut(p, a, menge, artikel, leergut) {
+  if (!a?.pfand_artikel_nr || (a.kaufflasche_artikel_nr && menge > 0)) return;
+  const bestellt = p.leergut == null || p.leergut === '' ? null : Number(p.leergut);
+  const anzahl = bestellt != null && Number.isFinite(bestellt) && bestellt >= 0 ? bestellt : menge;
+  if (anzahl <= 0) return;
+  const pf = artikel[a.pfand_artikel_nr];
+  const l = leergut.get(a.pfand_artikel_nr) || { artikelNr: a.pfand_artikel_nr, bezeichnung: pf?.bezeichnung || a.pfand_artikel_nr, anzahl: 0 };
+  l.anzahl += anzahl;
+  leergut.set(a.pfand_artikel_nr, l);
+}
+
 function rechneLadeliste(stopps, artikel, grenze = GRENZE) {
   const zeilen = new Map();
   const leergut = new Map();
@@ -45,8 +60,9 @@ function rechneLadeliste(stopps, artikel, grenze = GRENZE) {
     let punkte = 0;
     for (const p of s.positionen) {
       const menge = Number(p.soll) || 0;
-      if (menge <= 0) continue;
       const a = artikel[p.artikelNr];
+      erwartetesLeergut(p, a, menge, artikel, leergut);
+      if (menge <= 0) continue;
       const adr = adrAngaben(a);
       flaschenGesamt += menge;
       const z = zeilen.get(p.artikelNr) || { artikelNr: p.artikelNr, bezeichnung: a?.bezeichnung || p.artikelNr, gasart: a?.gasart || null, flaschen: 0, menge: 0, einheit: adr?.einheit ?? null, kategorie: adr?.kategorie ?? null, faktor: adr?.faktor ?? null, punkte: 0, vollstaendig: !!adr };
@@ -54,14 +70,6 @@ function rechneLadeliste(stopps, artikel, grenze = GRENZE) {
       if (adr) { z.menge += menge * adr.menge; z.punkte += menge * adr.menge * adr.faktor; punkte += menge * adr.menge * adr.faktor; }
       else unvollstaendig.add(p.artikelNr);
       zeilen.set(p.artikelNr, z);
-
-      // Leergut kommt zurück, wenn die Füllung an einer Pfandflasche hängt und keine Kaufflasche mitverkauft wird
-      if (a?.pfand_artikel_nr && !a.kaufflasche_artikel_nr) {
-        const pf = artikel[a.pfand_artikel_nr];
-        const l = leergut.get(a.pfand_artikel_nr) || { artikelNr: a.pfand_artikel_nr, bezeichnung: pf?.bezeichnung || a.pfand_artikel_nr, anzahl: 0 };
-        l.anzahl += menge;
-        leergut.set(a.pfand_artikel_nr, l);
-      }
     }
     stoppPunkte.push({ stoppId: s.id, nr: i + 1, kundeName: s.kundeName || null, punkte });
   });

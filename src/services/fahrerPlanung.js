@@ -112,7 +112,8 @@ function lieferzeit(b) {
 function stoppAusBestellung(b) {
   const a = bestellAnsicht(b);
   if (!a.kundeNr) throw new FahrerFehler(422, 'kunde_ohne_nummer', `Bestellung ${a.id}: Kunde hat keine Kundennummer`);
-  const positionen = (Array.isArray(b.items) ? b.items : []).map((p) => ({ artikelNr: artikelNr(p), soll: Number(p.quantity ?? p.voll ?? 0) }));
+  // leergut: bestelltes Leergut (#614), null = in der Bestellung nicht angegeben (App nimmt dann Tausch 1:1)
+  const positionen = (Array.isArray(b.items) ? b.items : []).map((p) => ({ artikelNr: artikelNr(p), soll: Number(p.quantity ?? p.voll ?? 0), leergut: leergutAus(p) }));
   if (!positionen.length) throw new FahrerFehler(422, 'bestellung_leer', `Bestellung ${a.id} hat keine Positionen`);
   const ohneNr = positionen.find((p) => !p.artikelNr);
   if (ohneNr) throw new FahrerFehler(422, 'position_ohne_artikel', `Bestellung ${a.id}: Position ohne Artikelnummer`);
@@ -124,8 +125,17 @@ function stoppAusBestellung(b) {
     kundeAdresse: a.adresse,
     hinweise: a.hinweis ? a.hinweis.replace(/^\[Mobile\]\s*/, '').slice(0, 500) : null,
     lieferzeit: a.lieferzeit,
-    positionen: positionen.filter((p) => p.soll > 0),
+    // 0 Vollgut bleibt drin, wenn Leergut abgeholt wird (#614); nur ganz leere Positionen fallen weg
+    positionen: positionen.filter((p) => p.soll > 0 || p.leergut > 0),
   };
+}
+
+/** Bestelltes Leergut einer Position: Zahl, oder null, wenn die Bestellung keins angibt. */
+function leergutAus(p) {
+  const roh = p.emptyReturn ?? p.leer;
+  if (roh == null || roh === '') return null;
+  const n = Number(roh);
+  return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
 /** Kunde aus dem Shop für die Suche in Vorlagen. Ohne Kundennummer ist er nicht wählbar (Stopps brauchen sie). */
