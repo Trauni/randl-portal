@@ -4,6 +4,7 @@
  *   GET /api/fahrer-belege?von&bis&geraet&art&storniert&lager&q   Liste (Tage im Format YYYY-MM-DD, bis einschließlich)
  *   GET /api/fahrer-belege/geraete                                 Geräte für den Filter
  *   GET /api/fahrer-belege/vorgaenge?von&bis&geraet&typ&status     Protokoll aller Ereignisse der Geräte
+ *   GET /api/fahrer-belege/zu?kunde=1,2&bestellung=uuid,uuid       Belege zu Kunden/Bestellungen, ohne Zeitraum
  *   GET /api/fahrer-belege/pdf?…                                   PDF der gefilterten Liste
  *   GET /api/fahrer-belege/:nummer                                 Beleg mit Positionen, Unterschrift und Verlauf
  *   GET /api/fahrer-belege/:nummer/pdf                             Beleg als PDF
@@ -43,7 +44,8 @@ function erstelleBelegeRouter({ store, holeKundenstamm = async () => [], uhr = D
   const ansicht = (b, n) => ({
     nummer: b.ls_nummer, belegart: b.belegart, erstelltAm: b.erstellt_am, eingegangenAm: b.eingegangen_am,
     geraet: b.geraet_kennung, geraetRolle: b.geraet_rolle, fahrer: b.fahrer_name || null, verkaeufer: b.verkaeufer || null,
-    tour: b.tour_id ? { id: b.tour_id, name: b.tour_name } : null, kundeNr: b.kunde_nr || null,
+    tour: b.tour_id ? { id: b.tour_id, name: b.tour_name } : null,
+    bestellung: b.bestell_id || b.auftrag_ref ? { id: b.bestell_id || null, ref: b.auftrag_ref || null } : null, kundeNr: b.kunde_nr || null,
     kunde: b.kunde_name || (b.kunde_nr ? n.get(String(b.kunde_nr)) || null : null), unterzeichner: b.unterzeichner || null,
     zahlart: b.zahlart || null, nettoCent: b.summe_netto_cent ?? null, bruttoCent: b.summe_brutto_cent ?? null,
     markierung: b.markierung || null, storniertAm: b.storniert_am || null, stornoGrund: b.storno_grund || null, stornoVerkaeufer: b.storno_verkaeufer || null,
@@ -61,6 +63,16 @@ function erstelleBelegeRouter({ store, holeKundenstamm = async () => [], uhr = D
     const rows = await store.liste({ ...z, ...filter(req.query) });
     const n = await namen(rows);
     res.json({ von: z.vonTag, bis: z.bisTag, belege: rows.map((b) => ansicht(b, n)) });
+  }));
+
+  const liste = (v) => String(v || '').split(',').map((x) => x.trim()).filter(Boolean).slice(0, 200);
+
+  router.get('/zu', sicher(async (req, res) => {
+    const kundenNr = liste(req.query.kunde), bestellIds = liste(req.query.bestellung);
+    if (!kundenNr.length && !bestellIds.length) throw new FahrerFehler(400, 'filter_fehlt', 'Kunde oder Bestellung angeben');
+    const rows = await store.zuordnung({ kundenNr, bestellIds });
+    const n = await namen(rows);
+    res.json({ belege: rows.map((b) => ansicht(b, n)) });
   }));
 
   router.get('/geraete', sicher(async (req, res) => res.json(await store.geraete())));

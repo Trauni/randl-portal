@@ -160,6 +160,7 @@ before(async () => {
     async positionenZu(nr) { return nr.map((n) => pos(n)); },
     async detail(nr) { return nr === 'BV-L1-0001' ? { ...bv(nr, Date.UTC(2026, 10, 24, 9)), kunde_nr: '10511', positionen: [pos(nr)], ereignisse: [{ id: 1, typ: 'beleg.erstellt', status: 'ok', geraet_kennung: 'L1' }] } : null; },
     async lagerTag() { return []; },
+    async zuordnung(f) { return [{ ...bv('LS-T1-0007', Date.UTC(2026, 10, 23, 9)), belegart: 'LS', kunde_nr: '10511', bestell_id: 'a1b2-uuid', auftrag_ref: null, menge: 3, leergut: 3, _f: f }]; },
   };
   const sammelmail = erstelleSammelmail({ belege: belegStore, einstellungen: einst, senden: async (m) => { gesendet.push(m); }, uhr: () => Date.UTC(2026, 10, 24, 12) });
   const app = express();
@@ -195,6 +196,15 @@ test('Belege-API: Liste mit Kundennamen aus dem Stamm, Zeitraum geprüft, Detail
   const v = await rufe('/belege/vorgaenge');
   assert.equal(v.daten.vorgaenge[0].nummer, 'BV-L1-0001');
   assert.equal(v.daten.vorgaenge[0].verkaeufer, null);
+});
+
+test('Belege zu Kunde und Bestellung: Nummern als Liste, Bestellbezug im Beleg, ohne Filter 400', async () => {
+  const k = await rufe('/belege/zu?kunde=10511,30011&bestellung=a1b2-uuid');
+  assert.equal(k.status, 200);
+  assert.deepEqual(k.daten.belege[0].bestellung, { id: 'a1b2-uuid', ref: null });
+  assert.equal(k.daten.belege[0].kunde, 'Landgasthof Seeblick');
+  assert.equal(k.daten.belege[0].menge, 3);
+  assert.equal((await rufe('/belege/zu')).daten.code, 'filter_fehlt');
 });
 
 test('Lager-API: Versand einschalten nur mit Empfänger, Test-Versand, PDF-Vorschau', async () => {
