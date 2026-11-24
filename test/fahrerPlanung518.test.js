@@ -46,7 +46,16 @@ test('Stopp aus Bestellung: Kopie, UUID-Position über articleNumber, Lieferzeit
   assert.equal(s.kundeAdresse, 'Hauptstr. 1, 83022 Rosenheim');
   assert.equal(s.lieferzeit, 'bis 11:00 Uhr');
   assert.equal(s.hinweise, 'Klingeln');
-  assert.deepEqual(s.positionen, [{ artikelNr: '7801200', soll: 2 }, { artikelNr: '7801100', soll: 1 }]);
+  assert.deepEqual(s.positionen, [{ artikelNr: '7801200', soll: 2, leergut: null }, { artikelNr: '7801100', soll: 1, leergut: null }]);
+});
+
+test('Stopp aus Bestellung (#614): 0 Vollgut mit Leergut bleibt als Position, Leergut aus emptyReturn', () => {
+  const s = plan.stoppAusBestellung(bestellung(B1, { items: [
+    { product_id: '7801100', quantity: 1, emptyReturn: 0 },
+    { product_id: '7801300', quantity: 0, emptyReturn: 2 },
+    { product_id: '7801200', quantity: 0, emptyReturn: 0 },
+  ] }));
+  assert.deepEqual(s.positionen, [{ artikelNr: '7801100', soll: 1, leergut: 0 }, { artikelNr: '7801300', soll: 0, leergut: 2 }]);
 });
 
 test('Stopp aus Bestellung: ohne Kundennummer, ohne Positionen, Position ohne Artikel werden abgelehnt', () => {

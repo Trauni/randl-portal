@@ -76,3 +76,16 @@ test('leere Tour', () => {
   const l = rechneLadeliste([], artikel);
   assert.deepEqual([l.punkte, l.ueber, l.zeilen.length, l.leergutGesamt], [0, false, 0, 0]);
 });
+
+test('Leergut (#614): bestellte Menge statt 1:1, reine Leergut-Position zählt mit, ohne Punkte', () => {
+  const l = rechneLadeliste([
+    { id: 1, kundeName: 'A', positionen: [{ artikelNr: '7801100', soll: 2, leergut: 1 }] },
+    { id: 2, kundeName: 'B', positionen: [{ artikelNr: '7801300', soll: 0, leergut: 3 }] },
+    { id: 3, kundeName: 'C', positionen: [{ artikelNr: '7801100', soll: 1, leergut: null }] },
+  ], artikel);
+  assert.deepEqual(l.leergut.map((x) => [x.artikelNr, x.anzahl]), [['7801200', 2], ['7801301', 3]]);
+  assert.equal(l.leergutGesamt, 5);
+  assert.equal(l.flaschenGesamt, 3);
+  assert.equal(l.stopps[1].punkte, 0);
+  assert.deepEqual(l.zeilen.map((z) => z.artikelNr), ['7801100']);
+});

@@ -36,8 +36,8 @@ async function stopps(tourId) {
        FROM fahrer_stopp WHERE tour_id = ? ORDER BY reihenfolge, id`, [tourId]);
   if (!rows.length) return [];
   const [pos] = await getPool().query(
-    'SELECT stopp_id, artikel_nr, soll_menge FROM fahrer_stopp_position WHERE stopp_id IN (?) ORDER BY id', [rows.map((r) => r.id)]);
-  return rows.map((r) => ({ ...r, positionen: pos.filter((p) => p.stopp_id === r.id).map((p) => ({ artikelNr: p.artikel_nr, soll: Number(p.soll_menge) })) }));
+    'SELECT stopp_id, artikel_nr, soll_menge, soll_leergut FROM fahrer_stopp_position WHERE stopp_id IN (?) ORDER BY id', [rows.map((r) => r.id)]);
+  return rows.map((r) => ({ ...r, positionen: pos.filter((p) => p.stopp_id === r.id).map((p) => ({ artikelNr: p.artikel_nr, soll: Number(p.soll_menge), leergut: p.soll_leergut == null ? null : Number(p.soll_leergut) })) }));
 }
 
 async function legeAn({ datum, bezeichnung, employeeId, fahrzeug, ladebasisId, erstelltVon }) {
@@ -122,7 +122,7 @@ async function fuegeStoppHinzu(tourId, s) {
       throw err;
     }
     for (const p of s.positionen) {
-      await conn.execute('INSERT INTO fahrer_stopp_position (stopp_id, artikel_nr, soll_menge) VALUES (?, ?, ?)', [stoppId, p.artikelNr, p.soll]);
+      await conn.execute('INSERT INTO fahrer_stopp_position (stopp_id, artikel_nr, soll_menge, soll_leergut) VALUES (?, ?, ?, ?)', [stoppId, p.artikelNr, p.soll, p.leergut ?? null]);
     }
     return stoppId;
   });

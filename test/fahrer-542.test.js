@@ -104,6 +104,7 @@ function befuelle(s) {
   s.positionen.push(
     { id: 101, stopp_id: 11, artikel_nr: '7801200', soll_menge: '2.00' },
     { id: 102, stopp_id: 12, artikel_nr: 'T002', soll_menge: '1.00' },
+    { id: 103, stopp_id: 13, artikel_nr: '7801300', soll_menge: '0.00', soll_leergut: '2.00' },
   );
 }
 
@@ -169,7 +170,9 @@ test('heute: nur freigegebene/laufende Touren des Fahrers von heute, mit Stopps,
   assert.equal(t.version, '2');
   assert.equal(t.fahrzeug, 'RO-DR 101');
   assert.deepEqual(t.stopps.map((s) => s.id), ['11', '12', '13']);
-  assert.deepEqual(t.stopps[0].positionen, [{ id: '101', artikelId: '7801200', sollMenge: 2 }]);
+  assert.deepEqual(t.stopps[0].positionen, [{ id: '101', artikelId: '7801200', sollMenge: 2, sollLeergut: null }]);
+  // #614: reine Leergut-Position kommt mit sollMenge 0 und der bestellten Leermenge
+  assert.deepEqual(t.stopps.find((x) => x.id === '13').positionen, [{ id: '103', artikelId: '7801300', sollMenge: 0, sollLeergut: 2 }]);
   assert.equal(t.stopps[1].kundeId, '10002');
   assert.deepEqual(daten.kunden.map((k) => k.id), ['10001', '10002'], 'Kunde nur einmal, auch bei zwei Stopps');
   assert.equal(daten.kunden[1].hinweise, 'Hintereingang');
