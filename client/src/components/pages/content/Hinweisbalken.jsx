@@ -10,7 +10,7 @@ const LIMITS = { badge: 20, text: 160, linkLabel: 40 }
 const VORLAGEN = [
   { id: 'messe', label: 'Messe', v: {
     badge: 'Messe', text: "Rosenheimer Hochzeitsmesse · 28. + 29. November 2026 · KU'KO Rosenheim",
-    linkUrl: '/#messe', linkLabel: 'Besuchen Sie uns', style: 'rot' } },
+    linkUrl: '/news/hochzeitsmesse-rosenheim-2026/', linkLabel: 'Besuchen Sie uns', style: 'rot' } },
   { id: 'urlaub', label: 'Betriebsurlaub', v: {
     badge: 'Hinweis', text: 'Unser Büro ist im Betriebsurlaub. Anfragen beantworten wir danach.',
     linkUrl: '/kontakt/', linkLabel: 'Kontakt', style: 'dunkel' } },

@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import GalerieVerwaltung from './GalerieVerwaltung';
+import AktuellesBilder from './AktuellesBilder';
 
 const API = '/api';
 
@@ -537,6 +538,7 @@ export default function Bilderverwaltung() {
     { id: 'metall',     label: '⚙️ Metallarbeiten /metall/', count: null },
       { id: 'fotobox',   label: '📸 Fotobox /fotobox/',      count: null },
     { id: 'messe',      label: '🎪 Messe /messe/',           count: null },
+    { id: 'aktuelles',  label: '📰 Aktuelles /news/',        count: null },
   ];
 
   return (
@@ -582,6 +584,8 @@ export default function Bilderverwaltung() {
         <SektionUnterseite group="metall" title="Metallarbeiten – Bilder"     subtitle="randl.group/metall/ · WebP · max. 1920px" />
       ) : activeTab === 'fotobox' ? (
         <SektionUnterseite group="fotobox" title="Fotobox – Bilder"        subtitle="randl.group/fotobox/ · WebP · max. 1920px" />
+      ) : activeTab === 'aktuelles' ? (
+        <AktuellesBilder />
       ) : activeTab === 'messe' ? (
         <SektionUnterseite group="messe" title="Hochzeitsmesse – Bilder" subtitle="randl.group/messe/ · WebP · max. 1920px" />
       ) : loading ? (
