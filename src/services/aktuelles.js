@@ -12,6 +12,14 @@
 //   sitemap.xml            Einträge zwischen <!-- AKTUELLES:START --> und <!-- AKTUELLES:END -->
 //   index.html, zelt/, metall/, gas/   Teaser zwischen <!-- AKTUELLES:START sparte="…" --> und <!-- AKTUELLES:END -->
 // Entwürfe erscheinen in keiner dieser Dateien. Wird ein Beitrag gelöscht oder zurückgezogen, verschwindet sein Ordner.
+//
+// Archiv und Startseite sind getrennt (Zusatz zu #74):
+//   /news/ ist das Archiv: ein veröffentlichter Beitrag bleibt, bis er deaktiviert oder gelöscht wird.
+//   Teaser (Startseite, Sparten-Seiten, Hero-Kachel) zeigen nur Beiträge mit startseite=true, deren startseiteBis
+//   noch nicht erreicht ist. Jeder Teaser trägt data-bis und blendet sich im Browser pünktlich selbst aus; der
+//   stündliche Lauf von scripts/aktuelles.js bauen (Cron) nimmt abgelaufene Teaser dann auch aus dem HTML.
+//   Status deaktiviert: raus aus /news/, Übersicht, news.json und Sitemap. Die alte Adresse leitet nginx per 301
+//   auf /news/ um (Regel für nicht vorhandene /news/<slug>/, siehe randl-website/tools/aktuelles/UEBERGABE.md).
 
 const fs     = require('fs');
 const path   = require('path');
@@ -34,7 +42,7 @@ const SPARTEN = [
     cta: { label: 'Kontakt', titel: 'Ein Ansprechpartner,<br>drei Gewerke', sub: 'Schreiben Sie uns oder rufen Sie an. Wir melden uns persönlich bei Ihnen.', url: '/kontakt' } },
 ];
 const SPARTE = Object.fromEntries(SPARTEN.map(s => [s.id, s]));
-const STATUS = ['entwurf', 'veroeffentlicht'];
+const STATUS = ['entwurf', 'veroeffentlicht', 'deaktiviert'];
 const TEASER_SEITEN = ['index.html', 'zelt/index.html', 'metall/index.html', 'gas/index.html'];
 
 const MAX = { titel: 90, slug: 80, teaser: 160, text: 20000, galerie: 40, alt: 140, nachweis: 100, ort: 80, zeiten: 80, url: 300 };
@@ -93,6 +101,19 @@ function eventZeit(v) {
   if (v.start.slice(0, 10) === v.ende.slice(0, 10)) return `${uhr(v.start)}–${uhr(v.ende)} Uhr`;
   return `Beginn ${uhr(v.start)} Uhr, Ende ${uhr(v.ende)} Uhr`;
 }
+
+// ── Startseite / Ablauf ──────────────────────────────────────────────
+const bisIso = p => (p.startseiteBis ? berlinIso(p.startseiteBis) : null);
+// 'an' | 'abgelaufen' | 'aus' – gilt für Startseite, Sparten-Teaser und Hero-Kachel gleichermaßen
+function startseiteStand(p, jetzt = Date.now()) {
+  if (p.startseite === false) return 'aus';
+  return p.startseiteBis && Date.parse(bisIso(p)) <= jetzt ? 'abgelaufen' : 'an';
+}
+// Blendet abgelaufene Teaser im Browser aus (auch während die Seite offen ist) und den Block, wenn keiner übrig ist.
+const ABLAUF_JS = "<script>(function(){var r=document.currentScript.previousElementSibling;if(!r)return;function run(){var n=Date.now(),x=0,"
+  + "e=r.matches('[data-bis]')?[r]:r.querySelectorAll('[data-bis]');for(var i=0;i<e.length;i++){var t=Date.parse(e[i].getAttribute('data-bis'));"
+  + "if(isNaN(t))continue;if(n>=t)e[i].hidden=true;else if(!x||t<x)x=t;}if(r.classList.contains('akt')&&!r.querySelector('.akt-card:not([hidden])'))r.hidden=true;"
+  + "if(x&&x-n<864e5)setTimeout(run,x-n+500);}run();})();</script>";
 
 // ── Links / Markdown ────────────────────────────────────────────────
 // Erlaubt: /pfad, #anker, https://…, mailto:, tel:. Alles andere wird nicht verlinkt.
@@ -273,9 +294,12 @@ function validate(input, data, id = null) {
   if (galerie.length > MAX.galerie) errors.push(`Bildergalerie: max. ${MAX.galerie} Bilder`);
   if (galerie.some(f => !bilder[f])) errors.push('Bildergalerie enthält ein unbekanntes Bild');
   const veranstaltung = validateVeranstaltung(src.veranstaltung, errors);
+  const startseite = src.startseite !== false;
+  const startseiteBis = String(src.startseiteBis || '').slice(0, 16) || null;
+  if (startseiteBis && (!ZEIT_RE.test(startseiteBis) || !gueltigesDatum(startseiteBis.slice(0, 10)))) errors.push('„Auf Startseite bis“ ist ungültig');
 
   if (errors.length) return { ok: false, errors };
-  return { ok: true, errors: [], value: { titel, slug, datum, sparte: src.sparte, teaser, text, titelbild, galerie, status, veranstaltung } };
+  return { ok: true, errors: [], value: { titel, slug, datum, sparte: src.sparte, teaser, text, titelbild, galerie, status, veranstaltung, startseite, startseiteBis } };
 }
 
 // ── Rendern ──────────────────────────────────────────────────────────
@@ -411,7 +435,7 @@ function karte(p, bilder, { tag = 'h2', klasse = 'n', datum = true } = {}) {
   const b = p.titelbild && bilder[p.titelbild];
   const s = SPARTE[p.sparte];
   if (klasse === 'akt') {
-    return `      <a class="akt-card" href="${urlOf(p)}">
+    return `      <a class="akt-card" href="${urlOf(p)}"${p.startseiteBis ? ` data-bis="${bisIso(p)}"` : ''}>
         ${b ? `<div class="akt-img"><img src="/news/img/thumb/${b.file}" width="${b.tw}" height="${b.th}" alt="${esc(b.alt || '')}" loading="lazy" decoding="async" /></div>` : ''}
         <div class="akt-body">
           <span class="akt-sparte">${esc(s.titel)}</span>
@@ -474,14 +498,35 @@ function attrs(s) {
   while ((m = re.exec(s)) !== null) a[m[1]] = m[2];
   return a;
 }
-function renderTeaser(roh, posts, data) {
+function kachel(p, bilder) {
+  const b = p.titelbild && bilder[p.titelbild];
+  const v = p.veranstaltung;
+  let sub = SPARTE[p.sparte].titel;
+  if (v) {
+    const A = teile(v.start), B = teile(v.ende || v.start);
+    const tage = v.start.slice(0, 10) === (v.ende || v.start).slice(0, 10) ? `${A.t}.${A.m}.` : A.m === B.m ? `${A.t}. + ${B.t}.${B.m}.` : `${A.t}.${A.m}. – ${B.t}.${B.m}.`;
+    sub = `${tage} · ${v.ort}`;
+  }
+  return `    <a href="${urlOf(p)}" class="h-tile h-tile--akt"${p.startseiteBis ? ` data-bis="${bisIso(p)}"` : ''}>
+      ${b ? `<img src="/news/img/thumb/${b.file}" alt="" class="h-tile-akt-img" width="118" height="76" loading="lazy" decoding="async" />` : ''}
+      <span class="h-tile-akt-text">
+        <span class="h-tile-akt-badge">Aktuell</span>
+        <span class="h-tile-title">${esc(p.titel)}</span>
+        <span class="h-tile-sub">${esc(sub)}</span>
+      </span>
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </a>`;
+}
+function renderTeaser(roh, posts, data, jetzt = Date.now()) {
   const a = attrs(roh);
   const sparte = SPARTE[a.sparte] ? a.sparte : 'alle';
   const max = Math.min(6, Math.max(1, parseInt(a.max, 10) || 3));
-  const liste = posts.filter(p => sparte === 'alle' || p.sparte === sparte).slice(0, max);
+  const liste = posts.filter(p => startseiteStand(p, jetzt) === 'an' && (sparte === 'alle' || p.sparte === sparte)).slice(0, max);
   const start = `<!-- AKTUELLES:START${roh}-->`;
   if (!liste.length) return `${start}\n<!-- AKTUELLES:END -->`;
   const bilder = bildMap(data);
+  const ablauf = liste.some(p => p.startseiteBis) ? `\n${ABLAUF_JS}` : '';
+  if (a.layout === 'kachel') return `${start}\n${kachel(liste[0], bilder)}${ablauf}\n    <!-- AKTUELLES:END -->`;
   const karten = liste.map(p => karte(p, bilder, { tag: 'h3', klasse: 'akt' })).join('\n');
   const alle = `<p class="akt-all"><a href="/news/${sparte === 'alle' ? '' : '#' + sparte}">Alle Beiträge →</a></p>`;
   const titel = sparte === 'alle' ? 'Neues aus dem Betrieb' : SPARTE[sparte].teaser;
@@ -508,7 +553,7 @@ ${karten}
     ${alle}
   </div>
 </section>`;
-  return `${start}\n${block}\n<!-- AKTUELLES:END -->`;
+  return `${start}\n${block}${ablauf}\n<!-- AKTUELLES:END -->`;
 }
 
 function renderSitemap(posts) {
@@ -530,7 +575,7 @@ function vorlage() {
 }
 
 // Erzeugt alle öffentlichen Dateien aus dem Stand in data. Ändert data.gebaut, speichert data aber nicht.
-function build(data) {
+function build(data, jetzt = Date.now()) {
   const tpl = vorlage();
   if (!tpl.includes('{{MAIN}}')) throw fail(503, 'Vorlage news/.vorlage.html enthält keinen Platzhalter {{MAIN}}');
   const posts = veroeffentlicht(data);
@@ -557,6 +602,7 @@ function build(data) {
     beitraege: posts.slice(0, 12).map(p => {
       const b = p.titelbild && bilder[p.titelbild];
       return { slug: p.slug, url: urlOf(p), titel: p.titel, teaser: p.teaser, sparte: p.sparte, sparteTitel: SPARTE[p.sparte].titel, datum: p.datum,
+        startseite: startseiteStand(p, jetzt) === 'an', startseiteBis: bisIso(p),
         bild: b ? { src: `/news/img/thumb/${b.file}`, w: b.tw, h: b.th, alt: b.alt || '' } : null };
     }),
   }, null, 1) + '\n');
@@ -579,16 +625,17 @@ function build(data) {
     if (!fs.existsSync(file)) { bericht.warnungen.push(`${rel} fehlt`); continue; }
     const alt = fs.readFileSync(file, 'utf8');
     if (!alt.includes('<!-- AKTUELLES:START')) { bericht.warnungen.push(`${rel}: Marker AKTUELLES:START/END fehlt, kein Teaser`); continue; }
-    writeIfChanged(file, alt.replace(MARKER_RE, (_m, roh) => renderTeaser(roh, posts, data)));
+    writeIfChanged(file, alt.replace(MARKER_RE, (_m, roh) => renderTeaser(roh, posts, data, jetzt)));
   }
   return bericht;
 }
 
 function mutate(fn) {
   const data = load();
+  const vorher = JSON.stringify(data);
   const result = fn(data) || {};
   const bericht = build(data);
-  save(data);
+  if (JSON.stringify(data) !== vorher) save(data);   // der stündliche Cron-Lauf ändert meist nichts: dann auch keine Sicherung
   return { ok: true, ...result, build: bericht };
 }
 
@@ -601,7 +648,7 @@ function list() {
     limits: MAX,
     beitraege: [...data.beitraege]
       .sort((a, b) => b.datum.localeCompare(a.datum) || String(b.erstellt).localeCompare(String(a.erstellt)))
-      .map(({ text, ...b }) => ({ ...b, url: `${SITE}${urlOf(b)}`, thumb: b.titelbild && bilder[b.titelbild] ? `${SITE}/news/img/thumb/${b.titelbild}` : null })),
+      .map(({ text, ...b }) => ({ ...b, url: `${SITE}${urlOf(b)}`, startseiteStand: startseiteStand(b), thumb: b.titelbild && bilder[b.titelbild] ? `${SITE}/news/img/thumb/${b.titelbild}` : null })),
   };
 }
 function find(data, id) {
@@ -630,6 +677,15 @@ function update(id, input, user) {
     Object.assign(b, r.value, { geaendert: now(), von: user || b.von || null });
     return { beitrag: { ...b, url: `${SITE}${urlOf(b)}` } };
   });
+}
+// Schnellaktionen aus der Liste: { startseite: false } = von der Startseite nehmen, { status } = deaktivieren / reaktivieren
+function patch(id, aenderung, user) {
+  const erlaubt = {};
+  if (typeof aenderung?.startseite === 'boolean') erlaubt.startseite = aenderung.startseite;
+  if (aenderung?.startseiteBis !== undefined) erlaubt.startseiteBis = aenderung.startseiteBis;
+  if (aenderung?.status !== undefined) erlaubt.status = aenderung.status;
+  if (!Object.keys(erlaubt).length) throw fail(400, 'Keine Änderung angegeben');
+  return update(id, { ...find(load(), id), ...erlaubt }, user);
 }
 function remove(id) {
   return mutate(data => {
@@ -708,8 +764,8 @@ function removeBild(file) {
 }
 
 module.exports = {
-  list, get, create, update, remove, preview, rebuild,
+  list, get, create, update, patch, remove, preview, rebuild,
   listBilder, uploadBilder, updateBild, removeBild,
-  validate, markdown, slugify, safeUrl, berlinIso, eventDatum, eventZeit, renderTeaser, renderSitemap, load,
+  validate, markdown, slugify, safeUrl, berlinIso, eventDatum, eventZeit, renderTeaser, renderSitemap, startseiteStand, load, build,
   SPARTEN, MAX,
 };

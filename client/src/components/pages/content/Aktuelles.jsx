@@ -4,7 +4,7 @@ import AktuellesBilder from './AktuellesBilder'
 
 const API = '/api/content/aktuelles'
 const SITE = 'https://randl.group'
-const STATUS = { entwurf: 'Entwurf', veroeffentlicht: 'Veröffentlicht' }
+const STATUS = { entwurf: 'Entwurf', veroeffentlicht: 'Veröffentlicht', deaktiviert: 'Deaktiviert' }
 // Im Portal heißen die Sparten kurz (Zelt/Gas), auf der Website wie in der Navigation.
 const SPARTE_KURZ = { zelt: 'Zelt', maschinenbau: 'Maschinenbau', gas: 'Gas', allgemein: 'Allgemein' }
 
@@ -22,7 +22,8 @@ function slugify(s) {
 }
 const heute = () => { const d = new Date(); const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}` }
 const datumDe = d => (d ? d.split('-').reverse().join('.') : '')
-const leer = () => ({ titel: '', slug: '', datum: heute(), sparte: 'zelt', teaser: '', text: '', titelbild: null, galerie: [], status: 'entwurf', veranstaltung: null })
+const zeitDe = z => (z ? `${datumDe(z.slice(0, 10))}, ${z.slice(11, 16)} Uhr` : '')
+const leer = () => ({ titel: '', slug: '', datum: heute(), sparte: 'zelt', teaser: '', text: '', titelbild: null, galerie: [], status: 'entwurf', veranstaltung: null, startseite: true, startseiteBis: null })
 const LEERE_VERANSTALTUNG = { start: '', ende: '', zeiten: '', ort: '', strasse: '', plz: '', stadt: '', url: '' }
 
 async function api(url, opts) {
@@ -93,7 +94,8 @@ function Editor({ id, limits, sparten, onFertig }) {
   const set = (k, v) => setB(x => ({ ...x, [k]: v }))
   const setV = (k, v) => setB(x => ({ ...x, veranstaltung: { ...x.veranstaltung, [k]: v } }))
   const felder = x => ({ titel: x.titel, slug: x.slug, datum: x.datum, sparte: x.sparte, teaser: x.teaser, text: x.text,
-    titelbild: x.titelbild, galerie: x.galerie, status: x.status, veranstaltung: x.veranstaltung })
+    titelbild: x.titelbild, galerie: x.galerie, status: x.status, veranstaltung: x.veranstaltung,
+    startseite: x.startseite !== false, startseiteBis: x.startseiteBis || null })
 
   function titelGeaendert(v) {
     setB(x => ({ ...x, titel: v, slug: slugFrei ? slugify(v).slice(0, limits.slug) : x.slug }))
@@ -141,7 +143,9 @@ function Editor({ id, limits, sparten, onFertig }) {
       const warn = d.build?.warnungen?.length ? ` Hinweis: ${d.build.warnungen.join('; ')}` : ''
       setMsg({ ok: !warn, text: (n.status === 'veroeffentlicht'
         ? `Gespeichert und veröffentlicht: ${n.url}`
-        : 'Als Entwurf gespeichert. Der Beitrag ist öffentlich nicht sichtbar.') + warn })
+        : n.status === 'deaktiviert'
+          ? 'Deaktiviert. Der Beitrag ist aus /news/, Übersicht und Sitemap entfernt, die alte Adresse leitet auf /news/ um.'
+          : 'Als Entwurf gespeichert. Der Beitrag ist öffentlich nicht sichtbar.') + warn })
     } catch (e) {
       setMsg({ ok: false, text: e.errors?.length ? e.errors.join(' · ') : e.message })
     } finally { setSaving(false) }
@@ -155,14 +159,16 @@ function Editor({ id, limits, sparten, onFertig }) {
   if (!b) return <div style={{ color: 'var(--text3)', padding: 32 }}>{msg ? msg.text : 'Lädt…'}</div>
   const v = b.veranstaltung
   const tb = b.titelbild && bilder[b.titelbild]
-  const live = b.id && JSON.parse(gespeichert).status === 'veroeffentlicht'
+  const stand = b.id ? JSON.parse(gespeichert).status : 'entwurf'
+  const live = stand === 'veroeffentlicht'
+  const abgelaufen = b.startseite !== false && b.startseiteBis && new Date(b.startseiteBis).getTime() <= Date.now()
 
   return (
     <div style={{ maxWidth: 860, paddingBottom: 40 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
         <button type="button" style={btn} onClick={zurueck}>← Zur Liste</button>
         <h1 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text1)', margin: 0 }}>{b.id ? 'Beitrag bearbeiten' : 'Neuer Beitrag'}</h1>
-        <span style={{ fontSize: 12, color: 'var(--text3)' }}>{live ? 'Veröffentlicht' : 'Entwurf'}{dirty ? ' · ungespeicherte Änderungen' : ''}</span>
+        <span style={{ fontSize: 12, color: 'var(--text3)' }}>{STATUS[stand]}{dirty ? ' · ungespeicherte Änderungen' : ''}</span>
       </div>
 
       <div style={box}>
@@ -260,13 +266,33 @@ function Editor({ id, limits, sparten, onFertig }) {
         )}
       </div>
 
+      <div style={{ ...box, marginTop: 14 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text1)', cursor: 'pointer' }}>
+          <input type="checkbox" checked={b.startseite !== false} onChange={e => set('startseite', e.target.checked)} />
+          Auf Startseite zeigen (Teaser auf der Startseite und der Sparten-Seite, Kachel oben auf der Startseite)
+        </label>
+        {b.startseite !== false && (
+          <div style={{ maxWidth: 280 }}>
+            <label style={label} htmlFor="ak-bis">Auf Startseite bis (optional)</label>
+            <input id="ak-bis" type="datetime-local" style={input} value={b.startseiteBis || ''} onChange={e => set('startseiteBis', e.target.value || null)} />
+          </div>
+        )}
+        <span style={{ fontSize: 11, color: abgelaufen ? 'var(--r2, var(--r))' : 'var(--text3)' }}>
+          {abgelaufen ? 'Das Datum ist erreicht: Der Teaser wird nicht mehr gezeigt. ' : ''}
+          Danach verschwindet nur der Teaser, pünktlich und ohne neues Speichern. Der Beitrag bleibt unter /news/ stehen, bis er deaktiviert wird.
+        </span>
+      </div>
+
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
         <button type="button" style={{ ...primary, opacity: saving ? .6 : 1 }} disabled={saving} onClick={() => speichern('veroeffentlicht')}>
-          {saving ? 'Speichert…' : live ? 'Speichern' : 'Veröffentlichen'}
+          {saving ? 'Speichert…' : live ? 'Speichern' : stand === 'deaktiviert' ? 'Reaktivieren' : 'Veröffentlichen'}
         </button>
-        <button type="button" style={{ ...btn, padding: '8px 14px', fontSize: 13 }} disabled={saving} onClick={() => speichern('entwurf')}>
-          {live ? 'Zurückziehen (wieder Entwurf)' : 'Als Entwurf speichern'}
-        </button>
+        {live
+          ? <button type="button" style={{ ...btn, padding: '8px 14px', fontSize: 13 }} disabled={saving}
+              onClick={() => { if (window.confirm('Beitrag deaktivieren? Er verschwindet aus /news/, Übersicht und Sitemap. Die Adresse leitet dann auf /news/ um. Reaktivieren ist jederzeit möglich.')) speichern('deaktiviert') }}>Deaktivieren</button>
+          : <button type="button" style={{ ...btn, padding: '8px 14px', fontSize: 13 }} disabled={saving} onClick={() => speichern(stand === 'deaktiviert' ? 'deaktiviert' : 'entwurf')}>
+              {stand === 'deaktiviert' ? 'Speichern (bleibt deaktiviert)' : 'Als Entwurf speichern'}
+            </button>}
         <button type="button" style={{ ...btn, padding: '8px 14px', fontSize: 13 }} onClick={() => vorschau(felder(b), b.id)}>Vorschau</button>
         {live && <a href={b.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: 'var(--r2, var(--r))' }}>Auf der Website ansehen ↗</a>}
       </div>
@@ -295,11 +321,24 @@ export default function Aktuelles() {
   useEffect(() => { load() }, [load])
 
   async function loeschen(b) {
-    if (!window.confirm(`Beitrag „${b.titel}“ löschen?${b.status === 'veroeffentlicht' ? ' Die Seite verschwindet sofort von der Website und aus der Sitemap.' : ''}`)) return
+    if (!window.confirm(`Beitrag „${b.titel}“ endgültig löschen? Das lässt sich nicht rückgängig machen.${b.status === 'veroeffentlicht' ? ' Die Seite verschwindet sofort von der Website und aus der Sitemap, die Adresse leitet danach auf /news/ um.' : ''} Zum vorübergehenden Abschalten gibt es „Deaktivieren“.`)) return
     setBusy(true); setMsg(null)
     try { await api(`${API}/${b.id}`, { method: 'DELETE' }); setMsg({ ok: true, text: `„${b.titel}“ gelöscht.` }); await load() }
     catch (e) { setMsg({ ok: false, text: e.message }) }
     finally { setBusy(false) }
+  }
+  async function aendern(b, aenderung, text) {
+    setBusy(true); setMsg(null)
+    try {
+      const d = await api(`${API}/${b.id}`, json('PATCH', aenderung))
+      const warn = d.build?.warnungen?.length ? ` Hinweis: ${d.build.warnungen.join('; ')}` : ''
+      setMsg({ ok: !warn, text: text + warn }); await load()
+    } catch (e) { setMsg({ ok: false, text: e.errors?.length ? e.errors.join(' · ') : e.message }) }
+    finally { setBusy(false) }
+  }
+  function deaktivieren(b) {
+    if (!window.confirm(`Beitrag „${b.titel}“ deaktivieren? Er verschwindet aus /news/, Übersicht und Sitemap, die Adresse leitet auf /news/ um. Reaktivieren ist jederzeit möglich.`)) return
+    aendern(b, { status: 'deaktiviert' }, `„${b.titel}“ ist deaktiviert.`)
   }
   async function vorschauAus(b) {
     try { const d = await api(`${API}/${b.id}`); vorschau(d, b.id) } catch (e) { setMsg({ ok: false, text: e.message }) }
@@ -314,7 +353,7 @@ export default function Aktuelles() {
   const td = { padding: '10px', fontSize: 13, color: 'var(--text1)', borderBottom: '1px solid var(--border)', verticalAlign: 'middle' }
 
   return (
-    <div style={{ maxWidth: 980, paddingBottom: 40 }}>
+    <div style={{ maxWidth: 1180, paddingBottom: 40 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text1)', margin: 0 }}>Aktuelles</h1>
@@ -329,7 +368,7 @@ export default function Aktuelles() {
         <div style={{ ...box, color: 'var(--text3)', fontSize: 13 }}>Noch kein Beitrag. Mit „Neuer Beitrag“ legen Sie den ersten an.</div>
       ) : (
         <div style={{ background: 'var(--bg1)', border: '1px solid var(--border)', borderRadius: 9, overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 820 }}>
             <thead><tr><th style={th}>Titel</th><th style={th}>Sparte</th><th style={th}>Datum</th><th style={th}>Status</th><th style={{ ...th, textAlign: 'right' }}>Aktionen</th></tr></thead>
             <tbody>
               {data.beitraege.map(b => (
@@ -337,16 +376,28 @@ export default function Aktuelles() {
                   <td style={td}>
                     <button type="button" onClick={() => setOffen(b.id)} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--text1)', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}>{b.titel}</button>
                     <div style={{ fontSize: 11, color: 'var(--text3)' }}>/news/{b.slug}/{b.veranstaltung ? ' · Veranstaltung' : ''}</div>
+                    {b.status === 'veroeffentlicht' && (
+                      <span style={{ display: 'inline-block', marginTop: 4, fontSize: 11, padding: '1px 8px', borderRadius: 999, background: 'var(--bg3)',
+                        color: b.startseiteStand === 'abgelaufen' ? 'var(--r2, var(--r))' : 'var(--text2)' }}>
+                        {b.startseiteStand === 'aus' ? 'nicht auf Startseite'
+                          : b.startseiteStand === 'abgelaufen' ? `Startseite abgelaufen (${zeitDe(b.startseiteBis)})`
+                          : b.startseiteBis ? `Startseite bis ${zeitDe(b.startseiteBis)}` : 'auf Startseite'}
+                      </span>
+                    )}
                   </td>
                   <td style={td}>{SPARTE_KURZ[b.sparte] || b.sparte}</td>
                   <td style={{ ...td, whiteSpace: 'nowrap' }}>{datumDe(b.datum)}</td>
                   <td style={td}>
                     <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap',
-                      background: b.status === 'veroeffentlicht' ? 'rgba(46,160,67,.15)' : 'var(--bg3)', color: b.status === 'veroeffentlicht' ? 'var(--green, #2ea043)' : 'var(--text2)' }}>{STATUS[b.status]}</span>
+                      background: b.status === 'veroeffentlicht' ? 'rgba(46,160,67,.15)' : 'var(--bg3)',
+                      color: b.status === 'veroeffentlicht' ? 'var(--green, #2ea043)' : b.status === 'deaktiviert' ? 'var(--r2, var(--r))' : 'var(--text2)' }}>{STATUS[b.status]}</span>
                   </td>
                   <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <button type="button" style={btn} onClick={() => setOffen(b.id)}>Bearbeiten</button>{' '}
                     <button type="button" style={btn} onClick={() => vorschauAus(b)}>Vorschau</button>{' '}
+                    {b.status === 'veroeffentlicht' && b.startseiteStand === 'an' && <><button type="button" style={btn} disabled={busy} onClick={() => aendern(b, { startseite: false }, `„${b.titel}“ ist von der Startseite genommen. Der Beitrag bleibt unter /news/.`)}>Von Startseite nehmen</button>{' '}</>}
+                    {b.status === 'veroeffentlicht' && <><button type="button" style={btn} disabled={busy} onClick={() => deaktivieren(b)}>Deaktivieren</button>{' '}</>}
+                    {b.status === 'deaktiviert' && <><button type="button" style={btn} disabled={busy} onClick={() => aendern(b, { status: 'veroeffentlicht' }, `„${b.titel}“ ist wieder veröffentlicht.`)}>Reaktivieren</button>{' '}</>}
                     <button type="button" style={btn} disabled={busy} onClick={() => loeschen(b)}>Löschen</button>
                   </td>
                 </tr>
@@ -355,7 +406,7 @@ export default function Aktuelles() {
           </table>
         </div>
       )}
-      <p style={{ fontSize: 12, color: 'var(--text3)', margin: '12px 0 0' }}>Entwürfe sind öffentlich nicht sichtbar. Bilder verwalten Sie unter Bilderverwaltung → Aktuelles oder direkt im Beitrag.</p>
+      <p style={{ fontSize: 12, color: 'var(--text3)', margin: '12px 0 0' }}>Entwürfe und deaktivierte Beiträge sind öffentlich nicht sichtbar. „Von Startseite nehmen“ entfernt nur die Teaser, der Beitrag bleibt unter /news/. Bilder verwalten Sie unter Bilderverwaltung → Aktuelles oder direkt im Beitrag.</p>
     </div>
   )
 }

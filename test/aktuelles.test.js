@@ -218,3 +218,73 @@ test('fehlende Vorlage oder Marker: klare Meldung, Daten bleiben unverändert', 
 });
 
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+// ── Zusatz zu #74: Archiv bleibt, Startseite läuft ab ────────────────
+const zeit = ms => { const d = new Date(Date.now() + ms); return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin', dateStyle: 'short', timeStyle: 'short' }).format(d).replace(' ', 'T'); };
+
+test('Auf Startseite bis: Teaser trägt data-bis, läuft ab, Beitrag bleibt im Archiv', () => {
+  setup();
+  const bis = zeit(5 * 60000);
+  const p = akt.create(beitrag({ startseiteBis: bis })).beitrag;
+  assert.strictEqual(p.startseite, true);
+  const iso = akt.berlinIso(bis);
+  assert.ok(read('index.html').includes(`<a class="akt-card" href="/news/${p.slug}/" data-bis="${iso}">`));
+  assert.ok(read('zelt/index.html').includes(`data-bis="${iso}"`));
+  assert.match(read('index.html'), /<\/section>\n<script>\(function\(\)\{var r=document\.currentScript\.previousElementSibling/, 'Ausblend-Skript direkt nach dem Block');
+  assert.strictEqual(akt.list().beitraege[0].startseiteStand, 'an');
+
+  // Cron-Lauf nach Ablauf: Teaser raus aus dem HTML, Archiv unverändert, Datendatei nicht neu geschrieben
+  const data = akt.load();
+  const mtime = fs.statSync(path.join(ROOT, 'news/.beitraege.json')).mtimeMs;
+  akt.build(data, Date.now() + 6 * 60000);
+  for (const rel of ['index.html', 'zelt/index.html']) assert.ok(!read(rel).includes('akt-card') && !read(rel).includes('<script>'), rel);
+  assert.ok(exists(`news/${p.slug}/index.html`) && read('news/index.html').includes(p.slug) && read('sitemap.xml').includes(p.slug));
+  assert.strictEqual(JSON.parse(read('news/news.json')).beitraege[0].startseite, false);
+  assert.strictEqual(akt.startseiteStand({ startseiteBis: zeit(-60000) }), 'abgelaufen');
+  akt.rebuild();
+  assert.strictEqual(fs.statSync(path.join(ROOT, 'news/.beitraege.json')).mtimeMs, mtime, 'Lauf ohne Änderung schreibt die Daten nicht');
+  assert.match(akt.validate(beitrag({ startseiteBis: '2026-13-01T10:00' }), akt.load()).errors.join(), /Auf Startseite bis/);
+});
+
+test('Von Startseite nehmen wirkt sofort, ohne Datum kein Skript', () => {
+  setup();
+  const p = akt.create(beitrag()).beitrag;
+  assert.ok(read('index.html').includes('akt-card') && !read('index.html').includes('data-bis') && !read('index.html').includes('<script>'));
+  const r = akt.patch(p.id, { startseite: false }, 'test');
+  assert.strictEqual(r.beitrag.startseite, false);
+  assert.ok(!read('index.html').includes('akt-card') && !read('zelt/index.html').includes('akt-card'));
+  assert.ok(exists(`news/${p.slug}/index.html`) && read('sitemap.xml').includes(p.slug), 'Beitrag bleibt unter /news/');
+  assert.strictEqual(akt.list().beitraege[0].startseiteStand, 'aus');
+  akt.patch(p.id, { startseite: true });
+  assert.ok(read('index.html').includes('akt-card'));
+  assert.throws(() => akt.patch(p.id, { titel: 'x' }), /Keine Änderung/);
+});
+
+test('Hero-Kachel: neuester Startseiten-Beitrag, mit Ablauf', () => {
+  setup();
+  fs.writeFileSync(path.join(ROOT, 'index.html'), '<div class="hero-tiles">\n    <!-- AKTUELLES:START sparte="alle" layout="kachel" max="1" -->\n    <!-- AKTUELLES:END -->\n</div>\n' + seite('sparte="alle" layout="start" max="3"'));
+  akt.create(beitrag({ titel: 'Älterer Beitrag', datum: '2026-10-01' }));
+  akt.create(beitrag({ titel: 'Messe Test', datum: '2026-11-20', startseiteBis: '2099-01-01T18:00',
+    veranstaltung: { start: '2026-11-28T10:00', ende: '2026-11-29T17:00', ort: 'KU\'KO Rosenheim' } }));
+  const html = read('index.html');
+  assert.match(html, /<a href="\/news\/messe-test\/" class="h-tile h-tile--akt" data-bis="2099-01-01T18:00:00\+01:00">/);
+  assert.match(html, /<span class="h-tile-sub">28\. \+ 29\.11\. · KU&#x27;KO Rosenheim<\/span>/);
+  assert.strictEqual((html.match(/h-tile--akt/g) || []).length, 1);
+  assert.strictEqual((html.match(/class="akt-card"/g) || []).length, 2);
+  assert.strictEqual((html.match(/<!-- AKTUELLES:END -->/g) || []).length, 2, 'beide Marker bleiben erhalten');
+  akt.rebuild();
+  assert.strictEqual(read('index.html'), html, 'erneuter Build ist stabil');
+});
+
+test('Deaktivieren: raus aus Archiv, Sitemap und news.json, reaktivierbar', () => {
+  setup();
+  const p = akt.create(beitrag()).beitrag;
+  const r = akt.patch(p.id, { status: 'deaktiviert' }, 'test');
+  assert.deepStrictEqual(r.build.entfernt, [p.slug]);
+  assert.ok(!exists(`news/${p.slug}`), 'Ordner weg: nginx leitet die Adresse per 301 auf /news/ um');
+  for (const rel of ['news/index.html', 'news/news.json', 'sitemap.xml', 'index.html', 'zelt/index.html']) assert.ok(!read(rel).includes(p.slug), rel);
+  assert.strictEqual(akt.list().beitraege[0].status, 'deaktiviert');
+  akt.patch(p.id, { status: 'veroeffentlicht' });
+  assert.ok(exists(`news/${p.slug}/index.html`) && read('sitemap.xml').includes(p.slug) && read('index.html').includes(p.slug));
+  assert.throws(() => akt.patch(p.id, { status: 'weg' }), /Ungültiger Status/);
+});

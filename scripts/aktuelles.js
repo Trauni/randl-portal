@@ -4,6 +4,8 @@
 //
 //   node scripts/aktuelles.js liste                    Beiträge anzeigen
 //   node scripts/aktuelles.js bauen                    alle Seiten, Teaser und Sitemap neu erzeugen
+//          --still                                     für Cron (stündlich): Ausgabe nur bei Warnungen. Nimmt abgelaufene
+//                                                      Teaser („Auf Startseite bis“) aus dem HTML.
 //   node scripts/aktuelles.js import <datei.json>      Beitrag samt Bildern anlegen (für den ersten Beitrag von Hand)
 //          --ersetzen                                  vorhandenen Beitrag mit gleichem Slug überschreiben
 //
@@ -49,13 +51,14 @@ async function importieren(datei, ersetzen) {
 
 (async () => {
   if (cmd === 'liste') {
-    for (const b of aktuelles.list().beitraege) console.log(`${b.datum}  ${b.status.padEnd(15)}  ${b.sparte.padEnd(12)}  /news/${b.slug}/  ${b.titel}`);
+    for (const b of aktuelles.list().beitraege) console.log(`${b.datum}  ${b.status.padEnd(15)}  ${b.sparte.padEnd(12)}  Startseite ${(b.startseiteStand + (b.startseiteBis ? ' bis ' + b.startseiteBis : '')).padEnd(32)}  /news/${b.slug}/  ${b.titel}`);
   } else if (cmd === 'bauen') {
-    zeigeBuild(aktuelles.rebuild().build);
+    const b = aktuelles.rebuild().build;
+    if (!rest.includes('--still') || b.warnungen.length) zeigeBuild(b);
   } else if (cmd === 'import' && rest.find(a => !a.startsWith('--'))) {
     await importieren(rest.find(a => !a.startsWith('--')), rest.includes('--ersetzen'));
   } else {
-    console.log('Aufruf: node scripts/aktuelles.js liste | bauen | import <datei.json> [--ersetzen]');
+    console.log('Aufruf: node scripts/aktuelles.js liste | bauen [--still] | import <datei.json> [--ersetzen]');
     process.exit(cmd ? 1 : 0);
   }
 })().catch(e => { console.error(`FEHLER: ${e.message}`); if (e.errors) e.errors.forEach(x => console.error(`  - ${x}`)); process.exit(1); });

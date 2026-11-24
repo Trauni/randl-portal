@@ -63,6 +63,7 @@ router.post('/vorschau', (req, res) => {
 
 router.get('/:id', (req, res) => send(res, () => aktuelles.get(req.params.id)));
 router.put('/:id', (req, res) => send(res, () => aktuelles.update(req.params.id, req.body, user(req))));
+router.patch('/:id', (req, res) => send(res, () => aktuelles.patch(req.params.id, req.body, user(req))));
 router.delete('/:id', (req, res) => send(res, () => aktuelles.remove(req.params.id)));
 
 module.exports = router;
