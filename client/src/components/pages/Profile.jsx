@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import MailSignature from './MailSignature';
+const Visitenkarte = lazy(() => import('./Visitenkarte'));
 
 const fmt = d => d ? new Date(d).toLocaleDateString('de-DE',{day:'2-digit',month:'long',year:'numeric'}) : '–';
 const Field = ({label,children}) => (
@@ -22,7 +23,7 @@ export default function Profile() {
   const groups=user?.groups||[];
   const roleLabel=['Geschäftsführung','Backoffice'].some(g=>groups.includes(g))?'Administrator':groups.includes('Gashandel')?'Gashandel':groups.includes('webeditor')?'Web Editor':'Mitarbeiter';
   const displayName=profile?.display_name||authName;
-  const sigInitial=useMemo(()=>profile?{name:displayName,role:profile.position_title,mobil:profile.phone_mobile,tel:profile.phone,mail:profile.email||authEmail}:null,[profile,displayName,authEmail]);
+  const sigInitial=useMemo(()=>profile?{name:displayName,role:profile.position_title,mobil:profile.phone_mobile,tel:profile.phone,mail:profile.email||authEmail,department:profile.department}:null,[profile,displayName,authEmail]);
   const initials=displayName.split(' ').filter(Boolean).slice(0,2).map(s=>s[0].toUpperCase()).join('');
 
   const load=useCallback(async()=>{
@@ -153,6 +154,7 @@ export default function Profile() {
         </div>
       </div>
       <MailSignature initial={sigInitial}/>
+      <Suspense fallback={null}><Visitenkarte initial={sigInitial}/></Suspense>
       <style>{`
         .pf-root{padding:18px;max-width:900px;}
         .pf-header{display:flex;align-items:center;gap:16px;margin-bottom:20px;padding:20px;background:var(--bg1);border:1px solid var(--border);border-radius:9px;}
