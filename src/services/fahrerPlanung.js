@@ -71,7 +71,7 @@ function bestellAnsicht(b) {
     adresse: lieferadresse(b),
     lieferzeit: lieferzeit(b),
     hinweis: b.delivery_note || null,
-    positionen: positionen.map((p) => ({ artikelNr: artikelNr(p), name: p.name || p.title || null, menge: Number(p.quantity ?? p.voll ?? 0) })),
+    positionen: positionen.map((p) => ({ artikelNr: artikelNr(p), name: p.name || p.title || null, menge: Number(p.quantity ?? p.voll ?? 0), leer: Number(p.emptyReturn ?? p.leer ?? 0) })),
     serStatus: b.ser_status || null,
     serAbgelehnt: WARN_SER.has(b.ser_status),
     herkunft: String(b.delivery_note || '').startsWith('[Mobile]') ? 'mobile' : 'shop',

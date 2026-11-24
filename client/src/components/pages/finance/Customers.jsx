@@ -2,6 +2,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { BelegeZu } from './BelegPopup';
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import ProductSearch from "./ProductSearch";
+import { bereinigePositionen } from "../../../utils/bestellPositionen";
 
 function LexBadge({ in_lexware }) {
   return in_lexware
@@ -498,8 +499,8 @@ function NewOrderModal({ customer, deliveryAddresses = [], initialItems, initial
   const setItem  = (i,k,v) => setItems(prev => prev.map((it,idx) => idx===i ? {...it,[k]:v} : it));
   const totalNet = items.reduce((s,i) => s+(parseFloat(i.unitPriceNet)||0)*(parseInt(i.quantity)||0),0);
   const submit = async () => {
-    const cleanItems = items.map(it => ({ ...it, quantity: parseInt(it.quantity)||0, emptyReturn: parseInt(it.emptyReturn)||0 }));
-    if (cleanItems.some(it => it.articleNumber && it.quantity < 1)) return setMsg('\u2717 Bitte bei jedem Artikel eine Menge eintragen');
+    const { items: cleanItems, fehler } = bereinigePositionen(items);
+    if (fehler) return setMsg('\u2717 ' + fehler);
     setBusy(true); setMsg('');
     try {
       const createdBy = user?.username || user?.fullName || 'Mitarbeiter';
@@ -534,7 +535,7 @@ function NewOrderModal({ customer, deliveryAddresses = [], initialItems, initial
               <ProductSearch value={item.productName} onChange={v => setItem(i,'productName',v)}
                 onSelect={p => setItems(prev => prev.map((it,idx) => idx===i ? {...it, product_id:p.articleNumber, productName:p.name, articleNumber:p.articleNumber, unitPriceNet:p.price} : it))}/>
             </div>
-            <div><div style={{ fontSize:'.68rem', color:'var(--text3)', marginBottom:'.2rem' }}>Menge</div>
+            <div><div style={{ fontSize:'.68rem', color:'var(--text3)', marginBottom:'.2rem' }}>Vollgut</div>
               <input type="number" min="0" value={item.quantity} placeholder="0" onChange={e => setItem(i,'quantity',e.target.value)} style={{ background:'var(--bg0)', border:'1px solid var(--border)', borderRadius:6, padding:'.3rem .5rem', color:'var(--text1)', fontSize:'.8rem', outline:'none', width:'100%' }}/></div>
             <div><div style={{ fontSize:'.68rem', color:'var(--text3)', marginBottom:'.2rem' }}>Preis netto</div>
               <input type="number" step="0.01" value={item.unitPriceNet} onChange={e => setItem(i,'unitPriceNet',parseFloat(e.target.value)||0)} style={{ background:'var(--bg0)', border:'1px solid var(--border)', borderRadius:6, padding:'.3rem .5rem', color:'var(--text1)', fontSize:'.8rem', outline:'none', width:'100%' }}/></div>

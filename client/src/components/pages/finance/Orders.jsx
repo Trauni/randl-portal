@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { NewOrderModal } from './Customers';
 import { BelegeZu, BelegPopup } from './BelegPopup';
+import { bereinigePositionen, positionMengeText } from '../../../utils/bestellPositionen';
 
 function StatusBadge({ status }) {
   const cfg = {
@@ -168,11 +169,13 @@ function EditOrderModal({ order, onClose, onSaved }) {
   const totalNet = items.reduce((s, i) => s + (parseFloat(i.unitPriceNet)||0) * (parseInt(i.quantity)||0), 0);
 
   const save = async () => {
+    const { items: cleanItems, fehler } = bereinigePositionen(items);
+    if (fehler) return setMsg('✗ ' + fehler);
     setBusy(true); setMsg('');
     try {
       const r = await fetch('/api/finance/orders/' + order.id, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: items.map(it => ({ ...it, quantity: parseInt(it.quantity)||0, emptyReturn: parseInt(it.emptyReturn)||0 })), delivery_note: note, delivery_address_id: addrId || null })
+        body: JSON.stringify({ items: cleanItems, delivery_note: note, delivery_address_id: addrId || null })
       });
       const d = await r.json();
       if (d.error) throw new Error(d.error);
@@ -195,7 +198,7 @@ function EditOrderModal({ order, onClose, onSaved }) {
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr auto', gap:'.4rem', alignItems:'end' }}>
             <div>
-              <div style={{ fontSize:'.65rem', color:'var(--text3)', marginBottom:'.15rem' }}>Menge</div>
+              <div style={{ fontSize:'.65rem', color:'var(--text3)', marginBottom:'.15rem' }}>Vollgut</div>
               <input type="number" min="0" value={item.quantity} placeholder="0" onChange={e => setItem(i,'quantity',e.target.value)}
                 style={{ background:'var(--bg0)', border:'1px solid var(--border)', borderRadius:6, padding:'.3rem .5rem', color:'var(--text1)', fontSize:'.8rem', outline:'none', width:'100%' }}/>
             </div>
@@ -352,8 +355,7 @@ function OrderDetail({ order: initOrder, onClose, onRefresh, onReorder }) {
             <div>
               <div style={{ fontSize:'.82rem', color:'var(--text1)' }}>{item.productName}</div>
               <div style={{ fontSize:'.72rem', color:'var(--text3)', fontFamily:'DM Mono, monospace' }}>
-                {item.articleNumber} · {item.quantity}x · {Number(item.unitPriceNet).toFixed(2)} €/Stk
-                {item.emptyReturn > 0 && ` · ${item.emptyReturn} Leergut`}
+                {item.articleNumber} · {positionMengeText(item)} · {Number(item.unitPriceNet).toFixed(2)} €/Stk
               </div>
             </div>
             <div style={{ fontFamily:'DM Mono, monospace', fontSize:'.82rem', color:'var(--green)' }}>{(item.quantity * item.unitPriceNet).toFixed(2)} €</div>

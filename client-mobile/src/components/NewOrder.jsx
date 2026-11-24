@@ -134,7 +134,7 @@ export default function NewOrder({ user }) {
       const existing = prev.find((i) => i.productId === product.id)
       if (existing) {
         return prev.map((i) =>
-          i.productId === product.id ? { ...i, quantity: i.quantity + qty, emptyReturn: i.quantity + qty } : i
+          i.productId === product.id ? { ...i, quantity: i.quantity + qty, emptyReturn: i.emptyReturn === i.quantity ? i.quantity + qty : i.emptyReturn } : i
         )
       }
       return [...prev, {
@@ -153,13 +153,25 @@ export default function NewOrder({ user }) {
 
   const removeItem = (productId) => setItems((prev) => prev.filter((i) => i.productId !== productId))
 
+  // 0 Vollgut ist erlaubt (nur Leergut abholen, Tausch gegen ein anderes Gas). Leergut folgt der Menge, solange beide gleich sind.
+  const menge = (v) => Math.min(999, Math.max(0, parseInt(v, 10) || 0))
   const updateQty = (productId, qty) => {
-    const n = Math.max(1, parseInt(qty, 10) || 1)
-    setItems((prev) => prev.map((i) => (i.productId === productId ? { ...i, quantity: n, emptyReturn: n } : i)))
+    const n = menge(qty)
+    setItems((prev) => prev.map((i) => (i.productId === productId
+      ? { ...i, quantity: n, emptyReturn: i.emptyReturn === i.quantity && n > 0 ? n : i.emptyReturn }
+      : i)))
+  }
+  const updateLeer = (productId, qty) => {
+    const n = menge(qty)
+    setItems((prev) => prev.map((i) => (i.productId === productId ? { ...i, emptyReturn: n } : i)))
   }
 
   const submit = async () => {
     if (!customer || items.length === 0) return
+    if (items.some((i) => i.quantity + i.emptyReturn === 0)) {
+      setError('Jede Position braucht Vollgut oder Leergut.')
+      return
+    }
     setError(null)
     setSubmitting(true)
     const totalNet = Math.round(items.reduce((s, i) => s + i.unitPriceNet * i.quantity, 0) * 100) / 100
@@ -319,14 +331,27 @@ export default function NewOrder({ user }) {
                   <li key={i.productId} className="card">
                     <span>{i.productName}</span>
                     <div className="qty-row">
-                      <input
-                        type="number"
-                        min="1"
-                        className="qty-input"
-                        value={i.quantity}
-                        onChange={(e) => updateQty(i.productId, e.target.value)}
-                      />
-                      <span className="card-sub">{i.unit}</span>
+                      <label className="card-sub">
+                        Voll
+                        <input
+                          type="number"
+                          min="0"
+                          className="qty-input"
+                          value={i.quantity}
+                          onChange={(e) => updateQty(i.productId, e.target.value)}
+                        />
+                      </label>
+                      <label className="card-sub">
+                        Leer
+                        <input
+                          type="number"
+                          min="0"
+                          className="qty-input"
+                          value={i.emptyReturn}
+                          onChange={(e) => updateLeer(i.productId, e.target.value)}
+                        />
+                      </label>
+                      {i.quantity === 0 && <span className="card-sub">nur Rückgabe</span>}
                       <button type="button" className="remove-btn" onClick={() => removeItem(i.productId)}>
                         <Trash2 size={16} />
                       </button>
