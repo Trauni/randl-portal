@@ -10,7 +10,7 @@ import VerlaufTab from './artikel/VerlaufTab';
 import { FELD } from './artikel/artikelFelder';
 
 // #606 Artikel (Detail): alle Angaben eines Artikels in Reitern. Teil 3 von 4.
-// Stammdaten, Flaschen, ADR und Gewicht, Preis (mit Preisprotokoll), Einkauf (nur gashandel.auswertung), Verlauf.
+// Stammdaten, Flaschen, ADR und Gewicht, Preis (mit Preisprotokoll), Einkauf (nur artikel.einkauf), Verlauf.
 
 const TYPEN = { F: 'Füllung', P: 'Pfand / Leergut', S: 'Kaufflasche (Steuer/Nutzung)', V: 'Provision', Z: 'Zubehör', D: 'Dienstleistung / Versand' };
 
@@ -27,7 +27,7 @@ export default function ArtikelDetail() {
   const { nr } = useParams();
   const { hasArea } = useAuth();
   const canEdit = hasArea('artikel.bearbeiten');
-  const zeigeEinkauf = hasArea('gashandel.auswertung');
+  const zeigeEinkauf = hasArea('artikel.einkauf');
 
   const [daten, setDaten] = useState(null);
   const [fehler, setFehler] = useState('');

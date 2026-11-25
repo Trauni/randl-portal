@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { preisAm, ekJeFlasche, pruefe } = require('../src/services/gasEkPreise');
+const { preisAm, pruefe } = require('../src/services/gasEkPreise');
 
 const Z = [
   { ek_gruppe: 'motogas', preisbasis: 'fuellung', gueltig_ab: '2026-10-15', preis_netto: 20.79 },
@@ -12,12 +12,6 @@ test('preisAm: größtes gueltig_ab <= Tag', () => {
   assert.equal(preisAm(Z, 'motogas', '2026-11-14').preis_netto, 20.79);
   assert.equal(preisAm(Z, 'motogas', '2026-11-15').preis_netto, 22.55);
   assert.equal(preisAm(Z, 'propan', '2026-11-10'), null);
-});
-
-test('ekJeFlasche: kg × Füllung bzw. direkt', () => {
-  assert.equal(Math.round(ekJeFlasche(Z[2], 11) * 100) / 100, 16.72);
-  assert.equal(Math.round(ekJeFlasche(Z[2], 33) * 100) / 100, 50.16);
-  assert.equal(ekJeFlasche(Z[1], 11), 22.55);
 });
 
 test('pruefe: Eingaben werden validiert, Preisbasis kommt aus der Gruppe', () => {

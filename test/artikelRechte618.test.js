@@ -16,6 +16,6 @@ test('#618: Bearbeiten nur Gashandel, Backoffice, Geschaeftsfuehrung', () => {
   }
 });
 
-test('#618: Einkauf/Rohertrag bleiben intern (gashandel.auswertung)', () => {
-  assert.ok(!hasArea('mitarbeiter', [], 'gashandel.auswertung'));
+test('#618: Einkauf/Rohertrag bleiben intern (artikel.einkauf)', () => {
+  assert.ok(!hasArea('mitarbeiter', [], 'artikel.einkauf'));
 });
