@@ -7,7 +7,7 @@ const { FahrerFehler } = require('./fahrerKrypto');
 const { gibNichtGelieferteFrei } = require('./fahrerTouren');
 
 const TOUR = `t.id, DATE_FORMAT(t.datum, '%Y-%m-%d') AS datum, t.bezeichnung, t.employee_id, t.fahrzeug, t.ladebasis_id, t.status,
-  t.version, t.geraet_id, t.gestartet_am, t.beendet_am, t.beendet_durch, e.full_name AS fahrer_name, l.name AS ladebasis_name,
+  t.version, t.geraet_id, t.gestartet_am, t.beendet_am, t.beendet_durch, t.buero_check_am, t.buero_check_von, e.full_name AS fahrer_name, l.name AS ladebasis_name,
   (SELECT COUNT(*) FROM fahrer_stopp s WHERE s.tour_id = t.id) AS stopps`;
 const TOUR_VON = 'fahrer_tour t LEFT JOIN employees e ON e.id = t.employee_id LEFT JOIN fahrer_ladebasis l ON l.id = t.ladebasis_id';
 
@@ -84,6 +84,22 @@ async function artikelFuerLadeliste(nummern) {
     for (const r of pf) karte[r.artikel_nr] = r;
   }
   return karte;
+}
+
+/**
+ * Büro-Check (#639): Fahrzeug abgeladen, Tour erledigt. Nur an einer beendeten Tour und nur einmal;
+ * zuruecknehmen löscht den Vermerk wieder. Liefert false, wenn die Tour inzwischen anders steht.
+ */
+async function setzeBueroCheck(tourId, { von, jetzt }) {
+  const [r] = await getPool().execute(
+    "UPDATE fahrer_tour SET buero_check_am = ?, buero_check_von = ? WHERE id = ? AND status = 'beendet' AND buero_check_am IS NULL",
+    [jetzt, von, tourId]);
+  return r.affectedRows > 0;
+}
+async function loescheBueroCheck(tourId) {
+  const [r] = await getPool().execute(
+    'UPDATE fahrer_tour SET buero_check_am = NULL, buero_check_von = NULL WHERE id = ? AND buero_check_am IS NOT NULL', [tourId]);
+  return r.affectedRows > 0;
 }
 
 /** Gebuchte Zuladungen einer Tour (#639), älteste zuerst. Abgelehnte Ereignisse zählen nicht. */
@@ -264,6 +280,6 @@ async function loesche(tourId) {
 
 module.exports = {
   vorlagen, vorlageNachId, speichereVorlage, loescheVorlage,
-  fahrer, touren, tourNachId, stopps, legeAn, aendereKopf, belegteBestellungen, unbekannteArtikel, artikelFuerLadeliste, zuladungen, geliefertJeArtikel,
+  fahrer, touren, tourNachId, stopps, legeAn, aendereKopf, belegteBestellungen, unbekannteArtikel, artikelFuerLadeliste, zuladungen, geliefertJeArtikel, setzeBueroCheck, loescheBueroCheck,
   fuegeStoppHinzu, entferneStopp, aendereStopp, sortiere, setzeStatus, loesche,
 };

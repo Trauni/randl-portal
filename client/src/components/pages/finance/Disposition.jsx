@@ -6,6 +6,7 @@ import { Panel, Tag, AdrPlate, GasCylinder } from '../../ui';
 // Die Pflege der Tourvorlagen und die Ladebasen liegen seit #608 unter Einstellungen.
 // Neu: Ladeliste je Tour mit Punkten nach ADR 1.1.3.6 und erwartetem Leergut (Artikelstamm).
 // #639: Abschnitt „Zugeladen“ zeigt, was der Fahrer unterwegs nachgeladen hat (Ereignis tour.zugeladen der App).
+// #639: Büro-Check an der beendeten Tour: Fahrzeug abgeladen, Tour erledigt, Bestand gilt als 0.
 // #639: „Fahrzeugbestand“ ab dem Start: geladen samt Zuladung, geliefert, voll und Leergut an Bord, ADR-Punkte dazu.
 
 const STATUS = {
@@ -33,14 +34,16 @@ const Feld = ({ label, children }) => (
   <label style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 150, fontSize: 14, color: 'var(--text2)' }}>{label}{children}</label>
 );
 
-function Schritte({ status }) {
+function Schritte({ status, erledigt }) {
   if (status === 'storniert') return <Tag tone="err">Storniert</Tag>;
+  // Der fünfte Schritt ist der Büro-Check (#639): kein eigener Status, sondern ein Vermerk an der beendeten Tour.
+  const aktuell = erledigt ? 'erledigt' : status;
   return (
-    <ol aria-label="Status" style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 0, fontSize: 14 }}>
-      {SCHRITTE.map((s) => (
-        <li key={s} aria-current={s === status ? 'step' : undefined}
-          style={{ borderTop: `4px solid ${s === status ? 'var(--r)' : 'var(--border)'}`, paddingTop: 6, fontWeight: s === status ? 700 : 400, color: s === status ? 'var(--text1)' : 'var(--text2)' }}>
-          {STATUS[s].label}
+    <ol aria-label="Status" style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 0, fontSize: 14 }}>
+      {[...SCHRITTE, 'erledigt'].map((s) => (
+        <li key={s} aria-current={s === aktuell ? 'step' : undefined}
+          style={{ borderTop: `4px solid ${s === aktuell ? 'var(--r)' : 'var(--border)'}`, paddingTop: 6, fontWeight: s === aktuell ? 700 : 400, color: s === aktuell ? 'var(--text1)' : 'var(--text2)' }}>
+          {s === 'erledigt' ? 'Erledigt' : STATUS[s].label}
         </li>
       ))}
     </ol>
@@ -216,14 +219,19 @@ function Ladeliste({ l }) {
   );
 }
 
-function Bestand({ b }) {
+function Bestand({ b, check }) {
   if (!b) return null;
   return (
     <Panel title="Fahrzeugbestand" aria-label="Fahrzeugbestand">
       <div style={{ padding: '14px 16px 4px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <AdrPlate punkte={Math.round(b.punkte)} grenze={b.grenze} />
+        <AdrPlate punkte={check ? 0 : Math.round(b.punkte)} grenze={b.grenze} />
+        {check && (
+          <p style={{ margin: 0, fontSize: 15 }}>
+            <Tag tone="ok">Abgeladen</Tag> <b>Das Fahrzeug ist leer.</b> Büro-Check am {uhrzeit(check.am)}{check.von ? ` von ${check.von}` : ''}.
+          </p>
+        )}
         <p style={{ margin: 0, fontSize: 15 }}>
-          An Bord: <b>{b.vollGesamt} voll</b>, <b>{b.leergutGesamt} leer</b>. Geladen {b.geladenGesamt}
+          {check ? 'Zurück ans Lager kamen' : 'An Bord:'} <b>{b.vollGesamt} voll</b>, <b>{b.leergutGesamt} leer</b>. Geladen {b.geladenGesamt}
           {b.zugeladenGesamt > 0 && <> (davon {b.zugeladenGesamt} zugeladen)</>}, geliefert {b.geliefertGesamt}
           {b.abgeladenGesamt > 0 && <>, {b.abgeladenGesamt} Leergut abgeladen</>}.
         </p>
@@ -240,7 +248,7 @@ function Bestand({ b }) {
       </div>
       <div style={{ overflowX: 'auto', marginTop: 8 }}>
         <table className="ui-table" style={{ fontSize: 15 }}>
-          <thead><tr><th>Gas</th><th className="r">Geladen</th><th className="r">Geliefert</th><th className="r">Voll</th><th className="r">Leer</th><th className="r">Punkte</th></tr></thead>
+          <thead><tr><th>Gas</th><th className="r">Geladen</th><th className="r">Geliefert</th><th className="r">{check ? 'Voll zurück' : 'Voll'}</th><th className="r">{check ? 'Leer zurück' : 'Leer'}</th><th className="r">Punkte</th></tr></thead>
           <tbody>
             {b.zeilen.map((x) => (
               <tr key={x.artikelNr ?? x.bezeichnung}>
@@ -254,7 +262,7 @@ function Bestand({ b }) {
                 <td className="r">{x.geliefert}</td>
                 <td className="r"><b>{x.voll}</b></td>
                 <td className="r">{x.leergut}</td>
-                <td className="r">{x.punkte == null ? '–' : zahl(x.punkte)}</td>
+                <td className="r">{check ? '0' : x.punkte == null ? '–' : zahl(x.punkte)}</td>
               </tr>
             ))}
             {!b.zeilen.length && <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text3)', padding: 20 }}>Nichts an Bord.</td></tr>}
@@ -401,7 +409,7 @@ export default function Disposition() {
             <button key={t.id} type="button" onClick={() => waehleTour(t.id)} aria-current={tour?.id === t.id ? 'true' : undefined}
               style={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%', textAlign: 'left', padding: '12px 14px', border: 0, borderTop: '1px solid var(--border)', background: tour?.id === t.id ? 'var(--nav-active-bg)' : 'transparent', color: 'var(--text1)', font: 'inherit', cursor: 'pointer' }}>
               <b>{datumDe(t.datum)} {t.bezeichnung}</b>
-              <span className="ui-table-sub">{t.fahrerName || '—'}, {STATUS[t.status]?.label.toLowerCase()}, {t.stopps === 0 ? 'leer' : `${t.stopps} Stopps`}</span>
+              <span className="ui-table-sub">{t.fahrerName || '—'}, {t.bueroCheck ? 'erledigt' : STATUS[t.status]?.label.toLowerCase()}, {t.stopps === 0 ? 'leer' : `${t.stopps} Stopps`}</span>
             </button>
           ))}
           {touren && !touren.length && <div className="ui-table-sub" style={{ padding: '0 14px 14px' }}>Keine Touren ab diesem Datum.</div>}
@@ -415,7 +423,7 @@ export default function Disposition() {
                   <h2 className="ui-panel-title" style={{ fontSize: 26, marginRight: 'auto' }}>{datumDe(tour.datum)} {tour.bezeichnung}</h2>
                   <span className="ui-table-sub">{flaschen} Flaschen, {stopps.length} Stopps</span>
                 </div>
-                <Schritte status={tour.status} />
+                <Schritte status={tour.status} erledigt={!!tour.bueroCheck} />
                 {entwurf ? (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
                     <Feld label="Fahrer"><select className="form-select" value={kopf?.employeeId ?? ''} onChange={(e) => setKopf((k) => ({ ...k, employeeId: e.target.value }))}>{fahrer.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Feld>
@@ -424,7 +432,7 @@ export default function Disposition() {
                     {kopfGeaendert && <button className="btn btn-primary" onClick={kopfSpeichern}>Speichern</button>}
                   </div>
                 ) : (
-                  <div className="ui-table-sub">{tour.fahrerName} · {tour.fahrzeug || 'kein Fahrzeug'} · Ladebasis: {tour.ladebasisName || 'keine'}{tour.status === 'freigegeben' && ' · gesperrt'}</div>
+                  <div className="ui-table-sub">{tour.fahrerName} · {tour.fahrzeug || 'kein Fahrzeug'} · Ladebasis: {tour.ladebasisName || 'keine'}{tour.status === 'freigegeben' && ' · gesperrt'}{tour.bueroCheck && ` · Büro-Check ${uhrzeit(tour.bueroCheck.am)}${tour.bueroCheck.von ? ` von ${tour.bueroCheck.von}` : ''}`}</div>
                 )}
               </div>
               <ol style={{ listStyle: 'none', margin: 0, padding: 0 }}>
@@ -443,6 +451,13 @@ export default function Disposition() {
                 {['entwurf', 'freigegeben', 'unterwegs'].includes(tour.status) && (
                   <button className="btn btn-secondary" style={{ color: 'var(--err-fg)' }} onClick={aktion('stornieren', 'Tour stornieren? Die Bestellungen werden wieder frei.')}>Stornieren</button>)}
                 {tour.status === 'unterwegs' && <button className="btn btn-secondary" onClick={aktion('beenden', 'Tour im Büro beenden? Nur für den Notfall, wenn das Tablet sie nicht beenden kann.')}>Im Büro beenden</button>}
+                {tour.status === 'beendet' && !tour.bueroCheck && (
+                  <button className="btn btn-primary" onClick={() => {
+                    const anBord = bestand && (bestand.vollGesamt > 0 || bestand.leergutGesamt > 0) ? ` Laut Portal sind noch ${bestand.vollGesamt} voll und ${bestand.leergutGesamt} leer an Bord.` : '';
+                    if (window.confirm(`Büro-Check: Ist das Fahrzeug abgeladen?${anBord} Die Tour wird als erledigt markiert, der Fahrzeugbestand gilt als 0.`)) sicher(async () => { await api(`/api/fahrer-touren/${tour.id}/buero-check`, 'POST'); await alles(tour.id); });
+                  }}>Büro-Check: Fahrzeug abgeladen</button>)}
+                {tour.bueroCheck && (
+                  <button className="btn btn-secondary" onClick={() => { if (window.confirm('Büro-Check zurücknehmen? Die Tour steht dann wieder auf „Beendet“.')) sicher(async () => { await api(`/api/fahrer-touren/${tour.id}/buero-check`, 'DELETE'); await alles(tour.id); }); }}>Büro-Check zurücknehmen</button>)}
                 {(tour.status === 'storniert' || !stopps.length) && (
                   <button className="btn btn-secondary" onClick={() => { if (window.confirm('Tour entfernen?')) sicher(async () => { await api(`/api/fahrer-touren/${tour.id}`, 'DELETE'); setTour(null); setLadeliste(null); setZugeladen(null); setBestand(null); await alles(); }); }}>Entfernen</button>)}
               </div>
@@ -451,7 +466,7 @@ export default function Disposition() {
           <OffeneBestellungen offen={offen} auswahl={auswahl} setAuswahl={setAuswahl} onHinzu={hinzufuegen} aktiv={entwurf} />
         </section>
 
-        <aside style={{ alignSelf: 'start', display: 'flex', flexDirection: 'column', gap: 16 }}><Ladeliste l={ladeliste} />{bestandSichtbar && <Bestand b={bestand} />}<Zugeladen z={zugeladen} /></aside>
+        <aside style={{ alignSelf: 'start', display: 'flex', flexDirection: 'column', gap: 16 }}><Ladeliste l={ladeliste} />{bestandSichtbar && <Bestand b={bestand} check={tour?.bueroCheck} />}<Zugeladen z={zugeladen} /></aside>
       </div>
     </div>
   );

@@ -18,6 +18,8 @@
  *   GET    /api/fahrer-touren/:id/ladeliste         Ladeliste: Flaschen, Menge, Punkte nach ADR 1.1.3.6, erwartetes Leergut (#607)
  *   GET    /api/fahrer-touren/:id/zuladungen        Vom Fahrer unterwegs zugeladene Ware (tour.zugeladen, #639)
  *   GET    /api/fahrer-touren/:id/bestand           Fahrzeugbestand: geladen, zugeladen, geliefert, voll und Leergut an Bord, ADR-Punkte (#639)
+ *   POST   /api/fahrer-touren/:id/buero-check       Büro-Check an der beendeten Tour: Fahrzeug abgeladen, Tour erledigt (#639)
+ *   DELETE /api/fahrer-touren/:id/buero-check       Büro-Check zurücknehmen
  *   POST   /api/fahrer-touren/:id/bestellungen       { bestellIds: [...] } → hängt je Bestellung einen Stopp an (Entwurf)
  *   PUT    /api/fahrer-touren/:id/reihenfolge        { stoppIds: [...] }
  *   PATCH  /api/fahrer-touren/:id/stopps/:stoppId    { lieferzeit?, hinweise? }
@@ -44,6 +46,8 @@ const tourAnsicht = (t) => ({
   id: t.id, datum: t.datum, bezeichnung: t.bezeichnung, employeeId: t.employee_id, fahrerName: t.fahrer_name || null,
   fahrzeug: t.fahrzeug || null, ladebasisId: t.ladebasis_id ?? null, ladebasisName: t.ladebasis_name || null,
   status: t.status, version: t.version, beendetDurch: t.beendet_durch || null, stopps: Number(t.stopps) || 0,
+  // #639: Das Büro hat bestätigt, dass das Fahrzeug abgeladen ist. Die Tour gilt damit als erledigt.
+  bueroCheck: t.buero_check_am ? { am: new Date(t.buero_check_am).toISOString(), von: t.buero_check_von || null } : null,
 });
 const stoppAnsicht = (s) => ({
   id: s.id, reihenfolge: s.reihenfolge, auftragRef: s.auftrag_ref, bestellId: s.bestell_id || null, kundeNr: s.kunde_nr,
@@ -241,6 +245,24 @@ function erstellePlanungRouter({ store, holeBestellungen, sucheKunden = async ()
     const nummern = [...stoppListe.flatMap((s) => s.positionen.map((p) => p.artikelNr)), ...zugeladen.map((z) => z.artikelNr), ...geliefert.map((g) => g.artikelNr)];
     const artikel = await store.artikelFuerLadeliste(nummern);
     res.json(rechneBestand({ stopps: stoppListe, zugeladen, geliefert, artikel }));
+  }));
+
+  router.post('/:id/buero-check', sicher(async (req, res) => {
+    const t = await oder404(req.params.id);
+    if (t.status !== 'beendet') throw new FahrerFehler(409, 'status_unpassend', `Tour ist „${t.status}“, der Büro-Check geht erst nach dem Ende der Tour`);
+    if (t.buero_check_am) throw new FahrerFehler(409, 'schon_geprueft', 'Der Büro-Check ist schon gemacht');
+    const u = req.session?.user;
+    const von = text(u?.fullName || u?.username || '', 120) || null;
+    if (!(await store.setzeBueroCheck(t.id, { von, jetzt: new Date(uhr()) }))) {
+      throw new FahrerFehler(409, 'status_unpassend', 'Der Status der Tour hat sich inzwischen geändert');
+    }
+    res.json(tourAnsicht(await store.tourNachId(t.id)));
+  }));
+
+  router.delete('/:id/buero-check', sicher(async (req, res) => {
+    const t = await oder404(req.params.id);
+    if (!t.buero_check_am || !(await store.loescheBueroCheck(t.id))) throw new FahrerFehler(409, 'nicht_geprueft', 'Für diese Tour gibt es keinen Büro-Check');
+    res.json(tourAnsicht(await store.tourNachId(t.id)));
   }));
 
   router.patch('/:id', sicher(async (req, res) => {

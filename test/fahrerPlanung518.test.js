@@ -104,6 +104,8 @@ const ramStore = {
     if (nach === 'storniert') stopps.filter((s) => s.tour_id === id).forEach((s) => { s.sperre = null; });
     return true;
   },
+  async setzeBueroCheck(id, { von, jetzt }) { const t = touren.find((x) => x.id === id); if (t.status !== 'beendet' || t.buero_check_am) return false; Object.assign(t, { buero_check_am: jetzt, buero_check_von: von }); return true; },
+  async loescheBueroCheck(id) { const t = touren.find((x) => x.id === id); if (!t.buero_check_am) return false; Object.assign(t, { buero_check_am: null, buero_check_von: null }); return true; },
   async loesche(id) { touren = touren.filter((t) => t.id !== id); },
   async vorlagen() { return vorlagen; },
   async vorlageNachId(id) { return vorlagen.find((v) => v.id === id) || null; },
@@ -332,6 +334,26 @@ test('Zuladungen (#639): gebuchte Ereignisse der Tour, 404 bei unbekannter Tour'
     assert.equal(z.leergutAbGesamt, 4);
     assert.equal((await rufe('GET', '/99999/zuladungen')).status, 404);
   } finally { ereignisse = []; }
+});
+
+test('Büro-Check (#639): nur an der beendeten Tour, nur einmal, lässt sich zurücknehmen', async () => {
+  const t = await neueTour();
+  assert.equal((await rufe('GET', `/${t.id}`)).daten.bueroCheck, null);
+  const zuFrueh = await rufe('POST', `/${t.id}/buero-check`);
+  assert.equal(zuFrueh.status, 409);
+  assert.equal(zuFrueh.daten.code, 'status_unpassend');
+  touren.find((x) => x.id === t.id).status = 'beendet';
+  const ok = await rufe('POST', `/${t.id}/buero-check`);
+  assert.equal(ok.status, 200);
+  assert.equal(ok.daten.status, 'beendet', 'kein neuer Status, nur der Vermerk');
+  assert.equal(ok.daten.bueroCheck.am, '2026-11-18T10:00:00.000Z');
+  assert.equal((await rufe('GET', '/?von=2026-01-01&bis=2027-12-31')).daten.find((x) => x.id === t.id).bueroCheck.am, '2026-11-18T10:00:00.000Z');
+  assert.equal((await rufe('POST', `/${t.id}/buero-check`)).daten.code, 'schon_geprueft');
+  const weg = await rufe('DELETE', `/${t.id}/buero-check`);
+  assert.equal(weg.status, 200);
+  assert.equal(weg.daten.bueroCheck, null);
+  assert.equal((await rufe('DELETE', `/${t.id}/buero-check`)).daten.code, 'nicht_geprueft');
+  assert.equal((await rufe('POST', '/99999/buero-check')).status, 404);
 });
 
 test('Bestand (#639): Ladeliste plus Zuladung minus Belege, Punkte für das, was voll an Bord ist', async () => {
