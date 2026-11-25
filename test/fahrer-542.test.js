@@ -364,6 +364,59 @@ test('ereignisse: Beleg mit fremder Kennung oder ohne Positionen wird abgelehnt'
   assert.equal(store.belege.length, 0);
 });
 
+const zuladung = (nutzdaten = {}, opt) => ev('tour.zugeladen', {
+  tour_id: '1', zugeladen_am: new Date(uhrMs).toISOString(), adr_punkte: 66,
+  positionen: [{ artikelId: '7801200', bezeichnung: 'Propan 11 kg', zugeladen: 6, leergutAb: 4 }], ...nutzdaten,
+}, opt);
+
+test('zugeladen (#616): bei laufender Tour gebucht, Original bleibt, Tour und Stopps unverändert', async () => {
+  await senden([ev('tour.gestartet', { tour_id: '1' })]);
+  const vorher = JSON.stringify([store.touren, store.stopps]);
+  const z = zuladung();
+  const { daten } = await senden([z]);
+  assert.deepEqual(daten.ergebnisse, [{ id: z.id, status: 'ok' }]);
+  assert.equal(JSON.stringify([store.touren, store.stopps]), vorher);
+  const gespeichert = store.ereignisse.find((e) => e.uuid === z.id);
+  assert.equal(gespeichert.typ, 'tour.zugeladen');
+  assert.equal(gespeichert.tourId, 1);
+  assert.deepEqual(JSON.parse(gespeichert.payload), z, 'Ereignis bleibt im Original erhalten');
+  assert.equal(store.belege.length, 0);
+});
+
+test('zugeladen (#616): gleiche UUID noch einmal ist doppelt', async () => {
+  const z = zuladung();
+  await senden([z]);
+  const { daten } = await senden([z]);
+  assert.deepEqual(daten.ergebnisse, [{ id: z.id, status: 'doppelt' }]);
+  assert.equal(store.ereignisse.length, 1);
+});
+
+test('zugeladen (#616): fremde Tour und formale Fehler werden abgelehnt', async () => {
+  const fremd = zuladung({ tour_id: '4' });
+  const leer = zuladung({ positionen: [] });
+  const ohne = zuladung({ positionen: undefined });
+  const text = zuladung({ positionen: [{ artikelId: '7801200', bezeichnung: 'Propan 11 kg', zugeladen: 'viel', leergutAb: 0 }] });
+  const negativ = zuladung({ positionen: [{ artikelId: '7801200', bezeichnung: 'Propan 11 kg', zugeladen: 0, leergutAb: -1 }] });
+  const { daten } = await senden([fremd, leer, ohne, text, negativ]);
+  assert.deepEqual(daten.ergebnisse.map((r) => r.code), ['fremde_tour', 'ungueltig', 'ungueltig', 'ungueltig', 'ungueltig']);
+  assert.ok(daten.ergebnisse.every((r) => r.status === 'fehler'));
+});
+
+test('zugeladen (#616): nach Tour-Ende, Büro-Ende oder Übergabe angenommen und markiert', async () => {
+  await senden([ev('tour.gestartet', { tour_id: '1' }), ev('tour.beendet', { tour_id: '1' })]);
+  const nachEnde = zuladung();
+  assert.deepEqual((await senden([nachEnde])).daten.ergebnisse, [{ id: nachEnde.id, status: 'ok' }]);
+
+  store.touren.find((x) => x.id === 1).beendet_durch = 'buero';
+  const nachBuero = zuladung();
+  assert.deepEqual((await senden([nachBuero])).daten.ergebnisse, [{ id: nachBuero.id, status: 'ok', markierung: 'nach_buero_ende' }]);
+
+  store.touren.find((x) => x.id === 1).geraet_id = 2;
+  const nachUebergabe = zuladung();
+  assert.deepEqual((await senden([nachUebergabe])).daten.ergebnisse, [{ id: nachUebergabe.id, status: 'ok', markierung: 'nach_uebergabe' }]);
+  assert.equal(store.touren.find((x) => x.id === 1).status, 'beendet');
+});
+
 test('ereignisse: ohne UUID nur gemeldet, nicht gespeichert; falsches Format 400; ohne Anmeldung 401', async () => {
   const { daten } = await senden([{ typ: 'tour.gestartet', tour_id: '1' }, { id: 'abc' }]);
   assert.deepEqual(daten.ergebnisse.map((r) => r.code), ['ungueltig', 'ungueltig']);
