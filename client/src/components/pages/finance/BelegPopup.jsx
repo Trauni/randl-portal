@@ -18,7 +18,7 @@ export const zahl = (v) => (v == null ? '' : Number(v).toLocaleString('de-DE', {
 
 export const TYPEN = {
   'tour.gestartet': 'Tour gestartet', 'tour.beendet': 'Tour beendet', 'stopp.nicht_angetroffen': 'Nicht ausgeliefert',
-  'beleg.erstellt': 'Beleg erstellt', 'beleg.storniert': 'Barverkauf storniert',
+  'beleg.erstellt': 'Beleg erstellt', 'beleg.storniert': 'Barverkauf storniert', 'tour.zugeladen': 'Ware zugeladen',
 };
 export const MARKIERUNG = {
   nach_buero_ende: 'nach Büro-Ende', nach_uebergabe: 'nach Übergabe', tour_storniert: 'Tour storniert',

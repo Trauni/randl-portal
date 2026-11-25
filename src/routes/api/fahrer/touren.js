@@ -17,6 +17,9 @@
  * Lagerverkauf (#516, Konzept #513 Abschnitt 11): Ein Lager-Gerät schickt Lieferscheine (LS-…) und Barverkäufe (BV-…,
  * eigener Nummernkreis) ohne Tour, mit kunde_nr, verkaeufer, zahlart, summen und Preisen je Position.
  * beleg.storniert storniert einen Barverkauf desselben Geräts am Tag des Verkaufs; der Beleg bleibt bestehen.
+ *
+ * Zuladen (#616): tour.zugeladen { tour_id, zugeladen_am, adr_punkte, positionen: [{ artikelId, bezeichnung, zugeladen, leergutAb }] }
+ * wird nur im Original gespeichert, Tour und Stopps bleiben unverändert. Ausgewertet wird es später (#572).
  */
 const express = require('express');
 const { FahrerFehler } = require('../../../services/fahrerKrypto');
@@ -25,7 +28,7 @@ const { sicher } = require('./index');
 const MAX_EREIGNISSE = 200;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const BELEG_NUMMER = /^(LS|BV)-([A-Z0-9]{2,5})-(\d{4,})$/;
-const TYPEN = ['tour.gestartet', 'beleg.erstellt', 'stopp.nicht_angetroffen', 'tour.beendet', 'beleg.storniert'];
+const TYPEN = ['tour.gestartet', 'beleg.erstellt', 'stopp.nicht_angetroffen', 'tour.beendet', 'beleg.storniert', 'tour.zugeladen'];
 
 /** Kalendertag in Bayern, unabhängig von der Zeitzone des Servers. */
 const tagInBerlin = (ms) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin' }).format(new Date(ms));
@@ -101,6 +104,24 @@ function erstelleTourRouter({ store, requireFahrer, holeKundenstamm = async () =
     if (basis.markierung === 'nach_uebergabe') ablehnen('tour_auf_anderem_geraet', `Tour läuft auf Gerät ${t.geraet_kennung || t.geraet_id}`);
     if (t.status === 'beendet' || t.status === 'storniert') return { ...basis, aenderungen: [] };
     return ablehnen('nicht_gestartet', 'Tour wurde noch nicht gestartet');
+  }
+
+  /**
+   * Ware unterwegs zugeladen (#616): nur buchen, das Original bleibt im Ereignis. Abgelehnt wird nur, was formal
+   * nicht stimmt. Nach Tour-Ende oder Übergabe wird wie bei Belegen angenommen und markiert.
+   */
+  async function tourZugeladen(e, fahrer) {
+    const t = await tourDesFahrers(e.tour_id, fahrer);
+    if (!Array.isArray(e.positionen) || !e.positionen.length) ablehnen('ungueltig', 'Zuladung ohne Positionen');
+    e.positionen.forEach((p, i) => {
+      for (const feld of ['zugeladen', 'leergutAb']) {
+        const menge = p?.[feld];
+        if (menge == null) continue;
+        if (typeof menge !== 'number' || !Number.isFinite(menge)) ablehnen('ungueltig', `Position ${i + 1}: Menge ist keine Zahl`);
+        if (menge < 0) ablehnen('ungueltig', `Position ${i + 1}: Menge ist negativ`);
+      }
+    });
+    return { tourId: t.id, markierung: markierungFuer(t, fahrer.geraetId), aenderungen: [] };
   }
 
   async function stoppNichtAngetroffen(e, fahrer) {
@@ -199,6 +220,7 @@ function erstelleTourRouter({ store, requireFahrer, holeKundenstamm = async () =
   const REGELN = {
     'tour.gestartet': tourGestartet,
     'tour.beendet': tourBeendet,
+    'tour.zugeladen': tourZugeladen,
     'stopp.nicht_angetroffen': stoppNichtAngetroffen,
     'beleg.erstellt': belegErstellt,
     'beleg.storniert': belegStorniert,
