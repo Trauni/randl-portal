@@ -5,6 +5,7 @@ import { Panel, Tag, AdrPlate, GasCylinder } from '../../ui';
 // #607 Disposition (früher Tourplanung #518): Tour anlegen, offene Bestellungen zuordnen, Stopps sortieren, freigeben.
 // Die Pflege der Tourvorlagen und die Ladebasen liegen seit #608 unter Einstellungen.
 // Neu: Ladeliste je Tour mit Punkten nach ADR 1.1.3.6 und erwartetem Leergut (Artikelstamm).
+// #639: Abschnitt „Zugeladen“ zeigt, was der Fahrer unterwegs nachgeladen hat (Ereignis tour.zugeladen der App).
 
 const STATUS = {
   entwurf: { label: 'Entwurf', ton: 'mute' },
@@ -17,6 +18,8 @@ const SCHRITTE = ['entwurf', 'freigegeben', 'unterwegs', 'beendet'];
 const heute = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin' }).format(new Date());
 const datumDe = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
 const zahl = (v) => Number(v).toLocaleString('de-DE', { maximumFractionDigits: 1 });
+const uhrzeit = (iso) => (iso ? new Date(iso).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'ohne Zeit');
+const MARKIERUNG = { nach_buero_ende: 'nach Büro-Ende', nach_uebergabe: 'nach Übergabe', tour_storniert: 'Tour storniert' };
 
 const api = async (url, methode = 'GET', body) => {
   const r = await fetch(url, { method: methode, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -212,6 +215,43 @@ function Ladeliste({ l }) {
   );
 }
 
+function Zugeladen({ z }) {
+  if (!z?.zuladungen.length) return null;
+  return (
+    <Panel title="Zugeladen" aria-label="Zugeladen">
+      <div style={{ padding: '14px 16px 4px', fontSize: 15 }}>
+        Der Fahrer hat {z.zuladungen.length === 1 ? 'einmal' : `${z.zuladungen.length}-mal`} nachgeladen: <b>{z.zugeladenGesamt} voll auf</b>
+        {z.leergutAbGesamt > 0 && <>, <b>{z.leergutAbGesamt} leer ab</b></>}.
+      </div>
+      {z.zuladungen.map((e) => (
+        <div key={e.id} style={{ marginTop: 10 }}>
+          <div style={{ padding: '0 16px', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 14, color: 'var(--text2)' }}>
+            <b style={{ color: 'var(--text1)' }}>{uhrzeit(e.zeit)}</b>
+            {e.geraet && <span>Gerät {e.geraet}</span>}
+            {e.adrPunkte != null && <span>ADR-Punkte laut App: {zahl(e.adrPunkte)}</span>}
+            {e.markierung && <Tag tone="warn">{MARKIERUNG[e.markierung] || e.markierung}</Tag>}
+          </div>
+          <div style={{ overflowX: 'auto', marginTop: 6 }}>
+            <table className="ui-table" style={{ fontSize: 15 }}>
+              <thead><tr><th>Artikel</th><th className="r">Voll auf</th><th className="r">Leer ab</th></tr></thead>
+              <tbody>
+                {e.positionen.map((p, i) => (
+                  <tr key={`${p.artikelNr}-${i}`}>
+                    <td>{p.bezeichnung || p.artikelNr || '–'}{p.bezeichnung && p.artikelNr && <span className="ui-table-sub"> {p.artikelNr}</span>}</td>
+                    <td className="r">{p.zugeladen || '–'}</td>
+                    <td className="r">{p.leergutAb || '–'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+      <p className="ui-table-sub" style={{ margin: 0, padding: '10px 16px 16px' }}>Angaben aus der Fahrer-App. In der Ladeliste oben sind sie nicht eingerechnet.</p>
+    </Panel>
+  );
+}
+
 export default function Disposition() {
   const [von, setVon] = useState(heute());
   const [touren, setTouren] = useState(null);
@@ -221,6 +261,7 @@ export default function Disposition() {
   const [vorlagen, setVorlagen] = useState([]);
   const [tour, setTour] = useState(null);
   const [ladeliste, setLadeliste] = useState(null);
+  const [zugeladen, setZugeladen] = useState(null);
   const [kopf, setKopf] = useState(null);
   const [auswahl, setAuswahl] = useState([]);
   const [fehler, setFehler] = useState(null);
@@ -230,8 +271,8 @@ export default function Disposition() {
   const ladeOffen = useCallback(async () => { setOffen(await api('/api/fahrer-touren/offene-bestellungen')); }, []);
   const ladeVorlagen = useCallback(async () => { setVorlagen(await api('/api/fahrer-touren/vorlagen')); }, []);
   const ladeTour = useCallback(async (id) => {
-    const [t, l] = await Promise.all([api(`/api/fahrer-touren/${id}`), api(`/api/fahrer-touren/${id}/ladeliste`)]);
-    setTour(t); setLadeliste(l);
+    const [t, l, z] = await Promise.all([api(`/api/fahrer-touren/${id}`), api(`/api/fahrer-touren/${id}/ladeliste`), api(`/api/fahrer-touren/${id}/zuladungen`)]);
+    setTour(t); setLadeliste(l); setZugeladen(z);
     setKopf({ employeeId: t.employeeId ?? '', fahrzeug: t.fahrzeug || '', ladebasisId: t.ladebasisId ?? '' });
   }, []);
 
@@ -347,14 +388,14 @@ export default function Disposition() {
                   <button className="btn btn-secondary" style={{ color: 'var(--err-fg)' }} onClick={aktion('stornieren', 'Tour stornieren? Die Bestellungen werden wieder frei.')}>Stornieren</button>)}
                 {tour.status === 'unterwegs' && <button className="btn btn-secondary" onClick={aktion('beenden', 'Tour im Büro beenden? Nur für den Notfall, wenn das Tablet sie nicht beenden kann.')}>Im Büro beenden</button>}
                 {(tour.status === 'storniert' || !stopps.length) && (
-                  <button className="btn btn-secondary" onClick={() => { if (window.confirm('Tour entfernen?')) sicher(async () => { await api(`/api/fahrer-touren/${tour.id}`, 'DELETE'); setTour(null); setLadeliste(null); await alles(); }); }}>Entfernen</button>)}
+                  <button className="btn btn-secondary" onClick={() => { if (window.confirm('Tour entfernen?')) sicher(async () => { await api(`/api/fahrer-touren/${tour.id}`, 'DELETE'); setTour(null); setLadeliste(null); setZugeladen(null); await alles(); }); }}>Entfernen</button>)}
               </div>
             </>
           ) : <div className="ui-panel-body ui-table-sub">Tour links wählen oder oben neu anlegen.</div>}
           <OffeneBestellungen offen={offen} auswahl={auswahl} setAuswahl={setAuswahl} onHinzu={hinzufuegen} aktiv={entwurf} />
         </section>
 
-        <aside style={{ alignSelf: 'start' }}><Ladeliste l={ladeliste} /></aside>
+        <aside style={{ alignSelf: 'start', display: 'flex', flexDirection: 'column', gap: 16 }}><Ladeliste l={ladeliste} /><Zugeladen z={zugeladen} /></aside>
       </div>
     </div>
   );

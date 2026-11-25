@@ -86,6 +86,16 @@ async function artikelFuerLadeliste(nummern) {
   return karte;
 }
 
+/** Gebuchte Zuladungen einer Tour (#639), älteste zuerst. Abgelehnte Ereignisse zählen nicht. */
+async function zuladungen(tourId) {
+  const [rows] = await getPool().execute(
+    `SELECT ev.uuid, ev.geraet_zeit, ev.markierung, ev.payload, g.kennung AS geraet_kennung
+       FROM fahrer_ereignis ev LEFT JOIN fahrer_geraet g ON g.id = ev.geraet_id
+      WHERE ev.tour_id = ? AND ev.typ = 'tour.zugeladen' AND ev.status = 'ok'
+      ORDER BY ev.geraet_zeit, ev.id`, [tourId]);
+  return rows;
+}
+
 /** Eine Transaktion mit gesperrter Tourzeile; fn bekommt die Verbindung. */
 async function imEntwurf(tourId, fn) {
   const conn = await getPool().getConnection();
@@ -244,6 +254,6 @@ async function loesche(tourId) {
 
 module.exports = {
   vorlagen, vorlageNachId, speichereVorlage, loescheVorlage,
-  fahrer, touren, tourNachId, stopps, legeAn, aendereKopf, belegteBestellungen, unbekannteArtikel, artikelFuerLadeliste,
+  fahrer, touren, tourNachId, stopps, legeAn, aendereKopf, belegteBestellungen, unbekannteArtikel, artikelFuerLadeliste, zuladungen,
   fuegeStoppHinzu, entferneStopp, aendereStopp, sortiere, setzeStatus, loesche,
 };
