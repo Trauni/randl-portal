@@ -17,7 +17,6 @@ import DeliveryRhythm from './components/pages/finance/DeliveryRhythm';
 import ShopNews from './components/pages/finance/ShopNews';
 import InfoMail from './components/pages/finance/InfoMail';
 import WidmannBestand from './components/pages/finance/WidmannBestand';
-import GasAuswertung from './components/pages/finance/GasAuswertung';
 import EinkaufspreiseWeiter from './components/pages/finance/EinkaufspreiseWeiter';
 import ArtikelListe from './components/pages/finance/ArtikelListe';
 import ArtikelDetail from './components/pages/finance/ArtikelDetail';
@@ -98,7 +97,6 @@ function AppRoutes() {
         <Route path="finance/mitteilungen" element={<ShopNews />} />
         <Route path="finance/info-mail" element={<InfoMail />} />
         <Route path="finance/widmann-bestand" element={<WidmannBestand />} />
-        <Route path="gashandel/auswertung" element={<GasAuswertung />} />
         {/* Alte Seiten Artikelstamm, Produkte und Einkaufspreise sind in „Artikel“ aufgegangen (#606) */}
         <Route path="gashandel/artikel" element={<Navigate to="/gashandel/artikel/liste" replace />} />
         <Route path="gashandel/artikel/liste" element={<ArtikelListe />} />

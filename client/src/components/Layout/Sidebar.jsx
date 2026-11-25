@@ -121,7 +121,6 @@ export default function Sidebar({ user }) {
 
   const showGashandel = can('gashandel');
   const showArtikel = can('artikel.lesen');
-  const showGasAuswertung = can('gashandel.auswertung');
   const showLadebasen = can('fahrer.geraete');
   const showZeltplaner = can('zeltplanung');
   const showZeltprojekte = can('zeltverleih.projekte');
@@ -215,7 +214,6 @@ export default function Sidebar({ user }) {
             {showLadebasen && <NavItem to="/gashandel/disposition" icon="documents" label="Disposition" collapsed={collapsed}/>}
             {showLadebasen && <NavItem to="/gashandel/belege" icon="documents" label="Belege" collapsed={collapsed}/>}
             <NavItem to="/finance/widmann-bestand" icon="products" label="Bestände" collapsed={collapsed}/>
-            {showGasAuswertung && <NavItem to="/gashandel/auswertung" icon="documents" label="Auswertung" collapsed={collapsed}/>}
             {showLadebasen && <NavItem to="/gashandel/einstellungen" icon="products" label="Einstellungen" collapsed={collapsed}/>}
           </NavSection>
         )}

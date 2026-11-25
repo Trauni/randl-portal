@@ -8,7 +8,7 @@ const datum = (iso) => iso.split('-').reverse().join('.');
 const zeit = (s) => new Date(s).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
 
 /**
- * Einkauf eines Artikels (nur mit gashandel.auswertung): Preisgruppe des Artikels, Preise und Historie der Gruppe,
+ * Einkauf eines Artikels (nur mit artikel.einkauf): Preisgruppe des Artikels, Preise und Historie der Gruppe,
  * neuer Preis mit Gültigkeitsdatum (gleicher Tag ersetzt, alter Stand bleibt im Protokoll) und das Protokoll.
  * Die Preise hängen an der Gruppe und gelten für alle Artikel dieser Gruppe.
  */
@@ -22,7 +22,7 @@ export default function EinkaufTab({ artikel, alle, canEditArtikel, onGeaendert 
 
   const laden = useCallback(async () => {
     try {
-      const [a, b] = await Promise.all([fetch('/api/finance/gas-auswertung/ek-preise'), fetch('/api/finance/gas-auswertung/ek-preise/protokoll')]);
+      const [a, b] = await Promise.all([fetch('/api/finance/ek-preise'), fetch('/api/finance/ek-preise/protokoll')]);
       const da = await a.json(); const db = await b.json();
       if (!a.ok) throw new Error(da.error || 'Fehler');
       setDaten(da); setProtokoll(db.protokoll || []);
@@ -33,7 +33,7 @@ export default function EinkaufTab({ artikel, alle, canEditArtikel, onGeaendert 
   const speichern = async () => {
     setBusy(true); setMsg(null);
     try {
-      const r = await fetch('/api/finance/gas-auswertung/ek-preise', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ek_gruppe: gruppe, ...form, preis_netto: form.preis_netto.replace(',', '.') }) });
+      const r = await fetch('/api/finance/ek-preise', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ek_gruppe: gruppe, ...form, preis_netto: form.preis_netto.replace(',', '.') }) });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'Fehler');
       setMsg({ ok: d.ersetzt ? 'Preis für diesen Tag ersetzt (alter Stand im Protokoll).' : 'Preis gespeichert.' });

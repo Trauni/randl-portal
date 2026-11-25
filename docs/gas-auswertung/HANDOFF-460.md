@@ -1,5 +1,7 @@
 # #460 Gas-Auswertung im Mitarbeiterportal – Übergabe an Claude Code
 
+> **Stand 25.11.2026:** Die Umsetzung im Portal ist entfernt, das Thema wird neu gedacht. Dieses Dokument und `referenz/` bleiben als Material. Erhalten geblieben ist nur die Pflege der Einkaufspreise (Artikelstamm → Einkauf, `/api/finance/ek-preise`).
+
 Stand 11.11.2026. Ziel: Die Analyse- und Berechnungs-Dashboards „Gas-Auswertung“ (bisher Prototyp auf claude.ai) ins Mitarbeiterportal einbauen. Dazu kommen laufende Datenzufuhr und **Eingabefelder für Einkaufspreise**, damit Preisänderungen ohne Code-Änderung wirken.
 
 - **OpenProject:** Projekt `dr-gaspreis-analyse`, Arbeitspaket **#460** (https://projects.randlweb.de/work_packages/460). Vorarbeit: #454–#459.

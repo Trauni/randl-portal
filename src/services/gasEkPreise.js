@@ -1,5 +1,5 @@
 /**
- * Einkaufspreise Gas (#460): Pflege im Portal, mit Gültigkeitsdatum und Protokoll.
+ * Einkaufspreise Gas: Pflege im Artikelstamm (Reiter „Einkauf“), mit Gültigkeitsdatum und Protokoll.
  * Kein Überschreiben alter Stände: jede Änderung steht in gas_ek_preis_log.
  */
 
@@ -16,13 +16,6 @@ function preisAm(zeilen, gruppe, tag) {
     if (!best || z.gueltig_ab > best.gueltig_ab) best = z;
   }
   return best;
-}
-
-/** EK je Flasche: Preisbasis kg × kg_fuellung, Preisbasis Füllung direkt. */
-function ekJeFlasche(preis, kgFuellung) {
-  if (!preis) return null;
-  const netto = Number(preis.preis_netto);
-  return preis.preisbasis === 'kg' ? netto * Number(kgFuellung) : netto;
 }
 
 function pruefe(eingabe) {
@@ -92,4 +85,4 @@ async function protokoll(db, limit = 200) {
   return rows;
 }
 
-module.exports = { GRUPPEN, preisAm, ekJeFlasche, pruefe, liste, speichere, protokoll };
+module.exports = { GRUPPEN, preisAm, pruefe, liste, speichere, protokoll };
