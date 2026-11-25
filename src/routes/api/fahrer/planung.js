@@ -17,6 +17,7 @@
  *   DELETE /api/fahrer-touren/:id                    nur leere oder stornierte Tour
  *   GET    /api/fahrer-touren/:id/ladeliste         Ladeliste: Flaschen, Menge, Punkte nach ADR 1.1.3.6, erwartetes Leergut (#607)
  *   GET    /api/fahrer-touren/:id/zuladungen        Vom Fahrer unterwegs zugeladene Ware (tour.zugeladen, #639)
+ *   GET    /api/fahrer-touren/:id/bestand           Fahrzeugbestand: geladen, zugeladen, geliefert, voll und Leergut an Bord, ADR-Punkte (#639)
  *   POST   /api/fahrer-touren/:id/bestellungen       { bestellIds: [...] } → hängt je Bestellung einen Stopp an (Entwurf)
  *   PUT    /api/fahrer-touren/:id/reihenfolge        { stoppIds: [...] }
  *   PATCH  /api/fahrer-touren/:id/stopps/:stoppId    { lieferzeit?, hinweise? }
@@ -30,6 +31,7 @@ const { FahrerFehler } = require('../../../services/fahrerKrypto');
 const plan = require('../../../services/fahrerPlanung');
 const { rechneLadeliste, adrLuecken } = require('../../../services/fahrerLadeliste');
 const { zuladungenAnsicht } = require('../../../services/fahrerZuladungen');
+const { rechneBestand } = require('../../../services/fahrerBestand');
 const { sicher } = require('./index');
 
 const DATUM = /^\d{4}-\d{2}-\d{2}$/;
@@ -230,6 +232,15 @@ function erstellePlanungRouter({ store, holeBestellungen, sucheKunden = async ()
   router.get('/:id/zuladungen', sicher(async (req, res) => {
     const t = await oder404(req.params.id);
     res.json(zuladungenAnsicht(await store.zuladungen(t.id)));
+  }));
+
+  router.get('/:id/bestand', sicher(async (req, res) => {
+    const t = await oder404(req.params.id);
+    const [stoppListe, ereignisse, geliefert] = await Promise.all([store.stopps(t.id), store.zuladungen(t.id), store.geliefertJeArtikel(t.id)]);
+    const zugeladen = zuladungenAnsicht(ereignisse).summe;
+    const nummern = [...stoppListe.flatMap((s) => s.positionen.map((p) => p.artikelNr)), ...zugeladen.map((z) => z.artikelNr), ...geliefert.map((g) => g.artikelNr)];
+    const artikel = await store.artikelFuerLadeliste(nummern);
+    res.json(rechneBestand({ stopps: stoppListe, zugeladen, geliefert, artikel }));
   }));
 
   router.patch('/:id', sicher(async (req, res) => {

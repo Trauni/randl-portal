@@ -73,7 +73,7 @@ test('Löschen nur bei leerer oder stornierter Tour', () => {
 // ── Router mit RAM-Store ──
 let kundenTreffer = [{ name: 'Gasthof Rosenheim', lexware_customer_number: '10001', billing_zip: '83022', billing_city: 'Rosenheim' }, { name: 'Gasthof ohne Nummer' }, { company_name: 'x', customer_number: 'K5' }];
 const kundenStamm = { 'cust-1': { billing_street: 'Salmering 1a', billing_zip: '83134', billing_city: 'Prutting' }, 'cust-2': { billing_street: 'Hauptstr. 5', billing_zip: '83022', billing_city: 'Rosenheim', shipping_street: 'Lager 3', shipping_zip: '83024', shipping_city: 'Rosenheim' } };
-let touren; let stopps; let bestellungen; let naechsteId; let vorlagen; let ereignisse = [];
+let touren; let stopps; let bestellungen; let naechsteId; let vorlagen; let ereignisse = []; let geliefert = [];
 const aktive = () => new Set(stopps.filter((s) => s.sperre).map((s) => s.sperre));
 const ramStore = {
   async touren() { return touren.map((t) => ({ ...t, stopps: stopps.filter((s) => s.tour_id === t.id).length })); },
@@ -82,6 +82,7 @@ const ramStore = {
   async legeAn(k) { const t = { id: naechsteId++, datum: k.datum, bezeichnung: k.bezeichnung, employee_id: k.employeeId, fahrzeug: k.fahrzeug, ladebasis_id: k.ladebasisId, status: 'entwurf', version: 1 }; touren.push(t); return t; },
   async aendereKopf(id, k) { const t = touren.find((x) => x.id === id); if (t.status !== 'entwurf') return false; Object.assign(t, { datum: k.datum, bezeichnung: k.bezeichnung, employee_id: k.employeeId, fahrzeug: k.fahrzeug, ladebasis_id: k.ladebasisId, version: t.version + 1 }); return true; },
   async belegteBestellungen() { return aktive(); },
+  async geliefertJeArtikel() { return geliefert; },
   async zuladungen(id) { return ereignisse.filter((e) => e.tour_id === id && e.typ === 'tour.zugeladen' && e.status === 'ok'); },
   async unbekannteArtikel(nr) { return nr.filter((n) => n === 'XXX'); },
   // #607: ADR-Angaben nur für 7801200 (Propan 11 kg), 7801100 hat keine
@@ -331,6 +332,26 @@ test('Zuladungen (#639): gebuchte Ereignisse der Tour, 404 bei unbekannter Tour'
     assert.equal(z.leergutAbGesamt, 4);
     assert.equal((await rufe('GET', '/99999/zuladungen')).status, 404);
   } finally { ereignisse = []; }
+});
+
+test('Bestand (#639): Ladeliste plus Zuladung minus Belege, Punkte für das, was voll an Bord ist', async () => {
+  const t = await neueTour();
+  await rufe('POST', `/${t.id}/bestellungen`, { bestellIds: [B1] });
+  // B1: 2 × 7801200 (11 kg, Faktor 3). Vor dem Start: alles an Bord.
+  let b = (await rufe('GET', `/${t.id}/bestand`)).daten;
+  assert.equal(b.zeilen.find((x) => x.artikelNr === '7801200').voll, 2);
+  assert.equal(b.punkte, 66);
+  ereignisse = [{ uuid: 'u1', tour_id: t.id, typ: 'tour.zugeladen', status: 'ok', payload: JSON.stringify({ positionen: [{ artikelId: '7801200', bezeichnung: 'Propan 11 kg', zugeladen: 4, leergutAb: 1 }] }) }];
+  geliefert = [{ artikelNr: '7801200', bezeichnung: 'Propan 11 kg', geliefert: 3, leergut: 2 }];
+  try {
+    b = (await rufe('GET', `/${t.id}/bestand`)).daten;
+    const z = b.zeilen.find((x) => x.artikelNr === '7801200');
+    assert.deepEqual({ soll: z.soll, zugeladen: z.zugeladen, geladen: z.geladen, geliefert: z.geliefert, voll: z.voll, leergut: z.leergut, abgeladen: z.abgeladen, punkte: z.punkte },
+      { soll: 2, zugeladen: 4, geladen: 6, geliefert: 3, voll: 3, leergut: 1, abgeladen: 1, punkte: 99 });
+    assert.equal(b.punkte, 99);
+    assert.equal(b.ueber, false);
+    assert.equal((await rufe('GET', '/99999/bestand')).status, 404);
+  } finally { ereignisse = []; geliefert = []; }
 });
 
 test('Ladeliste (#607): Punkte, Leergut und Hinweis an offenen Bestellungen ohne ADR-Daten', async () => {

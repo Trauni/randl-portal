@@ -75,7 +75,7 @@ async function unbekannteArtikel(nummern) {
 async function artikelFuerLadeliste(nummern) {
   const nr = [...new Set(nummern.filter(Boolean))];
   if (!nr.length) return {};
-  const SPALTEN = 'artikel_nr, bezeichnung, gasart, ggvs_faktor, befoerderungskategorie, fuellmenge, fuellmenge_einheit, pfand_artikel_nr, kaufflasche_artikel_nr';
+  const SPALTEN = 'artikel_nr, bezeichnung, typ, gasart, ggvs_faktor, befoerderungskategorie, fuellmenge, fuellmenge_einheit, pfand_artikel_nr, kaufflasche_artikel_nr';
   const [rows] = await getPool().query(`SELECT ${SPALTEN} FROM gas_artikel WHERE artikel_nr IN (?)`, [nr]);
   const karte = Object.fromEntries(rows.map((r) => [r.artikel_nr, r]));
   const pfand = [...new Set(rows.map((r) => r.pfand_artikel_nr).filter((n) => n && !karte[n]))];
@@ -94,6 +94,16 @@ async function zuladungen(tourId) {
       WHERE ev.tour_id = ? AND ev.typ = 'tour.zugeladen' AND ev.status = 'ok'
       ORDER BY ev.geraet_zeit, ev.id`, [tourId]);
   return rows;
+}
+
+/** Geliefert und Leergut je Artikel aus den Belegen der Tour (#639). Stornierte Belege zählen nicht. */
+async function geliefertJeArtikel(tourId) {
+  const [rows] = await getPool().execute(
+    `SELECT p.artikel_nr, MAX(p.bezeichnung) AS bezeichnung, SUM(p.geliefert) AS geliefert, SUM(p.leergut) AS leergut
+       FROM fahrer_beleg b JOIN fahrer_beleg_position p ON p.ls_nummer = b.ls_nummer
+      WHERE b.tour_id = ? AND b.storniert_am IS NULL
+      GROUP BY p.artikel_nr, CASE WHEN p.artikel_nr IS NULL THEN p.bezeichnung END`, [tourId]);
+  return rows.map((r) => ({ artikelNr: r.artikel_nr, bezeichnung: r.bezeichnung, geliefert: Number(r.geliefert) || 0, leergut: Number(r.leergut) || 0 }));
 }
 
 /** Eine Transaktion mit gesperrter Tourzeile; fn bekommt die Verbindung. */
@@ -254,6 +264,6 @@ async function loesche(tourId) {
 
 module.exports = {
   vorlagen, vorlageNachId, speichereVorlage, loescheVorlage,
-  fahrer, touren, tourNachId, stopps, legeAn, aendereKopf, belegteBestellungen, unbekannteArtikel, artikelFuerLadeliste, zuladungen,
+  fahrer, touren, tourNachId, stopps, legeAn, aendereKopf, belegteBestellungen, unbekannteArtikel, artikelFuerLadeliste, zuladungen, geliefertJeArtikel,
   fuegeStoppHinzu, entferneStopp, aendereStopp, sortiere, setzeStatus, loesche,
 };
