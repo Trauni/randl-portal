@@ -6,6 +6,7 @@ import { Panel, Tag, AdrPlate, GasCylinder } from '../../ui';
 // Die Pflege der Tourvorlagen und die Ladebasen liegen seit #608 unter Einstellungen.
 // Neu: Ladeliste je Tour mit Punkten nach ADR 1.1.3.6 und erwartetem Leergut (Artikelstamm).
 // #639: Abschnitt „Zugeladen“ zeigt, was der Fahrer unterwegs nachgeladen hat (Ereignis tour.zugeladen der App).
+// #639: „Fahrzeugbestand“ ab dem Start: geladen samt Zuladung, geliefert, voll und Leergut an Bord, ADR-Punkte dazu.
 
 const STATUS = {
   entwurf: { label: 'Entwurf', ton: 'mute' },
@@ -215,6 +216,58 @@ function Ladeliste({ l }) {
   );
 }
 
+function Bestand({ b }) {
+  if (!b) return null;
+  return (
+    <Panel title="Fahrzeugbestand" aria-label="Fahrzeugbestand">
+      <div style={{ padding: '14px 16px 4px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <AdrPlate punkte={Math.round(b.punkte)} grenze={b.grenze} />
+        <p style={{ margin: 0, fontSize: 15 }}>
+          An Bord: <b>{b.vollGesamt} voll</b>, <b>{b.leergutGesamt} leer</b>. Geladen {b.geladenGesamt}
+          {b.zugeladenGesamt > 0 && <> (davon {b.zugeladenGesamt} zugeladen)</>}, geliefert {b.geliefertGesamt}
+          {b.abgeladenGesamt > 0 && <>, {b.abgeladenGesamt} Leergut abgeladen</>}.
+        </p>
+        {b.unvollstaendig.length > 0 && (
+          <div className="alert alert-error" style={{ margin: 0 }}>
+            Für {b.unvollstaendig.join(', ')} fehlen ADR-Angaben (Faktor oder Füllmenge) im Artikelstamm. Die Punkte sind nur eine Untergrenze.
+          </div>
+        )}
+        {b.mehrGeliefert.length > 0 && (
+          <p style={{ margin: 0, fontSize: 14, color: 'var(--text2)' }}>
+            Zusätzlich geliefert, ohne Ladeliste und ohne gemeldete Zuladung: {b.mehrGeliefert.map((x) => `${x.anzahl}× ${x.bezeichnung}`).join(', ')}.
+          </p>
+        )}
+      </div>
+      <div style={{ overflowX: 'auto', marginTop: 8 }}>
+        <table className="ui-table" style={{ fontSize: 15 }}>
+          <thead><tr><th>Gas</th><th className="r">Geladen</th><th className="r">Geliefert</th><th className="r">Voll</th><th className="r">Leer</th><th className="r">Punkte</th></tr></thead>
+          <tbody>
+            {b.zeilen.map((x) => (
+              <tr key={x.artikelNr ?? x.bezeichnung}>
+                <td>
+                  <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}><GasCylinder gasart={x.gasart} />{x.bezeichnung}</span>
+                  {(x.zugeladen > 0 || x.abgeladen > 0) && (
+                    <div className="ui-table-sub">{[x.zugeladen > 0 && `davon ${x.zugeladen} zugeladen`, x.abgeladen > 0 && `${x.abgeladen} Leergut abgeladen`].filter(Boolean).join(' · ')}</div>
+                  )}
+                </td>
+                <td className="r">{x.geladen}</td>
+                <td className="r">{x.geliefert}</td>
+                <td className="r"><b>{x.voll}</b></td>
+                <td className="r">{x.leergut}</td>
+                <td className="r">{x.punkte == null ? '–' : zahl(x.punkte)}</td>
+              </tr>
+            ))}
+            {!b.zeilen.length && <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text3)', padding: 20 }}>Nichts an Bord.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      <p className="ui-table-sub" style={{ margin: 0, padding: '10px 16px 16px' }}>
+        Gerechnet wie in der Fahrer-App: geladen = Ladeliste plus Zuladung, voll = geladen minus geliefert laut Belegen. Die Punkte gelten für das, was noch voll an Bord ist. Stand beim Öffnen der Tour, Belege kommen erst an, wenn das Gerät Netz hat.
+      </p>
+    </Panel>
+  );
+}
+
 function Zugeladen({ z }) {
   if (!z?.zuladungen.length) return null;
   return (
@@ -228,7 +281,7 @@ function Zugeladen({ z }) {
           <div style={{ padding: '0 16px', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 14, color: 'var(--text2)' }}>
             <b style={{ color: 'var(--text1)' }}>{uhrzeit(e.zeit)}</b>
             {e.geraet && <span>Gerät {e.geraet}</span>}
-            {e.adrPunkte != null && <span>ADR-Punkte laut App: {zahl(e.adrPunkte)}</span>}
+            {e.adrPunkte != null && <span>danach {zahl(e.adrPunkte)} ADR-Punkte an Bord (laut App)</span>}
             {e.markierung && <Tag tone="warn">{MARKIERUNG[e.markierung] || e.markierung}</Tag>}
           </div>
           <div style={{ overflowX: 'auto', marginTop: 6 }}>
@@ -247,7 +300,7 @@ function Zugeladen({ z }) {
           </div>
         </div>
       ))}
-      <p className="ui-table-sub" style={{ margin: 0, padding: '10px 16px 16px' }}>Angaben aus der Fahrer-App. In der Ladeliste oben sind sie nicht eingerechnet.</p>
+      <p className="ui-table-sub" style={{ margin: 0, padding: '10px 16px 16px' }}>Angaben aus der Fahrer-App. Die Ladeliste zeigt nur die Planung, im Fahrzeugbestand sind die Zuladungen eingerechnet.</p>
     </Panel>
   );
 }
@@ -262,6 +315,7 @@ export default function Disposition() {
   const [tour, setTour] = useState(null);
   const [ladeliste, setLadeliste] = useState(null);
   const [zugeladen, setZugeladen] = useState(null);
+  const [bestand, setBestand] = useState(null);
   const [kopf, setKopf] = useState(null);
   const [auswahl, setAuswahl] = useState([]);
   const [fehler, setFehler] = useState(null);
@@ -271,8 +325,8 @@ export default function Disposition() {
   const ladeOffen = useCallback(async () => { setOffen(await api('/api/fahrer-touren/offene-bestellungen')); }, []);
   const ladeVorlagen = useCallback(async () => { setVorlagen(await api('/api/fahrer-touren/vorlagen')); }, []);
   const ladeTour = useCallback(async (id) => {
-    const [t, l, z] = await Promise.all([api(`/api/fahrer-touren/${id}`), api(`/api/fahrer-touren/${id}/ladeliste`), api(`/api/fahrer-touren/${id}/zuladungen`)]);
-    setTour(t); setLadeliste(l); setZugeladen(z);
+    const [t, l, z, b] = await Promise.all([api(`/api/fahrer-touren/${id}`), api(`/api/fahrer-touren/${id}/ladeliste`), api(`/api/fahrer-touren/${id}/zuladungen`), api(`/api/fahrer-touren/${id}/bestand`)]);
+    setTour(t); setLadeliste(l); setZugeladen(z); setBestand(b);
     setKopf({ employeeId: t.employeeId ?? '', fahrzeug: t.fahrzeug || '', ladebasisId: t.ladebasisId ?? '' });
   }, []);
 
@@ -291,6 +345,8 @@ export default function Disposition() {
   }, [sicher]);
 
   const entwurf = tour?.status === 'entwurf';
+  // Vor dem Start gleicht der Bestand der Ladeliste; gezeigt wird er, sobald die Tour läuft oder schon etwas gebucht ist.
+  const bestandSichtbar = !!bestand && (['unterwegs', 'beendet'].includes(tour?.status) || bestand.geliefertGesamt > 0 || bestand.zugeladenGesamt > 0 || bestand.abgeladenGesamt > 0);
   const stopps = tour?.stoppListe || [];
   const namen = useMemo(() => Object.fromEntries((ladeliste?.zeilen || []).map((z) => [z.artikelNr, z.bezeichnung])), [ladeliste]);
   const flaschen = ladeliste?.flaschenGesamt ?? 0;
@@ -388,14 +444,14 @@ export default function Disposition() {
                   <button className="btn btn-secondary" style={{ color: 'var(--err-fg)' }} onClick={aktion('stornieren', 'Tour stornieren? Die Bestellungen werden wieder frei.')}>Stornieren</button>)}
                 {tour.status === 'unterwegs' && <button className="btn btn-secondary" onClick={aktion('beenden', 'Tour im Büro beenden? Nur für den Notfall, wenn das Tablet sie nicht beenden kann.')}>Im Büro beenden</button>}
                 {(tour.status === 'storniert' || !stopps.length) && (
-                  <button className="btn btn-secondary" onClick={() => { if (window.confirm('Tour entfernen?')) sicher(async () => { await api(`/api/fahrer-touren/${tour.id}`, 'DELETE'); setTour(null); setLadeliste(null); setZugeladen(null); await alles(); }); }}>Entfernen</button>)}
+                  <button className="btn btn-secondary" onClick={() => { if (window.confirm('Tour entfernen?')) sicher(async () => { await api(`/api/fahrer-touren/${tour.id}`, 'DELETE'); setTour(null); setLadeliste(null); setZugeladen(null); setBestand(null); await alles(); }); }}>Entfernen</button>)}
               </div>
             </>
           ) : <div className="ui-panel-body ui-table-sub">Tour links wählen oder oben neu anlegen.</div>}
           <OffeneBestellungen offen={offen} auswahl={auswahl} setAuswahl={setAuswahl} onHinzu={hinzufuegen} aktiv={entwurf} />
         </section>
 
-        <aside style={{ alignSelf: 'start', display: 'flex', flexDirection: 'column', gap: 16 }}><Ladeliste l={ladeliste} /><Zugeladen z={zugeladen} /></aside>
+        <aside style={{ alignSelf: 'start', display: 'flex', flexDirection: 'column', gap: 16 }}><Ladeliste l={ladeliste} />{bestandSichtbar && <Bestand b={bestand} />}<Zugeladen z={zugeladen} /></aside>
       </div>
     </div>
   );
