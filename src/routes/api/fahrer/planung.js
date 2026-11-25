@@ -16,6 +16,7 @@
  *   PATCH  /api/fahrer-touren/:id                    Kopfdaten (nur Entwurf)
  *   DELETE /api/fahrer-touren/:id                    nur leere oder stornierte Tour
  *   GET    /api/fahrer-touren/:id/ladeliste         Ladeliste: Flaschen, Menge, Punkte nach ADR 1.1.3.6, erwartetes Leergut (#607)
+ *   GET    /api/fahrer-touren/:id/zuladungen        Vom Fahrer unterwegs zugeladene Ware (tour.zugeladen, #639)
  *   POST   /api/fahrer-touren/:id/bestellungen       { bestellIds: [...] } → hängt je Bestellung einen Stopp an (Entwurf)
  *   PUT    /api/fahrer-touren/:id/reihenfolge        { stoppIds: [...] }
  *   PATCH  /api/fahrer-touren/:id/stopps/:stoppId    { lieferzeit?, hinweise? }
@@ -28,6 +29,7 @@ const express = require('express');
 const { FahrerFehler } = require('../../../services/fahrerKrypto');
 const plan = require('../../../services/fahrerPlanung');
 const { rechneLadeliste, adrLuecken } = require('../../../services/fahrerLadeliste');
+const { zuladungenAnsicht } = require('../../../services/fahrerZuladungen');
 const { sicher } = require('./index');
 
 const DATUM = /^\d{4}-\d{2}-\d{2}$/;
@@ -223,6 +225,11 @@ function erstellePlanungRouter({ store, holeBestellungen, sucheKunden = async ()
     const nummern = stoppListe.flatMap((s) => s.positionen.map((p) => p.artikelNr));
     const artikel = await store.artikelFuerLadeliste(nummern);
     res.json(rechneLadeliste(stoppListe.map((s) => ({ id: s.id, kundeName: s.kunde_name, positionen: s.positionen })), artikel));
+  }));
+
+  router.get('/:id/zuladungen', sicher(async (req, res) => {
+    const t = await oder404(req.params.id);
+    res.json(zuladungenAnsicht(await store.zuladungen(t.id)));
   }));
 
   router.patch('/:id', sicher(async (req, res) => {
