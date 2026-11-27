@@ -65,7 +65,8 @@ function shopKunde(k) {
     ser_nr: k.customer_number || null,
     quelle: k.source || null,
     angelegt: k.created_at || null,
-    bestellungen: Number(k.bestellungen || 0),
+    bestellungen: k.bestellungen == null ? null : Number(k.bestellungen),
+    letzte_lieferung: k.datum_letzte_lieferung ? new Date(k.datum_letzte_lieferung).toISOString().slice(0, 10) : null,
   };
 }
 

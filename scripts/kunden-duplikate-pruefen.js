@@ -35,11 +35,19 @@ async function ladeLexware() {
 async function ladeShop() {
   const pool = new Pool({ host: '127.0.0.1', port: 5433, database: 'gaswebshop', user: process.env.GAS_DB_USER, password: process.env.GAS_DB_PASS });
   try {
-    const { rows } = await pool.query(`
-      SELECT c.id, c.name, c.company_name, c.first_name, c.last_name, c.billing_street, c.billing_zip, c.billing_city,
+    const spalten = `c.id, c.name, c.company_name, c.first_name, c.last_name, c.billing_street, c.billing_zip, c.billing_city,
              c.lexware_id, c.lexware_customer_number, c.in_lexware, c.customer_number, c.source, c.created_at,
-             (SELECT COUNT(*) FROM webshop_orders o WHERE o.customer_id = c.id) AS bestellungen
-        FROM customers c`);
+             c.datum_letzte_lieferung`;
+    let rows;
+    try {
+      ({ rows } = await pool.query(`SELECT ${spalten},
+             (SELECT COUNT(*) FROM webshop_orders o WHERE o.customer_id = c.id) AS bestellungen FROM customers c`));
+    } catch (err) {
+      // Der Portal-Benutzer darf webshop_orders nicht lesen (#232): dann ohne Bestellzahl
+      if (err.code !== '42501') throw err;
+      console.error('Hinweis: keine Leserechte auf webshop_orders, Bestellungen werden nicht gezählt');
+      ({ rows } = await pool.query(`SELECT ${spalten}, NULL AS bestellungen FROM customers c`));
+    }
     return rows.map(shopKunde);
   } finally {
     await pool.end();
@@ -47,7 +55,7 @@ async function ladeShop() {
 }
 
 const lx = (k) => `${k.nummer || '—'}${k.archiviert ? ' (archiviert)' : ''} | ${k.name} | ${k.strasse}, ${k.plz} ${k.ort}`;
-const sh = (k) => `Lexware-Nr ${k.lexware_nr || '—'}${k.lexware_id ? '' : ' (nicht verknüpft)'} | ${k.name} | ${k.strasse}, ${k.plz} ${k.ort} | SER ${k.ser_nr || '—'} | ${k.bestellungen} Best. | ${k.quelle || ''} | id ${k.id}`;
+const sh = (k) => `Lexware-Nr ${k.lexware_nr || '—'}${k.lexware_id ? '' : ' (nicht verknüpft)'} | ${k.name} | ${k.strasse}, ${k.plz} ${k.ort} | SER ${k.ser_nr || '—'} | ${k.bestellungen == null ? '' : k.bestellungen + ' Best. | '}letzte Lief. ${k.letzte_lieferung || '—'} | ${k.quelle || ''} | id ${k.id}`;
 
 function abschnitt(titel, zeilen) {
   console.log(`\n== ${titel} (${zeilen.length}) ==`);
@@ -88,8 +96,8 @@ async function main() {
     fs.mkdirSync(ordner, { recursive: true });
     const kopfLx = ['Gruppe', 'Art', 'Lexware-Nr', 'Archiviert', 'Name', 'Straße', 'PLZ', 'Ort', 'Lexware-ID'];
     csv(path.join(ordner, 'lexware-duplikate.csv'), kopfLx, dupLex.flatMap((g, i) => g.eintraege.map((e) => [i + 1, g.art, e.nummer, e.archiviert ? 'ja' : '', e.name, e.strasse, e.plz, e.ort, e.id])));
-    const kopfSh = ['Gruppe', 'Befund', 'Lexware-Nr', 'Lexware-Nr laut Lexware', 'Verknüpft', 'Name', 'Straße', 'PLZ', 'Ort', 'SER-Nr', 'Bestellungen', 'Quelle', 'Shop-ID', 'Lexware-ID'];
-    const zeile = (g, befund, e) => [g, befund, e.lexware_nr, e.nummer_lexware || '', e.lexware_id ? 'ja' : 'nein', e.name, e.strasse, e.plz, e.ort, e.ser_nr, e.bestellungen, e.quelle, e.id, e.lexware_id];
+    const kopfSh = ['Gruppe', 'Befund', 'Lexware-Nr', 'Lexware-Nr laut Lexware', 'Verknüpft', 'Name', 'Straße', 'PLZ', 'Ort', 'SER-Nr', 'Bestellungen', 'Letzte Lieferung', 'Quelle', 'Shop-ID', 'Lexware-ID'];
+    const zeile = (g, befund, e) => [g, befund, e.lexware_nr, e.nummer_lexware || '', e.lexware_id ? 'ja' : 'nein', e.name, e.strasse, e.plz, e.ort, e.ser_nr, e.bestellungen ?? '', e.letzte_lieferung || '', e.quelle, e.id, e.lexware_id];
     csv(path.join(ordner, 'shop-befunde.csv'), kopfSh, [
       ...dupShop.flatMap((g, i) => g.eintraege.map((e) => zeile(`D${i + 1}`, 'Shop-Duplikat', e))),
       ...ab.doppeltVerknuepft.flatMap((g, i) => g.eintraege.map((e) => zeile(`N${i + 1}`, 'gleiche Lexware-Nr', e))),
