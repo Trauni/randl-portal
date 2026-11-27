@@ -210,14 +210,18 @@ function CustomerDetail({ customer: init, onClose, onRefresh }) {
     } catch(e) { setMsg('✗ ' + e.message); }
     finally { setBusy(''); }
   };
+  // Verknüpfung bei einem anderen Shop-Kunden gelöst: meist ein Duplikat im Shop, das nicht neu nach Lexware gepusht werden darf
+  const geloestHinweis = (d) => (d.geloest && d.geloest.length)
+    ? ' – Achtung: Verknüpfung gelöst bei ' + d.geloest.map(g => g.name).join(', ') + ' (Shop-Duplikat? nicht neu nach Lexware pushen)'
+    : '';
   const handleDupLink = async (lexId) => {
     setDupData(null); setBusy('lex'); setMsg('');
     try {
       const r = await fetch(`/api/finance/customers/${customer.id}/link-to-lexware?linkOnly=true`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ lexwareId: lexId }) });
       const d = await r.json();
       if (d.error) throw new Error(d.error);
-      setMsg('✓ Verknüpft (ID-Mapping)');
-      setCustomer(c => ({ ...c, in_lexware: true, lexware_id: lexId }));
+      setMsg('✓ Verknüpft (ID-Mapping)' + geloestHinweis(d));
+      setCustomer(c => ({ ...c, in_lexware: true, lexware_id: lexId, ...(d.lexware_customer_number ? { lexware_customer_number: d.lexware_customer_number } : {}) }));
       onRefresh();
     } catch(e) { setMsg('✗ ' + e.message); }
     finally { setBusy(''); }
@@ -228,8 +232,8 @@ function CustomerDetail({ customer: init, onClose, onRefresh }) {
       const r = await fetch(`/api/finance/customers/${customer.id}/link-to-lexware`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ lexwareId: lexId }) });
       const d = await r.json();
       if (d.error) throw new Error(d.error);
-      setMsg('✓ Überschrieben & verknüpft');
-      setCustomer(c => ({ ...c, in_lexware: true, lexware_id: lexId }));
+      setMsg('✓ Überschrieben & verknüpft' + geloestHinweis(d));
+      setCustomer(c => ({ ...c, in_lexware: true, lexware_id: lexId, ...(d.lexware_customer_number ? { lexware_customer_number: d.lexware_customer_number } : {}) }));
       onRefresh();
     } catch(e) { setMsg('✗ ' + e.message); }
     finally { setBusy(''); }
