@@ -65,7 +65,11 @@ async function ladeShop() {
   }
 }
 
-const lx = (k) => `${k.nummer || '—'}${k.archiviert ? ' (archiviert)' : ''} | ${k.name} | ${k.strasse}, ${k.plz} ${k.ort}`;
+// Lexware-Kontakt mit den Shop-Kunden, die daran hängen (über lexware_id, nicht über den Namen)
+const shopAn = (k) => (k.shop && k.shop.length
+  ? ' ← Shop: ' + k.shop.map((s) => `${s.ausgeblendet ? '[ausgeblendet] ' : ''}${s.name} (SER ${s.ser_nr || '—'})`).join('; ')
+  : ' ← kein Shop-Kunde');
+const lx = (k) => `${k.nummer || '—'}${k.archiviert ? ' (archiviert)' : ''} | ${k.name} | ${k.strasse}, ${k.plz} ${k.ort}${shopAn(k)}`;
 const sh = (k) => `${k.ausgeblendet ? '[im Portal ausgeblendet] ' : ''}Lexware-Nr ${k.lexware_nr || '—'}${k.lexware_id ? '' : ' (nicht verknüpft)'} | ${k.name} | ${k.strasse}, ${k.plz} ${k.ort} | SER ${k.ser_nr || '—'} | ${k.bestellungen == null ? '' : k.bestellungen + ' Best. | '}letzte Lief. ${k.letzte_lieferung || '—'} | ${k.quelle || ''} | id ${k.id}`;
 
 function abschnitt(titel, zeilen) {
@@ -159,6 +163,9 @@ async function korrigiere(ab, kunden) {
 async function main() {
   const [kontakte, kunden] = [await ladeLexware(), await ladeShop()];
   await markiereAusgeblendet(kunden);
+  const proKontakt = new Map();
+  for (const k of kunden) if (k.lexware_id) proKontakt.set(k.lexware_id, [...(proKontakt.get(k.lexware_id) || []), k]);
+  for (const c of kontakte) c.shop = proKontakt.get(c.id) || [];
   const dupLex = lexwareDuplikate(kontakte);
   const dupShop = shopDuplikate(kunden);
   const ab = abgleich(kunden, kontakte);
