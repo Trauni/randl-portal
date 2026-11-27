@@ -5,6 +5,7 @@
  * Aufruf (als root im Portal-Ordner, braucht LEXWARE_API_KEY und GAS_DB_USER/GAS_DB_PASS aus der .env):
  *   node scripts/kunden-duplikate-pruefen.js                   Übersicht und Listen als Text
  *   node scripts/kunden-duplikate-pruefen.js --name mustermann   zusätzlich alle Einträge zu einem Namen
+ *   node scripts/kunden-duplikate-pruefen.js --name a,b,c --kurz mehrere Namen, nur deren Treffer ohne die Listen
  *   node scripts/kunden-duplikate-pruefen.js --csv <Ordner>    Listen als CSV-Dateien (für Excel), Ordner wird angelegt
  * Die CSV-Dateien enthalten Kundennamen und Adressen: nicht ins Repo legen.
  *
@@ -164,17 +165,18 @@ async function main() {
   await pruefeEinzeln(ab);
 
   console.log(`Lexware-Kunden: ${kontakte.length}, Shop-Kunden: ${kunden.length}`);
-  abschnitt('Lexware: doppelte Kontakte (gleicher Name+PLZ oder Straße+PLZ)', gruppenText(dupLex, lx));
-  abschnitt('Shop: doppelte Kunden (gleicher Name+PLZ)', gruppenText(dupShop, sh));
-  abschnitt('Shop: Lexware-Nummer passt nicht zum verknüpften Kontakt', ab.nummerFalsch.map((k) => `    ${sh(k)}  → in Lexware: ${k.nummer_lexware} ${k.name_lexware}`));
-  abschnitt('Shop: verknüpfter Lexware-Kontakt existiert nicht mehr (nächster Push legt neu an!)', ab.kontaktFehlt.map((k) => '    ' + sh(k)));
-  abschnitt('Shop: verknüpfter Lexware-Kontakt ist archiviert', ab.archiviert.map((k) => '    ' + sh(k)));
-  console.log(`\n(${ab.lieferant.length} Shop-Einträge hängen an Lexware-Kontakten ohne Kundenrolle, z. B. Lieferanten; nicht aufgeführt)`);
-  abschnitt('Shop: Lexware-Nummer eingetragen, aber nicht verknüpft', ab.verwaist.map((k) => '    ' + sh(k)));
-  abschnitt('Shop: mehrere Kunden mit derselben Lexware-Nummer', gruppenText(ab.doppeltVerknuepft, sh));
+  if (!process.argv.includes('--kurz')) {
+    abschnitt('Lexware: doppelte Kontakte (gleicher Name+PLZ oder Straße+PLZ)', gruppenText(dupLex, lx));
+    abschnitt('Shop: doppelte Kunden (gleicher Name+PLZ)', gruppenText(dupShop, sh));
+    abschnitt('Shop: Lexware-Nummer passt nicht zum verknüpften Kontakt', ab.nummerFalsch.map((k) => `    ${sh(k)}  → in Lexware: ${k.nummer_lexware} ${k.name_lexware}`));
+    abschnitt('Shop: verknüpfter Lexware-Kontakt existiert nicht mehr (nächster Push legt neu an!)', ab.kontaktFehlt.map((k) => '    ' + sh(k)));
+    abschnitt('Shop: verknüpfter Lexware-Kontakt ist archiviert', ab.archiviert.map((k) => '    ' + sh(k)));
+    console.log(`\n(${ab.lieferant.length} Shop-Einträge hängen an Lexware-Kontakten ohne Kundenrolle, z. B. Lieferanten; nicht aufgeführt)`);
+    abschnitt('Shop: Lexware-Nummer eingetragen, aber nicht verknüpft', ab.verwaist.map((k) => '    ' + sh(k)));
+    abschnitt('Shop: mehrere Kunden mit derselben Lexware-Nummer', gruppenText(ab.doppeltVerknuepft, sh));
+  }
 
-  const name = arg('--name');
-  if (name) {
+  for (const name of (arg('--name') || '').split(',').map((t) => t.trim()).filter(Boolean)) {
     const n = normal(name);
     abschnitt(`Lexware: „${name}“`, kontakte.filter((k) => normal(k.name).includes(n)).map((k) => `    ${lx(k)} | id ${k.id}`));
     abschnitt(`Shop: „${name}“`, kunden.filter((k) => normal(k.name).includes(n)).map((k) => '    ' + sh(k) + ` | lexware_id ${k.lexware_id || '—'}`));
