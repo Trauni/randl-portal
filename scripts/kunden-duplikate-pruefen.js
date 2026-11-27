@@ -9,7 +9,8 @@
  * Die CSV-Dateien enthalten Kundennamen und Adressen: nicht ins Repo legen.
  *
  * Korrekturen in der gas-db (zeigen erst nur an, was passieren würde; schreiben nur mit --ausfuehren):
- *   --nummern-korrigieren   lexware_customer_number = Nummer des verknüpften Lexware-Kontakts
+ *   --nummern-korrigieren   lexware_customer_number = Nummer des verknüpften Lexware-Kontakts; ausgelassen,
+ *                           wenn ein anderer Shop-Kunde die Nummer schon als Lexware- oder SER-Nummer trägt
  *   --geloeschte-loesen     Verknüpfung auf gelöschte Lexware-Kontakte lösen (lexware_id, in_lexware);
  *                           die Nummer bleibt, damit der Login damit weiter geht. Ein späterer Push läuft
  *                           dann über die Duplikat-Rückfrage statt still einen neuen Kontakt anzulegen.
@@ -24,7 +25,7 @@ const path = require('path');
 const { Pool } = require('pg');
 const lexware = require('../src/services/lexware');
 const { getPool } = require('../src/db');
-const { normal, lexwareKontakt, shopKunde, lexwareDuplikate, shopDuplikate, abgleich } = require('../src/utils/kundenDuplikate');
+const { nummernOhneKonflikt, normal, lexwareKontakt, shopKunde, lexwareDuplikate, shopDuplikate, abgleich } = require('../src/utils/kundenDuplikate');
 
 const gasPool = () => new Pool({ host: '127.0.0.1', port: 5433, database: 'gaswebshop', user: process.env.GAS_DB_USER, password: process.env.GAS_DB_PASS });
 const arg = (n) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : null; };
@@ -133,9 +134,13 @@ async function schreibe(titel, aenderungen) {
   }
 }
 
-async function korrigiere(ab) {
+async function korrigiere(ab, kunden) {
   if (process.argv.includes('--nummern-korrigieren')) {
-    await schreibe('Lexware-Nummer korrigieren', ab.nummerFalsch.map((k) => ({
+    const { ok, konflikt } = nummernOhneKonflikt(ab.nummerFalsch, kunden);
+    abschnitt('Nummer NICHT korrigiert: neue Nummer trägt schon ein anderer Shop-Kunde', konflikt.map((k) =>
+      `    ${k.name}: ${k.lexware_nr || '—'} → ${k.nummer_lexware} kollidiert mit ` +
+      k.mit.map((a) => `${a.name} (Lexware-Nr ${a.lexware_nr || '—'}, SER ${a.ser_nr || '—'})`).join(', ')));
+    await schreibe('Lexware-Nummer korrigieren', ok.map((k) => ({
       text: `${k.name}: ${k.lexware_nr || '—'} → ${k.nummer_lexware}`,
       sql: 'UPDATE customers SET lexware_customer_number = $3 WHERE id = $1 AND lexware_id = $2 AND lexware_customer_number IS NOT DISTINCT FROM $4',
       werte: [k.id, k.lexware_id, k.nummer_lexware, k.lexware_nr],
@@ -193,7 +198,7 @@ async function main() {
     console.log(`\nCSV: ${path.resolve(ordner)}`);
   }
 
-  await korrigiere(ab);
+  await korrigiere(ab, kunden);
 }
 
 main().then(() => process.exit(0)).catch((err) => { console.error(err.message); process.exit(1); });

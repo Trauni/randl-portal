@@ -1,7 +1,7 @@
 /** Prüfung Kunden-Duplikate Shop ↔ Lexware (doppelt angelegter Kunde). */
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { nameSchluessel, strassenSchluessel, lexwareKontakt, shopKunde, lexwareDuplikate, shopDuplikate, abgleich } = require('../src/utils/kundenDuplikate');
+const { nummernOhneKonflikt, nameSchluessel, strassenSchluessel, lexwareKontakt, shopKunde, lexwareDuplikate, shopDuplikate, abgleich } = require('../src/utils/kundenDuplikate');
 
 const lex = (id, nr, name, street, zip) => lexwareKontakt({ id, roles: { customer: { number: nr } }, company: { name }, addresses: { billing: [{ street, zip, city: 'Ort' }] } });
 const shop = (o) => shopKunde({ id: 's', name: 'X', billing_street: '', billing_zip: '', in_lexware: false, ...o });
@@ -47,4 +47,20 @@ test('Abgleich: Fallback-Folgen erkennen', () => {
   assert.deepEqual(ab.verwaist.map((k) => k.id), [1]);
   assert.deepEqual(ab.kontaktFehlt.map((k) => k.id), [3]);
   assert.deepEqual(ab.doppeltVerknuepft.map((g) => g.nummer), ['10002']);
+});
+
+test('Nummern-Korrektur: Konflikt mit Lexware- oder SER-Nummer eines anderen Kunden', () => {
+  const falsch = [
+    { id: 1, lexware_nr: '10458', nummer_lexware: '11095' },
+    { id: 2, lexware_nr: '11210', nummer_lexware: '10018' },
+    { id: 3, lexware_nr: '10739', nummer_lexware: '10099' },
+  ];
+  const kunden = [
+    ...falsch.map((k) => shop(k)),
+    shop({ id: 4, customer_number: '10018' }),           // SER-Nummer = neue Nummer
+    shop({ id: 5, lexware_customer_number: '10099' }),   // Lexware-Nummer = neue Nummer
+  ];
+  const { ok, konflikt } = nummernOhneKonflikt(falsch, kunden);
+  assert.deepEqual(ok.map((k) => k.id), [1]);
+  assert.deepEqual(konflikt.map((k) => [k.id, k.mit.map((a) => a.id)]), [[2, [4]], [3, [5]]]);
 });

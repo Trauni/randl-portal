@@ -131,4 +131,21 @@ function abgleich(kunden, kontakte) {
   return { nummerFalsch, kontaktFehlt, verwaist, doppeltVerknuepft };
 }
 
-module.exports = { normal, nameSchluessel, strassenSchluessel, lexwareKontakt, shopKunde, lexwareDuplikate, shopDuplikate, abgleich };
+/**
+ * Nummern-Korrektur ohne Konflikt: die neue Nummer darf kein anderer Shop-Kunde schon tragen,
+ * weder als Lexware- noch als SER-Nummer (der Shop-Login nimmt beide).
+ * Liefert { ok: [...], konflikt: [{ ...kunde, mit: [andere Kunden] }] }.
+ */
+function nummernOhneKonflikt(nummerFalsch, kunden) {
+  const ok = [];
+  const konflikt = [];
+  for (const k of nummerFalsch) {
+    const ziel = String(k.nummer_lexware).trim();
+    const mit = kunden.filter((a) => a.id !== k.id
+      && (String(a.lexware_nr || '').trim() === ziel || String(a.ser_nr || '').trim() === ziel));
+    (mit.length ? konflikt : ok).push(mit.length ? { ...k, mit } : k);
+  }
+  return { ok, konflikt };
+}
+
+module.exports = { nummernOhneKonflikt, normal, nameSchluessel, strassenSchluessel, lexwareKontakt, shopKunde, lexwareDuplikate, shopDuplikate, abgleich };
