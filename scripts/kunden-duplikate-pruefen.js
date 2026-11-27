@@ -70,17 +70,42 @@ function csv(datei, kopf, zeilen) {
   fs.writeFileSync(datei, '﻿' + [kopf, ...zeilen].map((z) => z.map(esc).join(';')).join('\n'));
 }
 
+// Die Liste enthält nur Kunden-Kontakte. Was dort fehlt, einzeln nachfragen:
+// Lieferanten (z. B. IONOS) gibt es, archivierte zählen extra, nur 404 heißt wirklich gelöscht.
+async function pruefeEinzeln(ab) {
+  const fehlt = [];
+  ab.archiviert = [];
+  ab.lieferant = [];
+  for (const k of ab.kontaktFehlt) {
+    try {
+      const c = await lexware.getContact(k.lexware_id);
+      if (c.archived) ab.archiviert.push(k);
+      else if (!c.roles?.customer) ab.lieferant.push(k);
+      else fehlt.push(k);
+    } catch (err) {
+      if (err.status !== 404) throw err;
+      fehlt.push(k);
+    }
+    process.stderr.write(`\rEinzeln geprüft: ${ab.archiviert.length + ab.lieferant.length + fehlt.length}/${ab.kontaktFehlt.length}`);
+  }
+  if (ab.kontaktFehlt.length) process.stderr.write('\n');
+  ab.kontaktFehlt = fehlt;
+}
+
 async function main() {
   const [kontakte, kunden] = [await ladeLexware(), await ladeShop()];
   const dupLex = lexwareDuplikate(kontakte);
   const dupShop = shopDuplikate(kunden);
   const ab = abgleich(kunden, kontakte);
+  await pruefeEinzeln(ab);
 
   console.log(`Lexware-Kunden: ${kontakte.length}, Shop-Kunden: ${kunden.length}`);
   abschnitt('Lexware: doppelte Kontakte (gleicher Name+PLZ oder Straße+PLZ)', gruppenText(dupLex, lx));
   abschnitt('Shop: doppelte Kunden (gleicher Name+PLZ)', gruppenText(dupShop, sh));
   abschnitt('Shop: Lexware-Nummer passt nicht zum verknüpften Kontakt', ab.nummerFalsch.map((k) => `    ${sh(k)}  → in Lexware: ${k.nummer_lexware} ${k.name_lexware}`));
   abschnitt('Shop: verknüpfter Lexware-Kontakt existiert nicht mehr (nächster Push legt neu an!)', ab.kontaktFehlt.map((k) => '    ' + sh(k)));
+  abschnitt('Shop: verknüpfter Lexware-Kontakt ist archiviert', ab.archiviert.map((k) => '    ' + sh(k)));
+  console.log(`\n(${ab.lieferant.length} Shop-Einträge hängen an Lexware-Kontakten ohne Kundenrolle, z. B. Lieferanten; nicht aufgeführt)`);
   abschnitt('Shop: Lexware-Nummer eingetragen, aber nicht verknüpft', ab.verwaist.map((k) => '    ' + sh(k)));
   abschnitt('Shop: mehrere Kunden mit derselben Lexware-Nummer', gruppenText(ab.doppeltVerknuepft, sh));
 
@@ -103,6 +128,7 @@ async function main() {
       ...ab.doppeltVerknuepft.flatMap((g, i) => g.eintraege.map((e) => zeile(`N${i + 1}`, 'gleiche Lexware-Nr', e))),
       ...ab.nummerFalsch.map((e) => zeile('', 'Nummer passt nicht', e)),
       ...ab.kontaktFehlt.map((e) => zeile('', 'Kontakt fehlt in Lexware', e)),
+      ...ab.archiviert.map((e) => zeile('', 'Kontakt archiviert', e)),
       ...ab.verwaist.map((e) => zeile('', 'nicht verknüpft', e)),
     ]);
     console.log(`\nCSV: ${path.resolve(ordner)}`);
