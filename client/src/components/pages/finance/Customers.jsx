@@ -339,7 +339,7 @@ function CustomerDetail({ customer: init, onClose, onRefresh }) {
           <Field label="Name">{customer.name}</Field>
           <Field label="Firma">{customer.company_name}</Field>
           <Field label="Name2">{customer.name2}</Field>
-          <Field label="Empfänger">{customer.name2}</Field>
+          <Field label="Empfänger">{customer.name_empfaenger}</Field>
           <Field label="Quelle">{customer.source}</Field>
           <Field label="Straße">{customer.billing_street}</Field>
           <Field label="PLZ / Ort">{customer.billing_zip} {customer.billing_city}</Field>
