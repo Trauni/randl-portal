@@ -4,6 +4,7 @@ const { shopFetch } = require('./shopClient');
 const { getPool } = require('../../../db');
 const requireAuth = require('../../../middleware/requireAuth');
 const { Pool } = require('pg');
+const lexware = require('../../../services/lexware');
 
 // Direkter PostgreSQL-Pool für gas-db Fallback
 const gasPool = new Pool({
@@ -15,23 +16,30 @@ const gasPool = new Pool({
 });
 
 
-// Direktverknüpfung in gas-db: alte Verknüpfung lösen, neue setzen
+// Direktverknüpfung in gas-db: alte Verknüpfung lösen, neue setzen.
+// Die Lexware-Kundennummer muss mit umziehen, sonst zeigt der Kunde weiter die alte
+// (verknüpft mit der alten Nummer, angezeigt die neue). Liefert die Kunden, deren
+// Verknüpfung gelöst wurde – das sind meist Duplikate im Shop.
 async function gasDirectLink(customerId, lexwareId) {
+  const contact = await lexware.getContact(lexwareId);
+  const nummer = contact?.roles?.customer?.number != null ? String(contact.roles.customer.number) : null;
   const client = await gasPool.connect();
   try {
     await client.query('BEGIN');
     // Alte Verknüpfung dieser Lexware-ID entfernen (falls vorhanden)
-    await client.query(
-      'UPDATE customers SET lexware_id = NULL, in_lexware = false WHERE lexware_id = $1 AND id != $2',
+    const { rows: geloest } = await client.query(
+      `UPDATE customers SET lexware_id = NULL, in_lexware = false WHERE lexware_id = $1 AND id != $2
+       RETURNING id, COALESCE(company_name, name) AS name`,
       [lexwareId, customerId]
     );
     // Neue Verknüpfung setzen
     await client.query(
-      'UPDATE customers SET lexware_id = $1, in_lexware = true WHERE id = $2',
-      [lexwareId, customerId]
+      'UPDATE customers SET lexware_id = $1, in_lexware = true, lexware_customer_number = $3, lexware_pushed_at = NOW() WHERE id = $2',
+      [lexwareId, customerId, nummer]
     );
     await client.query('COMMIT');
-    console.log('[Finance/Customers] gasDirectLink OK:', customerId, '->', lexwareId);
+    console.log('[Finance/Customers] gasDirectLink OK:', customerId, '->', lexwareId, nummer, geloest.length ? 'gelöst bei ' + geloest.map(g => g.id).join(',') : '');
+    return { lexware_customer_number: nummer, geloest };
   } catch(err) {
     await client.query('ROLLBACK');
     throw err;
@@ -189,16 +197,16 @@ router.post('/:id/link-to-lexware', async (req, res) => {
     // Fallback: bei 406 oder duplicate-key direkt in gas-db schreiben
     if ((upstream.status === 406 || (data.error && data.error.includes('duplicate'))) && lexwareId) {
       console.log('[Finance/Customers] link-to-lexware Fallback: direkt gas-db Update für', req.params.id);
-      await gasDirectLink(req.params.id, lexwareId);
-      return res.json({ success: true, fallback: true, lexware_id: lexwareId });
+      const r = await gasDirectLink(req.params.id, lexwareId);
+      return res.json({ success: true, fallback: true, lexware_id: lexwareId, ...r });
     }
     res.status(upstream.status).json(data);
   } catch(err) {
     if (lexwareId) {
       try {
         console.log('[Finance/Customers] link-to-lexware Exception-Fallback für', req.params.id);
-        await gasDirectLink(req.params.id, lexwareId);
-        return res.json({ success: true, fallback: true, lexware_id: lexwareId });
+        const r = await gasDirectLink(req.params.id, lexwareId);
+        return res.json({ success: true, fallback: true, lexware_id: lexwareId, ...r });
       } catch(dbErr) {
         console.error('[Finance/Customers] Fallback DB error:', dbErr.message);
         return res.status(500).json({ error: 'Verknüpfung fehlgeschlagen: ' + dbErr.message });
