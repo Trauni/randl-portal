@@ -6,6 +6,7 @@
  *   node scripts/kunden-duplikate-pruefen.js                   Übersicht und Listen als Text
  *   node scripts/kunden-duplikate-pruefen.js --name mustermann   zusätzlich alle Einträge zu einem Namen
  *   node scripts/kunden-duplikate-pruefen.js --name a,b,c --kurz mehrere Namen, nur deren Treffer ohne die Listen
+ *   node scripts/kunden-duplikate-pruefen.js --empfaenger         nur: letzte SER-Importe und alle Kunden mit Empfänger (ohne Lexware)
  *   node scripts/kunden-duplikate-pruefen.js --csv <Ordner>    Listen als CSV-Dateien (für Excel), Ordner wird angelegt
  * Die CSV-Dateien enthalten Kundennamen und Adressen: nicht ins Repo legen.
  *
@@ -160,7 +161,28 @@ async function korrigiere(ab, kunden) {
   }
 }
 
+// Letzte SER-Importe (überschreiben Name2/Name3/Empfänger) und alle gesetzten Empfänger
+async function empfaengerBericht() {
+  const pool = gasPool();
+  try {
+    try {
+      const { rows } = await pool.query('SELECT created_at, filename, imported, updated FROM import_logs ORDER BY created_at DESC LIMIT 5');
+      abschnitt('Letzte SER-Importe (FVK)', rows.map((r) => `    ${new Date(r.created_at).toLocaleString('de-DE')} | ${r.filename || '—'} | neu ${r.imported} | aktualisiert ${r.updated}`));
+    } catch (err) {
+      console.log(`\nSER-Importe nicht lesbar: ${err.message}`);
+    }
+    const { rows } = await pool.query(
+      `SELECT COALESCE(company_name, name) AS name, name_empfaenger, lexware_customer_number, customer_number, updated_at
+         FROM customers WHERE COALESCE(TRIM(name_empfaenger), '') NOT IN ('', '.') ORDER BY updated_at DESC NULLS LAST`);
+    abschnitt('Kunden mit Empfänger (zuletzt geändert zuerst)', rows.map((r) =>
+      `    ${r.updated_at ? new Date(r.updated_at).toLocaleString('de-DE') : '—'} | ${r.name} | Empfänger: ${r.name_empfaenger} | Lexware ${r.lexware_customer_number || '—'} | SER ${r.customer_number || '—'}`));
+  } finally {
+    await pool.end();
+  }
+}
+
 async function main() {
+  if (process.argv.includes('--empfaenger')) return empfaengerBericht();
   const [kontakte, kunden] = [await ladeLexware(), await ladeShop()];
   await markiereAusgeblendet(kunden);
   const proKontakt = new Map();
